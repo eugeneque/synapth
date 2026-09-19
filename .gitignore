@@ -1,0 +1,17 @@
+*.log
+.DS_Store
+.env
+.env.*.local
+.env.local
+.next/
+.vercel
+build/
+data/
+dist/
+next-env.d.ts
+node_modules/
+out/
+prisma/*.db
+prisma/*.db-journal
+tsconfig.tsbuildinfo
+.test-catalog.json
