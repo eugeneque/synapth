@@ -15,9 +15,9 @@ const TONE: Record<NonNullable<Line["tone"]>, string> = {
 };
 
 /** Faux terminal window: traffic lights, title, mono lines, optional copy strip. */
-export function TerminalCard({ title, lines, copy, className, footer }: { title: string; lines: Line[]; copy?: string; className?: string; footer?: ReactNode }) {
+export function TerminalCard({ title, lines, copy, copyLabel = "Copy install command", className, footer }: { title: string; lines: Line[]; copy?: string; copyLabel?: string; className?: string; footer?: ReactNode }) {
   return (
-    <div className={cn("border border-border bg-card", className)}>
+    <div className={cn("overflow-hidden rounded-xl border border-border bg-card", className)}>
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-danger/80" />
@@ -36,7 +36,7 @@ export function TerminalCard({ title, lines, copy, className, footer }: { title:
       {(copy || footer) && (
         <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-low/60 px-4 py-2">
           {footer ?? <span />}
-          {copy && <CopyButton text={copy} label="Copy install command" />}
+          {copy && <CopyButton text={copy} label={copyLabel} />}
         </div>
       )}
     </div>

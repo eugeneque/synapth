@@ -22,7 +22,7 @@ interface Props {
 /** Bordered surface with a recessed mono title strip. The building block of every page. */
 export function Panel({ title, meta, actions, icon, corners = false, className, bodyClassName, footer, id, children }: Props) {
   return (
-    <section id={id} className={cn("group relative flex flex-col border border-border bg-card", className)}>
+    <section id={id} className={cn("group relative flex flex-col rounded-xl border border-border bg-card", className)}>
       {corners && <Corners hover />}
       {(title || actions) && (
         <header className="panel-head">
@@ -34,8 +34,8 @@ export function Panel({ title, meta, actions, icon, corners = false, className, 
           {actions}
         </header>
       )}
-      <div className={cn("flex-1", bodyClassName)}>{children}</div>
-      {footer && <footer className="label-mono-sm flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface-low/60 px-4 py-2">{footer}</footer>}
+      <div className={cn("flex-1 overflow-hidden", !(title || actions) && "rounded-t-[inherit]", !footer && "rounded-b-[inherit]", bodyClassName)}>{children}</div>
+      {footer && <footer className="label-mono-sm flex flex-wrap items-center justify-between gap-2 rounded-b-[inherit] border-t border-border bg-surface-low/60 px-4 py-2">{footer}</footer>}
     </section>
   );
 }

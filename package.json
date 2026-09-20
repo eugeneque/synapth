@@ -2,7 +2,7 @@
   "name": "synapth",
   "version": "0.1.0",
   "private": true,
-  "description": "Synapth — the Modrinth for AI. Marketplace for agent skills, tools and MCP servers.",
+  "description": "Synapth — marketplace for agent skills, tools and MCP servers.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

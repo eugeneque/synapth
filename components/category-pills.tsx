@@ -1,7 +1,7 @@
 "use client";
 
+import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
-import { CATEGORY_META } from "@/components/category-icon";
 import { SKILL_CATEGORIES, type SkillCategory } from "@/types/skill";
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 
 /** Category segment row: uppercase mono buttons, the active one on a raised surface (design.md §6). */
 export function CategoryPills({ value, onChange, counts, total }: Props) {
+  const { t } = useI18n();
   const item = (label: string, active: boolean, onClick: () => void, hint?: string, count?: number) => (
     <button
       key={label}
@@ -32,8 +33,8 @@ export function CategoryPills({ value, onChange, counts, total }: Props) {
 
   return (
     <div className="no-scrollbar flex items-center gap-1 overflow-x-auto sm:gap-2">
-      {item("All", value === null, () => onChange(null), undefined, total)}
-      {SKILL_CATEGORIES.map((c) => item(CATEGORY_META[c].hint.replace("Model Context Protocol servers", "MCP servers").replace("System prompt modifications", "Prompts").replace("Callable HTTP tools", "Tools"), value === c, () => onChange(value === c ? null : c), CATEGORY_META[c].hint, counts?.[c]))}
+      {item(t("category.all"), value === null, () => onChange(null), undefined, total)}
+      {SKILL_CATEGORIES.map((c) => item(t(`category.${c}.label`), value === c, () => onChange(value === c ? null : c), t(`category.${c}.hint`), counts?.[c]))}
     </div>
   );
 }

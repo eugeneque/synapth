@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { X, Hash, AtSign, Sparkles, Puzzle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { axon } from "@/axon/client";
+import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
 import type { Suggestion } from "@/cortex/search";
 
@@ -19,6 +20,7 @@ const ICON: Record<Suggestion["type"], typeof Hash> = { skill: Puzzle, term: Spa
 /** Terminal-style search line: `>` prompt, `/` hotkey hint, type-ahead from Cortex (`/api/v1/search?suggest=1`). */
 export function SearchBar({ value, onChange, autoFocus }: Props) {
   const router = useRouter();
+  const { t } = useI18n();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -59,6 +61,7 @@ export function SearchBar({ value, onChange, autoFocus }: Props) {
     <div ref={box} className="group relative">
       <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-mono text-sm font-semibold text-synapse">&gt;</span>
       <Input
+        id="registry-search"
         value={value}
         autoFocus={autoFocus}
         onChange={(e) => {
@@ -81,18 +84,18 @@ export function SearchBar({ value, onChange, autoFocus }: Props) {
             setOpen(false);
           }
         }}
-        placeholder="Search skills, e.g. 'postgres category:MCP is:verified stars:>100'…"
+        placeholder={t("search.placeholder")}
         className="h-12 border-border bg-surface-low pl-9 pr-32 font-mono text-[13px] placeholder:text-muted-foreground/60 focus-visible:bg-surface-high/60 focus-visible:ring-0"
-        aria-label="Search skills"
+        aria-label={t("search.aria")}
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={open && suggestions.length > 0}
         aria-controls="search-suggestions"
       />
       <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
-        <span className="label-mono-sm hidden rounded-md bg-surface-highest px-1.5 py-0.5 normal-case sm:inline-flex">{value ? "live" : "press / to focus"}</span>
+        <span className="label-mono-sm hidden rounded-md bg-surface-highest px-1.5 py-0.5 normal-case sm:inline-flex">{value ? t("search.live") : t("search.pressSlash")}</span>
         {value && (
-          <button type="button" onClick={() => onChange("")} aria-label="Clear search" className="text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={() => onChange("")} aria-label={t("search.clear")} className="text-muted-foreground hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         )}
@@ -117,7 +120,7 @@ export function SearchBar({ value, onChange, autoFocus }: Props) {
                 <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                 <span>{s.text}</span>
                 {typeof s.count === "number" && <span className="ml-auto text-muted-foreground">{s.count}</span>}
-                {s.type === "skill" && <span className="ml-auto text-muted-foreground">open ↵</span>}
+                {s.type === "skill" && <span className="ml-auto text-muted-foreground">{t("search.open")}</span>}
               </li>
             );
           })}

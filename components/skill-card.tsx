@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { Download, Star, Terminal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +8,8 @@ import { SecurityBadge } from "@/components/security-badge";
 import { CategoryIcon } from "@/components/category-icon";
 import { InstallButton } from "@/components/install-button";
 import { Highlighted } from "@/components/highlighted";
-import { cn, formatCompact, formatUsd, timeAgo } from "@/lib/utils";
+import { useI18n } from "@/axon/i18n";
+import { cn, formatCompact, timeAgo } from "@/lib/utils";
 import type { Highlight } from "@/cortex/search";
 import type { Skill } from "@/types/skill";
 
@@ -19,6 +22,8 @@ interface Props {
 }
 
 export function SkillCard({ skill, highlights, layout = "grid" }: Props) {
+  const i18n = useI18n();
+  const { t } = i18n;
   const hl = (field: Highlight["field"]) => highlights?.find((h) => h.field === field);
   const name = hl("name");
   const description = hl("description");
@@ -27,13 +32,13 @@ export function SkillCard({ skill, highlights, layout = "grid" }: Props) {
   const list = layout === "list";
 
   return (
-    <article className={cn("group relative flex border border-border bg-card transition-colors duration-150 hover:border-foreground/30", list ? "flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-5" : "flex-col")}>
+    <article className={cn("group relative flex rounded-xl border border-border bg-card transition-colors duration-150 hover:border-foreground/30", list ? "flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-5" : "flex-col")}>
       <Corners hover />
 
       <div className={cn("flex flex-col gap-3", list ? "min-w-0 flex-1" : "p-5")}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-surface text-synapse">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-synapse">
               <CategoryIcon category={skill.category} className="h-[18px] w-[18px]" />
             </div>
             <div className="min-w-0">
@@ -44,15 +49,15 @@ export function SkillCard({ skill, highlights, layout = "grid" }: Props) {
                 <SecurityBadge level={skill.securityLevel} className="shrink-0" />
               </div>
               <p className="label-mono-sm mt-1 truncate normal-case tracking-normal">
-                by {skill.authorName} • v{skill.version}
+                {t("card.by", { author: skill.authorName, version: skill.version })}
                 {skill.source?.language && <> • {skill.source.language}</>}
               </p>
             </div>
           </div>
           {!list && (
             <div className="flex shrink-0 flex-col items-end">
-              <span className={cn("font-mono text-xs font-medium", skill.pricePerCall === 0 ? "text-synapse" : "text-foreground")}>{skill.pricePerCall === 0 ? "Free" : `${formatUsd(skill.pricePerCall)}/call`}</span>
-              <span className="label-mono-sm">{skill.pricePerCall === 0 ? (license ?? "open source") : "microescrow"}</span>
+              <span className="font-mono text-xs font-medium text-synapse">{t("common.free")}</span>
+              <span className="label-mono-sm">{license ?? t("card.openSource")}</span>
             </div>
           )}
         </div>
@@ -82,21 +87,21 @@ export function SkillCard({ skill, highlights, layout = "grid" }: Props) {
       {/* Footer strip; z-10 lifts the buttons above the card-wide link overlay. */}
       <div className={cn("relative z-10 flex items-center justify-between gap-3", list ? "shrink-0 sm:w-auto" : "border-t border-border bg-surface-low/40 px-5 py-3")}>
         <div className="label-mono-sm flex items-center gap-4">
-          <span className="inline-flex items-center gap-1" title="Installs">
+          <span className="inline-flex items-center gap-1" title={t("card.installs")}>
             <Download className="h-3.5 w-3.5" /> {formatCompact(skill.downloadsCount)}
           </span>
-          <span className="inline-flex items-center gap-1" title="GitHub stars">
+          <span className="inline-flex items-center gap-1" title={t("card.stars")}>
             <Star className="h-3.5 w-3.5" /> {formatCompact(skill.githubStars)}
           </span>
-          <span className="hidden text-synapse sm:inline-flex" title="Last update">
-            {timeAgo(skill.source?.pushedAt ?? skill.updatedAt)}
+          <span className="hidden whitespace-nowrap text-synapse sm:inline-flex" title={t("card.lastUpdate")}>
+            {timeAgo(skill.source?.pushedAt ?? skill.updatedAt, i18n)}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/skills/${skill.slug}`} aria-label="Open skill page" className="flex h-8 w-8 items-center justify-center border border-border bg-surface text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
+          <Link href={`/skills/${skill.slug}`} aria-label={t("card.open")} className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
             <Terminal className="h-4 w-4" />
           </Link>
-          <InstallButton skill={skill} size="sm" className="h-8 font-mono text-[11px] uppercase tracking-[0.1em]" />
+          <InstallButton skill={skill} size="sm" label={t("card.install")} className="h-8 font-mono text-[11px] uppercase tracking-[0.1em]" />
         </div>
       </div>
     </article>

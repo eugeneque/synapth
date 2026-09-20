@@ -1,6 +1,7 @@
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
+import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { compare } from "bcryptjs";
 import { z } from "zod";
@@ -31,6 +32,11 @@ export const authConfig: NextAuthConfig = {
       clientSecret: process.env.AUTH_GITHUB_SECRET,
       allowDangerousEmailAccountLinking: false,
     }),
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      allowDangerousEmailAccountLinking: false,
+    }),
     Credentials({
       name: "Email & password",
       credentials: {
@@ -59,11 +65,16 @@ export const authConfig: NextAuthConfig = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.role = user.role ?? "user";
         token.handle = user.handle ?? null;
+      }
+      // `updateSession()` after a profile edit: keep the header's name/handle in sync without a re-login.
+      if (trigger === "update" && session?.user) {
+        if (typeof session.user.name === "string") token.name = session.user.name;
+        if (typeof session.user.handle === "string") token.handle = session.user.handle;
       }
       return token;
     },
@@ -83,7 +94,15 @@ export const authConfig: NextAuthConfig = {
   trustHost: true,
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth(authConfig);
+
+/** Which OAuth buttons the auth gate may enable: a provider without credentials would only 500 on click. */
+export function oauthProviders() {
+  return {
+    github: Boolean(process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET),
+    google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
+  };
+}
 
 /** Helper for route handlers: returns the session user or throws a 401-shaped error. */
 export async function requireUser() {

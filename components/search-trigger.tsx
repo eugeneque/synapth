@@ -3,13 +3,15 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
+import { useI18n } from "@/axon/i18n";
 
 /** Header search affordance: focuses the registry search line, or jumps to /explore. ⌘K / Ctrl+K does the same. */
 export function SearchTrigger() {
   const router = useRouter();
+  const { t } = useI18n();
 
   const open = () => {
-    const input = document.querySelector<HTMLInputElement>('input[aria-label="Search skills"]');
+    const input = document.getElementById("registry-search") as HTMLInputElement | null;
     if (input) {
       input.focus();
       input.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -34,11 +36,11 @@ export function SearchTrigger() {
     <button
       type="button"
       onClick={open}
-      aria-label="Search the registry"
+      aria-label={t("header.searchAria")}
       className="flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-surface-low px-2.5 text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
     >
       <Search className="h-4 w-4" />
-      <span className="hidden font-mono text-xs 2xl:inline">Search registry…</span>
+      <span className="hidden font-mono text-xs 2xl:inline">{t("header.searchPlaceholder")}</span>
       <kbd className="label-mono-sm rounded-md border border-border bg-surface-high px-1.5 py-0.5 normal-case text-muted-foreground">⌘K</kbd>
     </button>
   );

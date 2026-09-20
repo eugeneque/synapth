@@ -17,7 +17,7 @@ export interface MemoryUser {
   passwordHash: string;
 }
 
-export const memoryUsers: MemoryUser[] = [
+const seedUsers: MemoryUser[] = [
   {
     id: "usr_demo",
     name: "Demo Creator",
@@ -31,6 +31,14 @@ export const memoryUsers: MemoryUser[] = [
   { id: "usr_nimbus", name: "Nimbus Tools", email: "hi@nimbus.tools", handle: "nimbus", image: null, role: "creator", passwordHash: "" },
   { id: "usr_kite", name: "kite", email: "kite@example.com", handle: "kite", image: null, role: "user", passwordHash: "" },
 ];
+
+/**
+ * The in-memory user table. Pinned to `globalThis` like the other singletons:
+ * dev bundles each route separately, so a module-level array would give
+ * sign-in, settings and the profile page three diverging copies.
+ */
+const g = globalThis as unknown as { __synapthUsers_v1?: MemoryUser[] };
+export const memoryUsers: MemoryUser[] = g.__synapthUsers_v1 ?? (g.__synapthUsers_v1 = seedUsers);
 
 const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
 
@@ -115,7 +123,7 @@ const browserManifest: SkillManifest = {
 const weatherManifest: SkillManifest = {
   schemaVersion: 1,
   name: "Weather Now",
-  description: "Current conditions and 3-day forecast by city. Pay-per-call HTTP tool.",
+  description: "Current conditions and 3-day forecast by city over HTTP.",
   category: "Tool",
   tools: [
     {
@@ -180,7 +188,7 @@ const summariserManifest: SkillManifest = {
 const embedManifest: SkillManifest = {
   schemaVersion: 1,
   name: "Semantic Search",
-  description: "Embed and search your documents. Pay-per-call, no infra to run.",
+  description: "Embed and search your documents. No infra to run.",
   category: "Tool",
   tools: [
     { name: "semantic_index", description: "Index a document.", parameters: { type: "object", properties: { id: { type: "string" }, text: { type: "string" } }, required: ["id", "text"] } },
@@ -398,4 +406,41 @@ export const seedSkills: Skill[] = [
     createdAt: daysAgo(2),
     updatedAt: daysAgo(1),
   },
+];
+
+// ---------------------------------------------------------------------------
+// Social layer demo rows (in-memory store only; `prisma db seed` skips them).
+// Shapes mirror the private row types in cortex/social.ts / cortex/notifications.ts.
+// ---------------------------------------------------------------------------
+
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+
+export const seedPosts = [
+  { id: "post_acme_1", authorId: "usr_acme", body: "Postgres MCP v1.4.2 is out: EXPLAIN is now allowed in read-only mode and the row cap is enforced server-side. Would love feedback from anyone running it under Claude Code.", createdAt: hoursAgo(5) },
+  { id: "post_nimbus_1", authorId: "usr_nimbus", body: "Headless Browser: `browser_read` now strips nav chrome before returning text — about 40% fewer tokens per page in our benchmarks.", createdAt: hoursAgo(30) },
+  { id: "post_demo_1", authorId: "usr_demo", body: "Trying the new profile pages. Send an impulse to say hi 👋", createdAt: hoursAgo(50) },
+];
+
+export const seedComments = [
+  { id: "cmt_1", authorId: "usr_kite", targetKind: "post" as const, targetId: "post_demo_1", body: "Looks great — the cover upload works on mobile too.", createdAt: hoursAgo(48) },
+  { id: "cmt_2", authorId: "usr_demo", targetKind: "post" as const, targetId: "post_acme_1", body: "Does EXPLAIN ANALYZE count as a write? Asking for a sandbox.", createdAt: hoursAgo(4) },
+  { id: "cmt_3", authorId: "usr_kite", targetKind: "skill" as const, targetId: "skl_postgres", body: "Ran the scan locally: 0 findings on 1.4.2. Nice.", createdAt: hoursAgo(3) },
+];
+
+export const seedImpulses = [
+  { fromId: "usr_acme", toId: "usr_demo", createdAt: hoursAgo(2) },
+  { fromId: "usr_kite", toId: "usr_demo", createdAt: hoursAgo(47) },
+  { fromId: "usr_nimbus", toId: "usr_acme", createdAt: hoursAgo(20) },
+];
+
+export const seedWatches = [
+  { userId: "usr_demo", skillId: "skl_postgres", createdAt: hoursAgo(60) },
+  { userId: "usr_demo", skillId: "skl_browser", createdAt: hoursAgo(59) },
+];
+
+export const seedNotifications = [
+  { id: "ntf_seed_1", userId: "usr_demo", kind: "impulse" as const, actorId: "usr_acme", subject: { kind: "impulse" as const, total: 2 }, readAt: null, createdAt: hoursAgo(2) },
+  { id: "ntf_seed_2", userId: "usr_demo", kind: "skill.updated" as const, actorId: null, subject: { kind: "skill.updated" as const, skillId: "skl_postgres", slug: "acme-postgres-mcp", skillName: "Postgres MCP", version: "1.4.2", previousVersion: "1.4.1", verified: true }, readAt: null, createdAt: hoursAgo(6) },
+  { id: "ntf_seed_3", userId: "usr_demo", kind: "impulse" as const, actorId: "usr_kite", subject: { kind: "impulse" as const, total: 1 }, readAt: hoursAgo(40), createdAt: hoursAgo(47) },
+  { id: "ntf_seed_4", userId: "usr_demo", kind: "comment.post" as const, actorId: "usr_kite", subject: { kind: "comment.post" as const, postId: "post_demo_1", commentId: "cmt_1", excerpt: "Looks great — the cover upload works on mobile too." }, readAt: hoursAgo(40), createdAt: hoursAgo(48) },
 ];

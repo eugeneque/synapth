@@ -2,25 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
 
 export const NAV = [
-  { label: "Overview", href: "/", match: (p: string) => p === "/" },
-  { label: "Explore registry", href: "/explore", match: (p: string) => p.startsWith("/explore") || p.startsWith("/skills") || p.startsWith("/authors") },
-  { label: "Docs", href: "/faq", match: (p: string) => p.startsWith("/faq") },
-  { label: "Developer console", href: "/dashboard", match: (p: string) => p.startsWith("/dashboard") },
+  { key: "nav.overview", href: "/", match: (p: string) => p === "/" },
+  { key: "nav.explore", href: "/explore", match: (p: string) => p.startsWith("/explore") || p.startsWith("/skills") || p.startsWith("/authors") },
+  { key: "nav.docs", href: "/faq", match: (p: string) => p.startsWith("/faq") },
+  { key: "nav.console", href: "/dashboard", match: (p: string) => p.startsWith("/dashboard") },
 ] as const;
 
 /** Header navigation: mono uppercase labels, a 2px synapse rule under the active section. */
 export function NavLinks({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
   const pathname = usePathname() ?? "/";
+  const { t } = useI18n();
   return (
-    <nav className={className} aria-label="Primary">
+    <nav className={className} aria-label={t("nav.primary")}>
       {NAV.map((n) => {
         const active = n.match(pathname);
         return (
           <Link key={n.href} href={n.href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={cn("tab-line h-16", active && "text-foreground after:bg-synapse")}>
-            {n.label}
+            {t(n.key)}
           </Link>
         );
       })}

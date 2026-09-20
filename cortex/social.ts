@@ -1,0 +1,356 @@
+/**
+ * Cortex · Social layer
+ *
+ * Impulses (one developer fires an impulse at another — Synapth's like),
+ * posts on the profile page, comments on posts and catalogue entries, and
+ * skill watches. Every mutation that concerns someone else drops a row into
+ * `cortex/notifications.ts`. Dual store: Prisma with `DATABASE_URL`, four
+ * arrays on `globalThis` otherwise.
+ *
+ * Deliberately independent of `cortex/repository.ts` (which calls
+ * `notifySkillUpdated` on version bumps), so callers hand over the skill
+ * facts a notification needs instead of this module looking them up.
+ */
+
+import { z } from "zod";
+import { prisma, hasDatabase } from "@/cortex/db";
+import { getAuthorRefs } from "@/cortex/account";
+import { seedComments, seedImpulses, seedPosts, seedWatches } from "@/cortex/seed";
+import { hasRecent, notify, notifyMany } from "@/cortex/notifications";
+import { COMMENT_MAX_LENGTH, POST_MAX_LENGTH, type AuthorRef, type Comment, type CommentTargetKind, type Impulse, type Post, type SkillWatch } from "@/types/social";
+
+export const postBodySchema = z.string().trim().min(1).max(POST_MAX_LENGTH);
+export const commentBodySchema = z.string().trim().min(1).max(COMMENT_MAX_LENGTH);
+
+export class SelfImpulseError extends Error {
+  status = 400 as const;
+  constructor() {
+    super("You cannot send an impulse to yourself");
+    this.name = "SelfImpulseError";
+  }
+}
+
+export class ForbiddenError extends Error {
+  status = 403 as const;
+  constructor(message = "Not allowed") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
+export class NotFoundError extends Error {
+  status = 404 as const;
+  constructor(message = "Not found") {
+    super(message);
+    this.name = "NotFoundError";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// In-memory rows (author ids only; `AuthorRef`s are attached on read)
+// ---------------------------------------------------------------------------
+
+interface PostRow {
+  id: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+}
+interface CommentRow {
+  id: string;
+  authorId: string;
+  targetKind: CommentTargetKind;
+  targetId: string;
+  body: string;
+  createdAt: string;
+}
+interface MemoryStore {
+  impulses: Impulse[];
+  posts: PostRow[];
+  comments: CommentRow[];
+  watches: SkillWatch[];
+}
+
+const g = globalThis as unknown as { __synapthSocial_v1?: MemoryStore };
+const mem: MemoryStore = g.__synapthSocial_v1 ?? (g.__synapthSocial_v1 = { impulses: [...seedImpulses], posts: [...seedPosts], comments: [...seedComments], watches: [...seedWatches] });
+
+const newId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+const now = () => new Date().toISOString();
+
+const unknownAuthor = (id: string): AuthorRef => ({ id, name: "Unknown", handle: id, image: null, occupation: null });
+
+async function attachAuthors<T extends { authorId: string }>(list: T[]): Promise<Map<string, AuthorRef>> {
+  return getAuthorRefs(list.map((r) => r.authorId));
+}
+
+// ---------------------------------------------------------------------------
+// Impulses
+// ---------------------------------------------------------------------------
+
+export interface ImpulseSummary {
+  total: number;
+  /** Whether `viewerId` has an active impulse on this user. */
+  active: boolean;
+}
+
+export async function impulseSummary(userId: string, viewerId?: string | null): Promise<ImpulseSummary> {
+  if (!hasDatabase) {
+    const mine = mem.impulses.filter((i) => i.toId === userId);
+    return { total: mine.length, active: Boolean(viewerId) && mine.some((i) => i.fromId === viewerId) };
+  }
+  const [total, active] = await Promise.all([
+    prisma.impulse.count({ where: { toId: userId } }),
+    viewerId ? prisma.impulse.findUnique({ where: { fromId_toId: { fromId: viewerId, toId: userId } }, select: { fromId: true } }) : Promise.resolve(null),
+  ]);
+  return { total, active: Boolean(active) };
+}
+
+/** Re-firing within this window after a withdrawal does not ping the receiver again. */
+const IMPULSE_NOTIFY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** Fires or withdraws an impulse. Firing notifies the receiver with the running total (once per day per sender). */
+export async function toggleImpulse(fromId: string, toId: string): Promise<ImpulseSummary> {
+  if (fromId === toId) throw new SelfImpulseError();
+  let activated = false;
+  if (!hasDatabase) {
+    const i = mem.impulses.findIndex((x) => x.fromId === fromId && x.toId === toId);
+    if (i >= 0) mem.impulses.splice(i, 1);
+    else {
+      mem.impulses.push({ fromId, toId, createdAt: now() });
+      activated = true;
+    }
+  } else {
+    const existing = await prisma.impulse.findUnique({ where: { fromId_toId: { fromId, toId } } });
+    if (existing) await prisma.impulse.delete({ where: { fromId_toId: { fromId, toId } } });
+    else {
+      await prisma.impulse.create({ data: { fromId, toId } });
+      activated = true;
+    }
+  }
+  const summary = await impulseSummary(toId, fromId);
+  if (activated && !(await hasRecent(toId, "impulse", fromId, IMPULSE_NOTIFY_WINDOW_MS))) await notify({ userId: toId, kind: "impulse", actorId: fromId, subject: { kind: "impulse", total: summary.total } });
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Posts
+// ---------------------------------------------------------------------------
+
+async function hydratePosts(list: PostRow[]): Promise<Post[]> {
+  const authors = await attachAuthors(list);
+  const counts = await commentCounts("post", list.map((p) => p.id));
+  return list.map((p) => ({ id: p.id, author: authors.get(p.authorId) ?? unknownAuthor(p.authorId), body: p.body, commentCount: counts.get(p.id) ?? 0, createdAt: p.createdAt }));
+}
+
+export async function createPost(authorId: string, rawBody: string): Promise<Post> {
+  const body = postBodySchema.parse(rawBody);
+  if (!hasDatabase) {
+    const row: PostRow = { id: newId("post"), authorId, body, createdAt: now() };
+    mem.posts.unshift(row);
+    return (await hydratePosts([row]))[0];
+  }
+  const row = await prisma.post.create({ data: { authorId, body } });
+  return (await hydratePosts([{ id: row.id, authorId: row.authorId, body: row.body, createdAt: row.createdAt.toISOString() }]))[0];
+}
+
+export async function getPost(id: string): Promise<Post | null> {
+  if (!hasDatabase) {
+    const row = mem.posts.find((p) => p.id === id);
+    return row ? (await hydratePosts([row]))[0] : null;
+  }
+  const row = await prisma.post.findUnique({ where: { id } });
+  return row ? (await hydratePosts([{ id: row.id, authorId: row.authorId, body: row.body, createdAt: row.createdAt.toISOString() }]))[0] : null;
+}
+
+/** Newest first. */
+export async function listPosts(authorId: string, limit = 20): Promise<Post[]> {
+  if (!hasDatabase) {
+    return hydratePosts(mem.posts.filter((p) => p.authorId === authorId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit));
+  }
+  const rows = await prisma.post.findMany({ where: { authorId }, orderBy: { createdAt: "desc" }, take: limit });
+  return hydratePosts(rows.map((r) => ({ id: r.id, authorId: r.authorId, body: r.body, createdAt: r.createdAt.toISOString() })));
+}
+
+/** Authors delete their own posts; the post's comments go with it. */
+export async function deletePost(userId: string, postId: string): Promise<void> {
+  if (!hasDatabase) {
+    const i = mem.posts.findIndex((p) => p.id === postId);
+    if (i < 0) throw new NotFoundError("Post not found");
+    if (mem.posts[i].authorId !== userId) throw new ForbiddenError();
+    mem.posts.splice(i, 1);
+    mem.comments = mem.comments.filter((c) => !(c.targetKind === "post" && c.targetId === postId));
+    return;
+  }
+  const row = await prisma.post.findUnique({ where: { id: postId }, select: { authorId: true } });
+  if (!row) throw new NotFoundError("Post not found");
+  if (row.authorId !== userId) throw new ForbiddenError();
+  await prisma.$transaction([prisma.comment.deleteMany({ where: { targetKind: "post", targetId: postId } }), prisma.post.delete({ where: { id: postId } })]);
+}
+
+// ---------------------------------------------------------------------------
+// Comments
+// ---------------------------------------------------------------------------
+
+/** Where a comment lands. Skill targets carry what the owner's notification needs. */
+export type CommentTargetRef = { kind: "post"; id: string } | { kind: "skill"; id: string; ownerId: string; slug: string; name: string };
+
+async function hydrateComments(list: CommentRow[]): Promise<Comment[]> {
+  const authors = await attachAuthors(list);
+  return list.map((c) => ({ id: c.id, author: authors.get(c.authorId) ?? unknownAuthor(c.authorId), targetKind: c.targetKind, targetId: c.targetId, body: c.body, createdAt: c.createdAt }));
+}
+
+const excerpt = (body: string) => (body.length > 140 ? `${body.slice(0, 137).trimEnd()}…` : body);
+
+export async function addComment(authorId: string, target: CommentTargetRef, rawBody: string): Promise<Comment> {
+  const body = commentBodySchema.parse(rawBody);
+  let ownerId: string;
+  if (target.kind === "post") {
+    const post = await getPost(target.id);
+    if (!post) throw new NotFoundError("Post not found");
+    ownerId = post.author.id;
+  } else ownerId = target.ownerId;
+
+  let row: CommentRow;
+  if (!hasDatabase) {
+    row = { id: newId("cmt"), authorId, targetKind: target.kind, targetId: target.id, body, createdAt: now() };
+    mem.comments.push(row);
+  } else {
+    const r = await prisma.comment.create({ data: { authorId, targetKind: target.kind, targetId: target.id, body } });
+    row = { id: r.id, authorId: r.authorId, targetKind: r.targetKind, targetId: r.targetId, body: r.body, createdAt: r.createdAt.toISOString() };
+  }
+
+  if (target.kind === "post") await notify({ userId: ownerId, kind: "comment.post", actorId: authorId, subject: { kind: "comment.post", postId: target.id, commentId: row.id, excerpt: excerpt(body) } });
+  else await notify({ userId: ownerId, kind: "comment.skill", actorId: authorId, subject: { kind: "comment.skill", skillId: target.id, slug: target.slug, skillName: target.name, commentId: row.id, excerpt: excerpt(body) } });
+  return (await hydrateComments([row]))[0];
+}
+
+/** Oldest first, like a thread. */
+export async function listComments(kind: CommentTargetKind, targetId: string, limit = 100): Promise<Comment[]> {
+  if (!hasDatabase) return hydrateComments(mem.comments.filter((c) => c.targetKind === kind && c.targetId === targetId).slice(-limit));
+  const rows = await prisma.comment.findMany({ where: { targetKind: kind, targetId }, orderBy: { createdAt: "asc" }, take: limit });
+  return hydrateComments(rows.map((r) => ({ id: r.id, authorId: r.authorId, targetKind: r.targetKind, targetId: r.targetId, body: r.body, createdAt: r.createdAt.toISOString() })));
+}
+
+export async function commentCounts(kind: CommentTargetKind, targetIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!targetIds.length) return out;
+  if (!hasDatabase) {
+    for (const c of mem.comments) if (c.targetKind === kind && targetIds.includes(c.targetId)) out.set(c.targetId, (out.get(c.targetId) ?? 0) + 1);
+    return out;
+  }
+  const grouped = await prisma.comment.groupBy({ by: ["targetId"], where: { targetKind: kind, targetId: { in: targetIds } }, _count: { _all: true } });
+  for (const row of grouped) out.set(row.targetId, row._count._all);
+  return out;
+}
+
+/** Comment authors may delete their own comments. */
+export async function deleteComment(userId: string, commentId: string): Promise<void> {
+  if (!hasDatabase) {
+    const i = mem.comments.findIndex((c) => c.id === commentId);
+    if (i < 0) throw new NotFoundError("Comment not found");
+    if (mem.comments[i].authorId !== userId) throw new ForbiddenError();
+    mem.comments.splice(i, 1);
+    return;
+  }
+  const row = await prisma.comment.findUnique({ where: { id: commentId }, select: { authorId: true } });
+  if (!row) throw new NotFoundError("Comment not found");
+  if (row.authorId !== userId) throw new ForbiddenError();
+  await prisma.comment.delete({ where: { id: commentId } });
+}
+
+// ---------------------------------------------------------------------------
+// Watches ("Отслеживаемое")
+// ---------------------------------------------------------------------------
+
+export interface WatchSummary {
+  watchers: number;
+  watching: boolean;
+}
+
+export async function watchSummary(skillId: string, viewerId?: string | null): Promise<WatchSummary> {
+  if (!hasDatabase) {
+    const list = mem.watches.filter((w) => w.skillId === skillId);
+    return { watchers: list.length, watching: Boolean(viewerId) && list.some((w) => w.userId === viewerId) };
+  }
+  const [watchers, mine] = await Promise.all([
+    prisma.skillWatch.count({ where: { skillId } }),
+    viewerId ? prisma.skillWatch.findUnique({ where: { userId_skillId: { userId: viewerId, skillId } }, select: { userId: true } }) : Promise.resolve(null),
+  ]);
+  return { watchers, watching: Boolean(mine) };
+}
+
+export async function toggleWatch(userId: string, skillId: string): Promise<WatchSummary> {
+  if (!hasDatabase) {
+    const i = mem.watches.findIndex((w) => w.userId === userId && w.skillId === skillId);
+    if (i >= 0) mem.watches.splice(i, 1);
+    else mem.watches.push({ userId, skillId, createdAt: now() });
+  } else {
+    const existing = await prisma.skillWatch.findUnique({ where: { userId_skillId: { userId, skillId } } });
+    if (existing) await prisma.skillWatch.delete({ where: { userId_skillId: { userId, skillId } } });
+    else await prisma.skillWatch.create({ data: { userId, skillId } });
+  }
+  return watchSummary(skillId, userId);
+}
+
+/** Skill ids the user watches, most recently watched first. */
+export async function listWatched(userId: string): Promise<SkillWatch[]> {
+  if (!hasDatabase) return mem.watches.filter((w) => w.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const rows = await prisma.skillWatch.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
+  return rows.map((r) => ({ userId: r.userId, skillId: r.skillId, createdAt: r.createdAt.toISOString() }));
+}
+
+export async function watchersOf(skillId: string): Promise<string[]> {
+  if (!hasDatabase) return mem.watches.filter((w) => w.skillId === skillId).map((w) => w.userId);
+  return (await prisma.skillWatch.findMany({ where: { skillId }, select: { userId: true } })).map((r) => r.userId);
+}
+
+export interface SkillRelease {
+  id: string;
+  slug: string;
+  name: string;
+  version: string;
+  previousVersion: string | null;
+  verified: boolean;
+  authorId: string;
+}
+
+/** Called by the repository when a stored skill's version changes: every watcher except the author hears about it. */
+export async function notifySkillUpdated(release: SkillRelease): Promise<number> {
+  const watchers = (await watchersOf(release.id)).filter((id) => id !== release.authorId);
+  if (!watchers.length) return 0;
+  return notifyMany(watchers, {
+    kind: "skill.updated",
+    actorId: null,
+    subject: { kind: "skill.updated", skillId: release.id, slug: release.slug, skillName: release.name, version: release.version, previousVersion: release.previousVersion, verified: release.verified },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Signals for the badge engine
+// ---------------------------------------------------------------------------
+
+export async function socialSignals(userId: string): Promise<{ posts: number; comments: number; impulsesReceived: number; watching: number }> {
+  if (!hasDatabase) {
+    return {
+      posts: mem.posts.filter((p) => p.authorId === userId).length,
+      comments: mem.comments.filter((c) => c.authorId === userId).length,
+      impulsesReceived: mem.impulses.filter((i) => i.toId === userId).length,
+      watching: mem.watches.filter((w) => w.userId === userId).length,
+    };
+  }
+  const [posts, comments, impulsesReceived, watching] = await Promise.all([
+    prisma.post.count({ where: { authorId: userId } }),
+    prisma.comment.count({ where: { authorId: userId } }),
+    prisma.impulse.count({ where: { toId: userId } }),
+    prisma.skillWatch.count({ where: { userId } }),
+  ]);
+  return { posts, comments, impulsesReceived, watching };
+}
+
+/** Test helper for the in-memory store. */
+export function resetSocialForTests() {
+  mem.impulses.length = 0;
+  mem.posts.length = 0;
+  mem.comments.length = 0;
+  mem.watches.length = 0;
+}

@@ -10,6 +10,25 @@
       ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "synapth-dev-isolated",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "NEXT_DIST_DIR=.next-isolated npx next dev -p 3100"
+      ],
+      "port": 3100
+    },
+    {
+      "name": "synapth-dev-profile",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "NEXT_DIST_DIR=.next-profile npx next dev -p ${PORT:-3200}"
+      ],
+      "port": 3200,
+      "autoPort": true
     }
   ]
 }

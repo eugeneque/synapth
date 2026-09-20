@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 import type { Prisma } from "@prisma/client";
 import { prisma, hasDatabase } from "@/cortex/db";
 import { seedSkills, memoryUsers } from "@/cortex/seed";
+import { notifySkillUpdated } from "@/cortex/social";
 import { sortSkills } from "@/cortex/ranking";
 import { buildIndex, search, suggest, type SearchIndex, type SearchOptions, type SearchResult, type Suggestion } from "@/cortex/search";
 import { slugify } from "@/lib/utils";
@@ -94,6 +95,15 @@ export async function hydratePrompt(skill: Skill): Promise<Skill> {
   const full = await skillRepository.readme(skill.id);
   if (!full) return skill;
   return { ...skill, manifest: { ...skill.manifest, systemPrompt: full, systemPromptTruncated: false } };
+}
+
+/** Watchers of a skill are told about a version bump (`cortex/social.ts`); a failure here must not break the import. */
+async function announceRelease(skill: Pick<Skill, "id" | "slug" | "name" | "version" | "securityLevel" | "authorId">, previousVersion: string | null) {
+  try {
+    await notifySkillUpdated({ id: skill.id, slug: skill.slug, name: skill.name, version: skill.version, previousVersion, verified: skill.securityLevel === "Verified", authorId: skill.authorId });
+  } catch (err) {
+    console.error("[cortex] release notification failed", err);
+  }
 }
 
 function toSkill(input: SkillCreateInput, id: string, slug: string, authorId: string, authorName: string, securityLevel: SecurityLevel, existing?: Skill): Skill {
@@ -281,10 +291,12 @@ class FileSkillRepository implements SkillRepository {
       const base = input.slug ?? slugify(`${authorName}-${input.name}`);
       const existing = this.bySlugMap.get(base);
       if (existing) {
+        const previousVersion = existing.version;
         const next = toSkill(input, existing.id, existing.slug, authorId, authorName, securityLevel, existing);
         Object.assign(existing, next);
         this.storeReadme(existing.id, input.readme, input.manifest.systemPrompt);
         updated += 1;
+        if (previousVersion !== existing.version) await announceRelease(existing, previousVersion);
       } else {
         const skill = toSkill(input, `skl_${Math.random().toString(36).slice(2, 10)}`, base, authorId, authorName, securityLevel);
         this.storeReadme(skill.id, input.readme, input.manifest.systemPrompt);
@@ -379,7 +391,7 @@ class PrismaSkillRepository implements SkillRepository {
     for (const { input, authorId, authorName, securityLevel } of items) {
       const slug = input.slug ?? slugify(`${authorName}-${input.name}`);
       await prisma.user.upsert({ where: { id: authorId }, create: { id: authorId, name: authorName, handle: authorId.replace(/^gh:/, "gh-").toLowerCase(), role: "creator" }, update: {} });
-      const existing = await prisma.skill.findUnique({ where: { slug }, select: { id: true, securityLevel: true } });
+      const existing = await prisma.skill.findUnique({ where: { slug }, select: { id: true, securityLevel: true, version: true, name: true } });
       const data = {
         name: input.name,
         description: input.description,
@@ -394,8 +406,10 @@ class PrismaSkillRepository implements SkillRepository {
         readme: input.readme ?? null,
       };
       if (existing) {
-        await prisma.skill.update({ where: { id: existing.id }, data: { ...data, securityLevel: existing.securityLevel === "Verified" ? "Verified" : securityLevel } });
+        const level = existing.securityLevel === "Verified" ? "Verified" : securityLevel;
+        await prisma.skill.update({ where: { id: existing.id }, data: { ...data, securityLevel: level } });
         updated += 1;
+        if (existing.version !== input.version) await announceRelease({ id: existing.id, slug, name: input.name, version: input.version, securityLevel: level, authorId }, existing.version);
       } else {
         await prisma.skill.create({ data: { ...data, slug, authorId, securityLevel, priceMicros: usdToMicros(input.pricePerCall), stats: { create: {} }, versions: { create: { version: input.version, manifest: data.manifest } } } });
         created += 1;

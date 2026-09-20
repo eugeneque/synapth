@@ -29,6 +29,17 @@ model User {
   handle        String?   @unique
   passwordHash  String?
   role          UserRole  @default(user)
+  /// Public profile fields edited in /dashboard/settings. `image` (Auth.js) doubles as the
+  /// avatar: an OAuth URL or a `data:image/*` URL uploaded from settings, like `coverImage`.
+  bio           String?
+  organization  String?
+  website       String?
+  location      String?
+  /// One of `OCCUPATIONS` (types/profile.ts); null = not set.
+  occupation    String?
+  coverImage    String?
+  /// Preferred install target (`cursor` | `claude-desktop` | `claude-code` | `curl`); null = per-skill default.
+  defaultTarget String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -40,6 +51,13 @@ model User {
   apiKeys      ApiKey[]
   usageAsCaller UsageEvent[] @relation("UsageCaller")
   usageAsCreator UsageEvent[] @relation("UsageCreator")
+  impulsesSent     Impulse[]      @relation("ImpulseFrom")
+  impulsesReceived Impulse[]      @relation("ImpulseTo")
+  posts            Post[]
+  comments         Comment[]
+  watches          SkillWatch[]
+  notifications    Notification[] @relation("NotificationUser")
+  badges           UserBadge[]
 }
 
 model Account {
@@ -137,6 +155,7 @@ model Skill {
   scans     SecurityScan[]
   usage     UsageEvent[]
   stats     SkillStats?
+  watchers  SkillWatch[]
 
   @@index([category, securityLevel])
   @@index([createdAt])
@@ -271,4 +290,95 @@ model UsageEvent {
   @@index([skillId, createdAt])
   @@index([callerId, createdAt])
   @@index([creatorId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Social layer · impulses, posts, comments, watches, notifications, badges
+// (types/social.ts, types/badges.ts)
+// ---------------------------------------------------------------------------
+
+/// Synapth's "like": one impulse per (from, to) pair, withdrawn by deleting the row.
+model Impulse {
+  fromId    String
+  toId      String
+  createdAt DateTime @default(now())
+
+  from User @relation("ImpulseFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("ImpulseTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@id([fromId, toId])
+  @@index([toId, createdAt])
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId, createdAt])
+}
+
+enum CommentTargetKind {
+  post
+  skill
+}
+
+/// Polymorphic: `targetId` is a Post id or a Skill id depending on `targetKind`.
+model Comment {
+  id         String            @id @default(cuid())
+  authorId   String
+  targetKind CommentTargetKind
+  targetId   String
+  body       String
+  createdAt  DateTime          @default(now())
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([targetKind, targetId, createdAt])
+  @@index([authorId])
+}
+
+/// "Watched" skills: the user is notified when a new version lands.
+model SkillWatch {
+  userId    String
+  skillId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([userId, skillId])
+  @@index([skillId])
+}
+
+/// One of `NOTIFICATION_KINDS`; `subject` is the matching `NotificationSubject` JSON.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  kind      String
+  actorId   String?
+  subject   Json
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+/// Award rows only; the catalogue is `BADGES` in types/badges.ts.
+model UserBadge {
+  userId    String
+  badgeId   String
+  awardedAt DateTime @default(now())
+  grantedBy String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, badgeId])
 }

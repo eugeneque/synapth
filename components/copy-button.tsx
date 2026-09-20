@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -14,7 +15,10 @@ interface Props {
 }
 
 /** Copies `text` to the clipboard and flashes a mono "COPIED" confirmation. */
-export function CopyButton({ text, label = "Copy", doneLabel = "Copied", className, compact }: Props) {
+export function CopyButton({ text, label, doneLabel, className, compact }: Props) {
+  const { t } = useI18n();
+  label ??= t("common.copy");
+  doneLabel ??= t("common.copied");
   const [done, setDone] = useState(false);
   const copy = async () => {
     try {
@@ -41,6 +45,7 @@ export function CopyButton({ text, label = "Copy", doneLabel = "Copied", classNa
 
 /** `$ command` chip with a trailing copy glyph — the hero quick-start line. */
 export function CommandChip({ command, className }: { command: string; className?: string }) {
+  const { t } = useI18n();
   const [done, setDone] = useState(false);
   const copy = async () => {
     try {
@@ -56,7 +61,7 @@ export function CommandChip({ command, className }: { command: string; className
       <span className="select-none text-synapse">$</span>
       <span className="min-w-0 flex-1 truncate text-left sm:flex-none">{command}</span>
       {done ? <Check className="h-4 w-4 shrink-0 text-synapse" /> : <Copy className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />}
-      <span className={cn("label-mono-sm text-synapse transition-opacity", done ? "opacity-100" : "hidden")}>Copied</span>
+      <span className={cn("label-mono-sm text-synapse transition-opacity", done ? "opacity-100" : "hidden")}>{t("common.copied")}</span>
     </button>
   );
 }

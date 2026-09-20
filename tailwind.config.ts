@@ -40,10 +40,13 @@ const config: Config = {
         danger: "hsl(var(--danger))",
         info: "hsl(var(--info))",
       },
+      // Stitch screens: 6px controls, 8px inputs/buttons, 12px cards, 16px hero panels.
       borderRadius: {
+        "2xl": "calc(var(--radius) + 10px)",
+        xl: "calc(var(--radius) + 6px)",
         lg: "calc(var(--radius) + 2px)",
         md: "var(--radius)",
-        sm: "0px",
+        sm: "2px",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
@@ -59,11 +62,23 @@ const config: Config = {
         "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
         pulseDot: { "0%, 100%": { opacity: "0.4" }, "50%": { opacity: "1" } },
         ping: { "75%, 100%": { transform: "scale(2.2)", opacity: "0" } },
+        // Glass panels on the auth gate drift a few pixels on slow sine loops.
+        floatSlow: { "0%, 100%": { transform: "translateY(0) rotate(0deg)" }, "50%": { transform: "translateY(-8px) rotate(0.5deg)" } },
+        floatReverse: { "0%, 100%": { transform: "translateY(0) rotate(0deg)" }, "50%": { transform: "translateY(10px) rotate(-0.5deg)" } },
+        // HUD toasts slide in from the right edge; the progress rule drains for the toast's lifetime.
+        toastIn: { from: { transform: "translateX(16px)" }, to: { transform: "translateX(0)" } },
+        toastDrain: { from: { width: "100%" }, to: { width: "0%" } },
+        drawerIn: { from: { transform: "translateX(100%)" }, to: { transform: "translateX(0)" } },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-dot": "pulseDot 1.6s ease-in-out infinite",
+        "float-slow": "floatSlow 9s ease-in-out infinite",
+        "float-reverse": "floatReverse 11s ease-in-out infinite",
+        "toast-in": "toastIn 0.25s ease-out",
+        "toast-drain": "toastDrain linear forwards",
+        "drawer-in": "drawerIn 0.25s ease-out",
       },
     },
   },

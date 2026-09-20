@@ -13,6 +13,8 @@
 
 import { useMemo, useState } from "react";
 import { Bolt, GitBranch, PlayCircle, Terminal, Wrench } from "lucide-react";
+import { useI18n } from "@/axon/i18n";
+import type { Translator, UiKey } from "@/lib/i18n";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -45,20 +47,20 @@ const GAP_X = 72;
 const GAP_Y = 24;
 
 /** If the manifest has no explicit flow, derive trigger → each tool → output. */
-function deriveFlow(skill: Skill): FlowStep[] {
+function deriveFlow(skill: Skill, t: Translator<UiKey>["t"]): FlowStep[] {
   if (skill.manifest.flow?.length) return skill.manifest.flow;
   const tools = skill.manifest.tools;
   if (!tools.length) {
     return [
-      { id: "t", label: "User message", kind: "trigger", next: ["p"] },
-      { id: "p", label: "Prompt rewrites behaviour", kind: "decision", next: ["o"] },
-      { id: "o", label: "Response", kind: "output" },
+      { id: "t", label: t("pv.flow.userMessage"), kind: "trigger", next: ["p"] },
+      { id: "p", label: t("pv.flow.promptRewrites"), kind: "decision", next: ["o"] },
+      { id: "o", label: t("pv.flow.response"), kind: "output" },
     ];
   }
   return [
-    { id: "t", label: "Agent decides to call", kind: "trigger", next: tools.map((t) => `tool:${t.name}`) },
-    ...tools.map<FlowStep>((t) => ({ id: `tool:${t.name}`, label: t.name, kind: "tool", tool: t.name, next: ["o"] })),
-    { id: "o", label: "Result in context", kind: "output" },
+    { id: "t", label: t("pv.flow.agentDecides"), kind: "trigger", next: tools.map((tool) => `tool:${tool.name}`) },
+    ...tools.map<FlowStep>((tool) => ({ id: `tool:${tool.name}`, label: tool.name, kind: "tool", tool: tool.name, next: ["o"] })),
+    { id: "o", label: t("pv.flow.result"), kind: "output" },
   ];
 }
 
@@ -112,8 +114,9 @@ const KIND_STYLE: Record<FlowStep["kind"], { icon: typeof Bolt; stroke: string; 
 // ---------------------------------------------------------------------------
 
 export function PromptVisualizer({ skill, baseSystemPrompt = DEFAULT_BASELINE, className }: Props) {
+  const { t, n } = useI18n();
   const [selected, setSelected] = useState<string | null>(null);
-  const steps = useMemo(() => deriveFlow(skill), [skill]);
+  const steps = useMemo(() => deriveFlow(skill, t), [skill, t]);
   const graph = useMemo(() => layout(steps), [steps]);
 
   const after = skill.manifest.systemPrompt ? `${baseSystemPrompt}\n\n# Skill: ${skill.name}\n${skill.manifest.systemPrompt}` : baseSystemPrompt;
@@ -125,29 +128,26 @@ export function PromptVisualizer({ skill, baseSystemPrompt = DEFAULT_BASELINE, c
   const highlightedTool = selectedTool?.name ?? null;
 
   return (
-    <div className={cn("group relative border border-border bg-card", className)}>
+    <div className={cn("group relative rounded-xl border border-border bg-card", className)}>
       <Corners hover />
       <Tabs defaultValue="flow">
         <div className="panel-head">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="h-2 w-2 shrink-0 bg-synapse" />
-            <h3 className="label-mono text-foreground">Prompt & runtime logic pipeline</h3>
+            <h3 className="label-mono text-foreground">{t("pv.title")}</h3>
             <span className="label-mono-sm hidden items-center gap-1.5 sm:inline-flex">
-              <span className="dot-live animate-pulse-dot" /> {skill.manifest.tools.length} tool{skill.manifest.tools.length === 1 ? "" : "s"} · +{summary.added} prompt line{summary.added === 1 ? "" : "s"} · {steps.length} steps
+              <span className="dot-live animate-pulse-dot" /> {n("pv.tools", skill.manifest.tools.length)} · {n("pv.promptLines", summary.added)} · {t("pv.steps", { n: steps.length })}
             </span>
           </div>
           <TabsList className="h-8">
-            <TabsTrigger value="flow" className="h-8">Execution flow</TabsTrigger>
-            <TabsTrigger value="diff" className="h-8" id="prompt-diff">System prompt diff</TabsTrigger>
+            <TabsTrigger value="flow" className="h-8">{t("pv.flowTab")}</TabsTrigger>
+            <TabsTrigger value="diff" className="h-8" id="prompt-diff">{t("pv.diffTab")}</TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="flow" className="mt-0 grid gap-0 md:grid-cols-[1fr_280px]">
           <div className="overflow-x-auto p-4">
-            <div className="label-mono-sm mb-3 flex items-center justify-between">
-              <span>{"// Cortex execution graph (topology: layered-dag)"}</span>
-              <span>Synapth-engine: v1</span>
-            </div>
+            <div className="label-mono-sm mb-3">{t("pv.graph")}</div>
             <svg viewBox={`0 0 ${graph.width} ${graph.height}`} width={graph.width} height={graph.height} style={{ minWidth: graph.width }} className="font-sans text-foreground">
               <defs>
                 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -210,34 +210,34 @@ export function PromptVisualizer({ skill, baseSystemPrompt = DEFAULT_BASELINE, c
             {selectedNode ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{selectedNode.kind}</Badge>
+                  <Badge variant="outline">{t(`pv.kind.${selectedNode.kind}`)}</Badge>
                   <span className="font-medium">{selectedNode.label}</span>
                 </div>
                 {selectedTool ? (
                   <>
-                    <p className="text-muted-foreground">{selectedTool.description || "No description."}</p>
+                    <p className="text-muted-foreground">{selectedTool.description || t("pv.noDescription")}</p>
                     <pre className="max-h-64 overflow-auto border border-border bg-background p-3 font-mono text-[11px] leading-relaxed">
                       {JSON.stringify(selectedTool.parameters, null, 2)}
                     </pre>
                   </>
                 ) : selectedNode.kind === "decision" ? (
-                  <p className="text-muted-foreground">The model branches here based on context; the next step is chosen at runtime.</p>
+                  <p className="text-muted-foreground">{t("pv.decision")}</p>
                 ) : selectedNode.kind === "trigger" ? (
-                  <p className="text-muted-foreground">Entry point: what has to happen in the conversation for this skill to activate.</p>
+                  <p className="text-muted-foreground">{t("pv.trigger")}</p>
                 ) : (
-                  <p className="text-muted-foreground">Final effect of the flow on the conversation.</p>
+                  <p className="text-muted-foreground">{t("pv.output")}</p>
                 )}
                 {selectedNode.next?.length ? <p className="text-xs text-muted-foreground">→ {selectedNode.next.join(", ")}</p> : null}
               </div>
             ) : (
               <div className="space-y-2 text-muted-foreground">
-                <p>Click a node to inspect it.</p>
+                <p>{t("pv.clickNode")}</p>
                 <ul className="space-y-1 text-xs">
                   {(Object.keys(KIND_STYLE) as FlowStep["kind"][]).map((k) => {
                     const Icon = KIND_STYLE[k].icon;
                     return (
                       <li key={k} className="flex items-center gap-2">
-                        <Icon className="h-3.5 w-3.5" /> {k}
+                        <Icon className="h-3.5 w-3.5" /> {t(`pv.kind.${k}`)}
                       </li>
                     );
                   })}
@@ -249,9 +249,9 @@ export function PromptVisualizer({ skill, baseSystemPrompt = DEFAULT_BASELINE, c
 
         <TabsContent value="diff" className="mt-0">
           <div className="label-mono-sm flex items-center justify-between gap-2 px-4 py-2">
-            <span>Source: lib/diff.ts · baseline vs. baseline + skill</span>
+            <span>{t("pv.source")}</span>
             <span className="flex items-center gap-1">
-              <Bolt className="h-3 w-3 text-synapse" /> injected verbatim into the agent&apos;s system prompt
+              <Bolt className="h-3 w-3 text-synapse" /> {t("pv.injected")}
             </span>
           </div>
           <pre className="max-h-[480px] overflow-auto bg-surface-lowest px-2 py-3 font-mono text-xs leading-relaxed">
@@ -273,9 +273,9 @@ export function PromptVisualizer({ skill, baseSystemPrompt = DEFAULT_BASELINE, c
           </pre>
           <div className="label-mono-sm flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface-low/60 px-4 py-2">
             <span>
-              Delta: <span className="text-synapse">+{summary.added}</span> injections, <span className="text-danger">−{summary.removed}</span> overrides, {summary.unchanged} unchanged
+              {t("pv.delta")} <span className="text-synapse">+{summary.added}</span> {t("pv.injections")}, <span className="text-danger">−{summary.removed}</span> {t("pv.overrides")}, {t("pv.unchanged", { n: summary.unchanged })}
             </span>
-            <span className="text-moss">Baseline: {baseSystemPrompt.split("\n").length} lines</span>
+            <span className="text-moss">{t("pv.baseline", { n: baseSystemPrompt.split("\n").length })}</span>
           </div>
         </TabsContent>
       </Tabs>

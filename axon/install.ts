@@ -6,6 +6,7 @@
  */
 
 import type { Skill } from "@/types/skill";
+import type { UiKey } from "@/lib/i18n";
 
 export type InstallTarget = "cursor" | "claude-desktop" | "claude-code" | "curl";
 
@@ -33,7 +34,17 @@ function mcpServerConfig(skill: Skill): Record<string, unknown> | null {
   return null;
 }
 
-export function installSnippet(skill: Skill, target: InstallTarget): { language: "json" | "bash" | "markdown"; code: string; note: string } {
+/** The human note under a snippet is a dictionary key so the panel can render it in the active locale. */
+export type InstallNoteKey = Extract<UiKey, `install.note.${string}`>;
+
+export interface InstallSnippet {
+  language: "json" | "bash" | "markdown";
+  code: string;
+  noteKey: InstallNoteKey;
+  noteParams?: Record<string, string>;
+}
+
+export function installSnippet(skill: Skill, target: InstallTarget): InstallSnippet {
   const ep = skill.manifest.entrypoint;
   const key = serverKey(skill);
 
@@ -41,7 +52,7 @@ export function installSnippet(skill: Skill, target: InstallTarget): { language:
     return {
       language: "bash",
       code: `curl -s -H 'X-Agent-Request: true' '${APP_URL}/api/v1/skills?q=${encodeURIComponent(skill.name)}&limit=1'`,
-      note: "Returns a minified payload: system prompt + tool schemas. Inject it into your model's context.",
+      noteKey: "install.note.curl",
     };
   }
 
@@ -55,15 +66,15 @@ export function installSnippet(skill: Skill, target: InstallTarget): { language:
       const degit = `${src.fullName}${dir ? `/${dir}` : ""}${src.defaultBranch !== "main" && src.defaultBranch !== "master" ? `#${src.defaultBranch}` : ""}`;
       const rawUrl = `https://raw.githubusercontent.com/${src.fullName}/${src.defaultBranch}/${src.manifestPath}`;
       if (target === "claude-code") {
-        return { language: "bash", code: `npx degit ${degit} .claude/skills/${skillDir}`, note: "Copies the skill directory (SKILL.md + scripts) into the project; Claude Code picks it up automatically." };
+        return { language: "bash", code: `npx degit ${degit} .claude/skills/${skillDir}`, noteKey: "install.note.skillmdClaudeCode" };
       }
       if (target === "cursor") {
-        return { language: "bash", code: `npx degit ${degit} .cursor/skills/${skillDir}`, note: "Cursor reads Agent Skills from .cursor/skills/. Restart the agent after copying." };
+        return { language: "bash", code: `npx degit ${degit} .cursor/skills/${skillDir}`, noteKey: "install.note.skillmdCursor" };
       }
       return {
         language: "markdown",
         code: `Read and follow the skill at ${rawUrl}\n\n${skill.description}`,
-        note: "Claude Desktop has no skill directory: paste this into Project → Custom instructions, or attach the SKILL.md file.",
+        noteKey: "install.note.skillmdDesktop",
       };
     }
 
@@ -72,13 +83,13 @@ export function installSnippet(skill: Skill, target: InstallTarget): { language:
       return {
         language: "bash",
         code: `mkdir -p .claude/skills/${key} && cat > .claude/skills/${key}/SKILL.md <<'EOF'\n---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n${body}\nEOF`,
-        note: "Creates a project skill; Claude Code picks it up automatically.",
+        noteKey: "install.note.promptClaudeCode",
       };
     }
     return {
       language: "markdown",
       code: target === "cursor" ? `# .cursor/rules/${key}.mdc\n---\ndescription: ${skill.description}\nalwaysApply: true\n---\n${body}` : body,
-      note: target === "cursor" ? "Save as a Cursor rule." : "Paste into Claude Desktop → Settings → Projects → Custom instructions.",
+      noteKey: target === "cursor" ? "install.note.promptCursor" : "install.note.promptDesktop",
     };
   }
 
@@ -86,7 +97,7 @@ export function installSnippet(skill: Skill, target: InstallTarget): { language:
     return {
       language: "bash",
       code: `curl -X POST '${APP_URL}/api/v1/skills/${skill.id}/execute' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Synapth-Key: $SYNAPTH_KEY' \\\n  -d '{"tool":"${skill.manifest.tools[0]?.name ?? ""}","input":{}}'`,
-      note: `Pay-per-call gateway · $${skill.pricePerCall} per execution, billed to your Synapth wallet.`,
+      noteKey: "install.note.http",
     };
   }
 
@@ -98,16 +109,31 @@ export function installSnippet(skill: Skill, target: InstallTarget): { language:
       ep.type === "mcp-stdio"
         ? `claude mcp add ${key} -- ${ep.command} ${(ep.args ?? []).join(" ")}`.trim()
         : `claude mcp add --transport sse ${key} ${ep.url}`;
-    return { language: "bash", code: cmd, note: skill.manifest.requiredEnv?.length ? `Set ${skill.manifest.requiredEnv.join(", ")} in your environment first.` : "Run in the project directory." };
+    return skill.manifest.requiredEnv?.length
+      ? { language: "bash", code: cmd, noteKey: "install.note.setEnv", noteParams: { env: skill.manifest.requiredEnv.join(", ") } }
+      : { language: "bash", code: cmd, noteKey: "install.note.runInProject" };
   }
 
   return {
     language: "json",
     code: JSON.stringify({ mcpServers: { [key]: server } }, null, 2),
-    note: `Merge into ${INSTALL_TARGETS.find((t) => t.id === target)?.file}${skill.manifest.requiredEnv?.length ? ` · requires ${skill.manifest.requiredEnv.join(", ")}` : ""}.`,
+    ...(skill.manifest.requiredEnv?.length
+      ? { noteKey: "install.note.mergeEnv" as const, noteParams: { file: INSTALL_TARGETS.find((t) => t.id === target)?.file ?? "", env: skill.manifest.requiredEnv.join(", ") } }
+      : { noteKey: "install.note.merge" as const, noteParams: { file: INSTALL_TARGETS.find((t) => t.id === target)?.file ?? "" } }),
   };
 }
 
+/** Cookie mirrored from the account's `defaultTarget` preference (set in /dashboard/settings). */
+export const TARGET_COOKIE = "synapth_target";
+
+function preferredTarget(): InstallTarget | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${TARGET_COOKIE}=([a-z-]+)`));
+  const value = match?.[1];
+  return INSTALL_TARGETS.some((t) => t.id === value) ? (value as InstallTarget) : null;
+}
+
+/** The account preference wins; otherwise HTTP entrypoints go to curl and everything else to Claude Code. */
 export function defaultTarget(skill: Skill): InstallTarget {
-  return skill.manifest.entrypoint.type === "http" ? "curl" : "claude-code";
+  return preferredTarget() ?? (skill.manifest.entrypoint.type === "http" ? "curl" : "claude-code");
 }

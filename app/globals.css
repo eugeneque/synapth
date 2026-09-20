@@ -38,7 +38,7 @@
     --warn: 40 90% 58%;
     --danger: 2 78% 58%;
     --info: 85 5% 70%;
-    --radius: 2px;
+    --radius: 6px;
   }
 
   * {
@@ -107,17 +107,17 @@
   }
 
   .frame {
-    @apply relative border border-border bg-card;
+    @apply relative rounded-xl border border-border bg-card;
   }
 
   /* Panel header band: mono title on a recessed strip, separated by a 1px rule. */
   .panel-head {
-    @apply flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-lowest px-4 py-2.5;
+    @apply flex flex-wrap items-center justify-between gap-3 rounded-t-[inherit] border-b border-border bg-surface-lowest px-4 py-2.5;
   }
 
   /* Recessed terminal well inside a card. */
   .well {
-    @apply border border-border bg-surface-lowest;
+    @apply rounded-lg border border-border bg-surface-lowest;
   }
 
   /* Underline tab: mono label, 2px synapse rule when active. */
@@ -131,7 +131,58 @@
 
   /* Status pill: dot + mono text in a bordered chip. */
   .pill {
-    @apply inline-flex h-7 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-surface-lowest/70 px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground;
+    @apply inline-flex h-7 items-center gap-2 whitespace-nowrap rounded-lg border border-border bg-surface-lowest/70 px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground;
+  }
+
+  /* Auth screen — drifting light blobs behind the fluted glass (system palette: synapse lime → dim lime → moss). */
+  .auth-blob {
+    @apply pointer-events-none absolute rounded-full blur-3xl;
+    will-change: transform;
+  }
+  .auth-blob-cyan {
+    width: 70%;
+    height: 90%;
+    left: -10%;
+    top: 5%;
+    background: radial-gradient(circle, hsl(var(--synapse) / 1) 0%, hsl(var(--synapse) / 0.6) 30%, hsl(var(--synapse) / 0) 70%);
+    animation: authDrift 7s ease-in-out infinite;
+  }
+  .auth-blob-green {
+    width: 60%;
+    height: 80%;
+    left: 30%;
+    top: -20%;
+    background: radial-gradient(circle, hsl(var(--secondary-tone) / 1) 0%, hsl(var(--secondary-tone) / 0.55) 30%, hsl(var(--secondary-tone) / 0) 70%);
+    animation: authDrift 10s ease-in-out infinite reverse;
+  }
+  .auth-blob-blue {
+    width: 80%;
+    height: 70%;
+    left: 20%;
+    top: 40%;
+    background: radial-gradient(circle, hsl(var(--synapse-dim) / 0.95) 0%, hsl(var(--synapse-dim) / 0.5) 35%, hsl(var(--synapse-dim) / 0) 70%);
+    animation: authDriftWide 12s ease-in-out infinite;
+  }
+
+  /* One fluted-glass rib: a glossy half-cylinder — deep shadow on the left edge, broad
+     highlight left of centre, falling off to a dark groove with a thin specular seam on the right. */
+  .auth-rib {
+    @apply relative min-w-0 flex-1;
+    backdrop-filter: blur(10px) saturate(1.6) brightness(1.3);
+    -webkit-backdrop-filter: blur(10px) saturate(1.6) brightness(1.3);
+    background: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.65) 0%,
+      rgba(0, 0, 0, 0.25) 10%,
+      rgba(255, 255, 255, 0.08) 24%,
+      rgba(255, 255, 255, 0.34) 36%,
+      rgba(255, 255, 255, 0.14) 50%,
+      rgba(0, 0, 0, 0.05) 66%,
+      rgba(0, 0, 0, 0.35) 84%,
+      rgba(0, 0, 0, 0.6) 93%,
+      rgba(255, 255, 255, 0.5) 96%,
+      rgba(0, 0, 0, 0.7) 100%
+    );
   }
 
   /* Live status dot. */
@@ -152,6 +203,29 @@
   }
 }
 
+@keyframes authDrift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(45%, 20%) scale(1.15);
+  }
+  66% {
+    transform: translate(20%, -25%) scale(0.9);
+  }
+}
+
+@keyframes authDriftWide {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-40%, -45%) scale(1.2);
+  }
+}
+
 @keyframes blink {
   to {
     visibility: hidden;
@@ -159,7 +233,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cursor::after {
+  .cursor::after,
+  .auth-blob {
     animation: none;
   }
 }
