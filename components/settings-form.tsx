@@ -47,7 +47,8 @@ function toUpdate(p: AccountProfile): ProfileUpdate {
 
 /** Mirrors the server-side preference into a cookie so `defaultTarget()` can read it on the client. */
 function writeTargetCookie(target: InstallTarget | null) {
-  document.cookie = target ? `${TARGET_COOKIE}=${target}; path=/; max-age=31536000; samesite=lax` : `${TARGET_COOKIE}=; path=/; max-age=0`;
+  const secure = location.protocol === "https:" ? "; secure" : "";
+  document.cookie = target ? `${TARGET_COOKIE}=${target}; path=/; max-age=31536000; samesite=lax${secure}` : `${TARGET_COOKIE}=; path=/; max-age=0`;
 }
 
 export function SettingsForm({ profile, catalogue, signOutAction }: Props) {

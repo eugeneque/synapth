@@ -12,17 +12,24 @@ import { UnauthorizedError } from "@/cortex/auth";
 import { resolveGithubToken } from "@/cortex/github-token";
 import { githubAuthorId } from "@/cortex/crawler";
 import { json, withErrors } from "@/lib/api";
+import { enforceRequestLimit } from "@/cortex/rate-limit";
 
 export const runtime = "nodejs";
 
 const bodySchema = z.object({
-  url: z.string().min(3),
+  url: z.string().trim().min(3).max(300),
   dryRun: z.boolean().default(false),
   /** Use canned repos (acme/postgres-mcp, acme/weather-tool, acme/code-review-skill, acme/skills-collection). */
   mock: z.boolean().default(false),
 });
 
 export const POST = withErrors(async (request: Request) => {
+  // Authenticate first: a dry run still spends the server's GitHub token and
+  // makes the server fetch a caller-chosen repository.
+  const caller = await resolveCaller(request);
+  if (!caller) throw new UnauthorizedError();
+  enforceRequestLimit("import", request, caller.userId);
+
   const body = bodySchema.parse(await request.json());
   const fetcher = body.mock ? createMockFetcher() : createGithubFetcher({ token: resolveGithubToken() ?? undefined });
 
@@ -32,8 +39,6 @@ export const POST = withErrors(async (request: Request) => {
 
   if (body.dryRun) return json({ import: result, scan, skill: null, found: results.length });
 
-  const caller = await resolveCaller(request);
-  if (!caller) throw new UnauthorizedError();
   assertInstallable(scan);
 
   // A collection publishes every skill it contains; the response carries the first one.

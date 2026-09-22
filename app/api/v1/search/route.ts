@@ -10,6 +10,7 @@ import { z } from "zod";
 import { skillRepository, hydratePrompt } from "@/cortex/repository";
 import { buildAgentContext, isAgentRequest } from "@/cortex/agent-context";
 import { agentJson, json, withErrors } from "@/lib/api";
+import { enforceRequestLimit } from "@/cortex/rate-limit";
 import { SKILL_CATEGORIES, SECURITY_LEVELS } from "@/types/skill";
 
 export const runtime = "nodejs";
@@ -27,6 +28,7 @@ const schema = z.object({
 });
 
 export const GET = withErrors(async (request: Request) => {
+  enforceRequestLimit("search", request);
   const params = schema.parse(Object.fromEntries(new URL(request.url).searchParams));
 
   if (params.suggest) {

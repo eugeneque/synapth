@@ -16,6 +16,7 @@ import { memoryUsers } from "@/cortex/seed";
 import type { InstallTarget } from "@/axon/install";
 import type { UserRole } from "@/types/auth";
 import { AVATAR_IMAGE, COVER_IMAGE, OCCUPATIONS, dataUrlBytes, isImageDataUrl, isOccupation, type Occupation } from "@/types/profile";
+import { httpUrlSchema, isHttpUrl } from "@/lib/url-safety";
 import type { AuthorRef } from "@/types/social";
 
 export const INSTALL_TARGET_IDS = ["cursor", "claude-desktop", "claude-code", "curl"] as const satisfies readonly InstallTarget[];
@@ -47,7 +48,13 @@ function imageField(maxBytes: number) {
     .transform((v) => (v ? v : null))
     .superRefine((v, ctx) => {
       if (v === null) return;
-      if (v.startsWith("https://")) {
+      if (!v.startsWith("data:")) {
+        // OAuth avatars arrive as remote URLs; anything that is not plain https is rejected
+        // so the value can never end up as a `javascript:`/`data:text/html` image source.
+        if (!isHttpUrl(v) || !v.startsWith("https://")) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "expected an https URL or an uploaded image" });
+          return;
+        }
         if (v.length > 500) ctx.addIssue({ code: z.ZodIssueCode.too_big, maximum: 500, type: "string", inclusive: true, message: "URL too long" });
         return;
       }
@@ -73,7 +80,8 @@ export const profileUpdateSchema = z.object({
   bio: z.string().trim().max(280).default(""),
   organization: z.string().trim().max(80).default(""),
   location: z.string().trim().max(80).default(""),
-  website: z.union([z.literal(""), z.string().trim().url().max(200)]).default(""),
+  // `z.string().url()` would accept `javascript:` — this renders as a link on the public profile.
+  website: z.union([z.literal(""), httpUrlSchema({ max: 200 })]).default(""),
   defaultTarget: z.enum(INSTALL_TARGET_IDS).nullable().default(null),
 });
 

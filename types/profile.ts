@@ -47,6 +47,12 @@ export function dataUrlBytes(url: string): number {
   return Math.floor((payload.length * 3) / 4) - padding;
 }
 
+/** Payload must be real base64: a `data:image/png;base64,<anything>` string is not an image. */
+const BASE64_PAYLOAD = /^[A-Za-z0-9+/]+={0,2}$/;
+
 export function isImageDataUrl(url: string): boolean {
-  return IMAGE_MIME_TYPES.some((mime) => url.startsWith(`data:${mime};base64,`));
+  const mime = IMAGE_MIME_TYPES.find((m) => url.startsWith(`data:${m};base64,`));
+  if (!mime) return false;
+  const payload = url.slice(`data:${mime};base64,`.length);
+  return payload.length > 0 && payload.length % 4 === 0 && BASE64_PAYLOAD.test(payload);
 }

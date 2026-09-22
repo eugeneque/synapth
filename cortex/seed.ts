@@ -24,7 +24,8 @@ const seedUsers: MemoryUser[] = [
     email: "demo@synapth.dev",
     handle: "demo",
     image: null,
-    role: "creator",
+    // Operator of the local demo: the crawler console is admin-gated.
+    role: "admin",
     passwordHash: "$2a$10$Ofc7QSru4aYuwQOVrR1vVO5d1/nEKkFxGkYTxLrWoACuEzyGgAv8i",
   },
   { id: "usr_acme", name: "Acme Labs", email: "labs@acme.dev", handle: "acme", image: null, role: "creator", passwordHash: "" },

@@ -24,6 +24,7 @@ import { Panel } from "@/components/panel";
 import { Corners } from "@/components/corners";
 import { SkillDiscussion } from "@/components/skill-discussion";
 import { WatchButton } from "@/components/watch-button";
+import { safeExternalHref } from "@/lib/url-safety";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,8 @@ export default async function SkillPage({ params }: Params) {
     : [];
   const readmeBase = skill.source ? `https://github.com/${skill.source.fullName}/blob/${skill.source.defaultBranch}/${skill.source.manifestPath.split("/").slice(0, -1).join("/")}` : null;
   const owner = skill.source?.owner ?? skill.authorName;
+  // Catalogue rows predate URL validation and the crawler trusts repo metadata: re-check the scheme here.
+  const repoHref = safeExternalHref(skill.repoUrl);
 
   return (
     <div className="container space-y-6 py-8">
@@ -81,9 +84,9 @@ export default async function SkillPage({ params }: Params) {
               <Badge variant="chip" className="text-moss">v{skill.version}</Badge>
               <Badge variant="chip">{skill.category}</Badge>
               {skill.source?.license && <Badge variant="chip">{t("skill.license", { license: skill.source.license })}</Badge>}
-              {skill.repoUrl && (
-                <a href={skill.repoUrl} target="_blank" rel="noreferrer" className="label-mono-sm ml-1 inline-flex items-center gap-1 normal-case tracking-normal transition-colors hover:text-synapse">
-                  <Code2 className="h-3.5 w-3.5" /> {skill.repoUrl.replace(/^https?:\/\//, "")}
+              {repoHref && (
+                <a href={repoHref} target="_blank" rel="noreferrer nofollow" className="label-mono-sm ml-1 inline-flex items-center gap-1 normal-case tracking-normal transition-colors hover:text-synapse">
+                  <Code2 className="h-3.5 w-3.5" /> {repoHref.replace(/^https?:\/\//, "")}
                 </a>
               )}
             </div>
@@ -167,8 +170,8 @@ export default async function SkillPage({ params }: Params) {
                 <p className="flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5" /> {t("skill.env", { list: skill.manifest.requiredEnv.join(", ") })}</p>
               ) : null}
             </div>
-            {skill.repoUrl && (
-              <a href={skill.repoUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-synapse hover:underline">
+            {repoHref && (
+              <a href={repoHref} target="_blank" rel="noreferrer nofollow" className="mt-3 inline-flex items-center gap-1 text-xs text-synapse hover:underline">
                 <ExternalLink className="h-3.5 w-3.5" /> {t("skill.sourceRepo")}
               </a>
             )}

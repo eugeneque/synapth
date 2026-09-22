@@ -82,10 +82,19 @@ export class GithubParseError extends Error {
 // URL parsing
 // ---------------------------------------------------------------------------
 
+/** GitHub's own limits; also stops `..`, `%2e%2e` and other path tricks reaching the API URL. */
+const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+const REF = /^[A-Za-z0-9][A-Za-z0-9._\/-]{0,199}$/;
+
+function assertSegment(value: string, what: string): string {
+  if (!SEGMENT.test(value) || value.includes("..")) throw new GithubParseError(`Invalid ${what}: ${value}`, "bad_url");
+  return value;
+}
+
 export function parseRepoUrl(input: string): RepoRef {
   const trimmed = input.trim();
   const shorthand = trimmed.match(/^([\w.-]+)\/([\w.-]+)$/);
-  if (shorthand) return { owner: shorthand[1], repo: stripGit(shorthand[2]), ref: "HEAD", path: "" };
+  if (shorthand) return { owner: assertSegment(shorthand[1], "owner"), repo: assertSegment(stripGit(shorthand[2]), "repository"), ref: "HEAD", path: "" };
 
   let url: URL;
   try {
@@ -98,9 +107,16 @@ export function parseRepoUrl(input: string): RepoRef {
   }
   const parts = url.pathname.split("/").filter(Boolean);
   if (parts.length < 2) throw new GithubParseError("URL must contain owner and repository", "bad_url");
-  const [owner, rawRepo, kind, ref, ...rest] = parts;
-  const repo = stripGit(rawRepo);
-  if ((kind === "tree" || kind === "blob") && ref) return { owner, repo, ref, path: rest.join("/") };
+  const [rawOwner, rawRepo, kind, rawRef, ...rest] = parts;
+  const owner = assertSegment(decodeURIComponent(rawOwner), "owner");
+  const repo = assertSegment(stripGit(decodeURIComponent(rawRepo)), "repository");
+  if ((kind === "tree" || kind === "blob") && rawRef) {
+    const ref = decodeURIComponent(rawRef);
+    if (!REF.test(ref) || ref.includes("..")) throw new GithubParseError(`Invalid ref: ${ref}`, "bad_url");
+    const path = rest.map((p) => decodeURIComponent(p)).join("/");
+    if (path.split("/").some((seg) => seg === "." || seg === "..")) throw new GithubParseError("Invalid path", "bad_url");
+    return { owner, repo, ref, path };
+  }
   return { owner, repo, ref: "HEAD", path: "" };
 }
 
@@ -140,7 +156,7 @@ export function createGithubFetcher(opts: GithubFetcherOptions = {}): RepoFetche
       const key = `${ref.owner}/${ref.repo}`.toLowerCase();
       let p = metaCache.get(key);
       if (!p) {
-        p = api<GithubRepoJson>(`/repos/${ref.owner}/${ref.repo}`).then((json) => {
+        p = api<GithubRepoJson>(`/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}`).then((json) => {
           if (!json) throw new GithubParseError(`Repository ${ref.owner}/${ref.repo} not found`, "not_found");
           return toRepoMeta(json);
         });
@@ -151,14 +167,15 @@ export function createGithubFetcher(opts: GithubFetcherOptions = {}): RepoFetche
     async readFile(ref, path) {
       const branch = ref.ref === "HEAD" ? (await this.meta(ref)).defaultBranch : ref.ref;
       const full = [ref.path, path].filter(Boolean).join("/");
-      const res = await fetch(`https://raw.githubusercontent.com/${ref.owner}/${ref.repo}/${branch}/${full}`, { headers: { "User-Agent": headers["User-Agent"] }, cache: "no-store" });
+      const target = `https://raw.githubusercontent.com/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${branch.split("/").map(encodeURIComponent).join("/")}/${full.split("/").map(encodeURIComponent).join("/")}`;
+      const res = await fetch(target, { headers: { "User-Agent": headers["User-Agent"] }, cache: "no-store" });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`raw fetch ${res.status}: ${full}`);
       return res.text();
     },
     async tree(ref) {
       const branch = ref.ref === "HEAD" ? (await this.meta(ref)).defaultBranch : ref.ref;
-      const json = await api<{ tree: Array<{ path: string; type: string }>; truncated: boolean }>(`/repos/${ref.owner}/${ref.repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
+      const json = await api<{ tree: Array<{ path: string; type: string }>; truncated: boolean }>(`/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
       if (!json) return null;
       const paths = json.tree.filter((t) => t.type === "blob").map((t) => t.path);
       return ref.path ? paths.filter((p) => p.startsWith(`${ref.path}/`)).map((p) => p.slice(ref.path.length + 1)) : paths;

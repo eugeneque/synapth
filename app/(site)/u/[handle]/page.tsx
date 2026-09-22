@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { formatCompact } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { Comment } from "@/types/social";
+import { safeExternalHref, safeImageSrc } from "@/lib/url-safety";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,9 @@ export default async function UserProfilePage({ params }: Params) {
   const skills = all.filter((s) => s.authorId === profile.id || s.source?.owner.toLowerCase() === profile.handle.toLowerCase());
   const sorted = [...skills].sort((a, b) => b.githubStars - a.githubStars || a.name.localeCompare(b.name));
   const githubOwner = skills.find((s) => s.source)?.source?.owner ?? null;
+  // Rows stored before URL validation landed may hold a non-http scheme; drop those targets.
+  const website = safeExternalHref(profile.website);
+  const cover = safeImageSrc(profile.coverImage);
   // The explore `author:` filter matches `authorName` / GitHub owner, not the handle.
   const searchAuthor = githubOwner ?? skills[0]?.authorName ?? profile.handle;
   const repos = [...new Set(skills.map((s) => s.source?.fullName).filter(Boolean))] as string[];
@@ -77,10 +81,10 @@ export default async function UserProfilePage({ params }: Params) {
 
       {/* Cover + identity header. */}
       <section className="relative overflow-hidden rounded-xl border border-border bg-card">
-        <div className={cn("relative h-48 w-full overflow-hidden sm:h-56", !profile.coverImage && "bg-gradient-to-r from-surface-lowest via-surface-low to-surface-lowest")}>
-          {profile.coverImage ? (
+        <div className={cn("relative h-48 w-full overflow-hidden sm:h-56", !cover && "bg-gradient-to-r from-surface-lowest via-surface-low to-surface-lowest")}>
+          {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.coverImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
           ) : (
             <div className="dot-matrix absolute inset-0 opacity-60" />
           )}
@@ -164,9 +168,9 @@ export default async function UserProfilePage({ params }: Params) {
                   <Building2 className="h-4 w-4" /> {profile.organization}
                 </span>
               )}
-              {profile.website && (
-                <a href={profile.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-synapse hover:underline">
-                  <Globe className="h-4 w-4" /> {profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+              {website && (
+                <a href={website} target="_blank" rel="noreferrer nofollow" className="inline-flex items-center gap-1.5 text-synapse hover:underline">
+                  <Globe className="h-4 w-4" /> {website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
                 </a>
               )}
               {githubOwner && (
@@ -287,7 +291,7 @@ export default async function UserProfilePage({ params }: Params) {
               <Row k={t("profile.about.role")} v={t(`settings.role.${profile.role}`)} />
               {profile.organization && <Row k={t("profile.about.organization")} v={profile.organization} />}
               {profile.location && <Row k={t("profile.about.location")} v={profile.location} />}
-              {profile.website && <Row k={t("profile.about.website")} v={profile.website.replace(/^https?:\/\//, "")} href={profile.website} />}
+              {website && <Row k={t("profile.about.website")} v={website.replace(/^https?:\/\//, "")} href={website} />}
               {githubOwner && <Row k={t("profile.about.github")} v={`@${githubOwner}`} href={`https://github.com/${githubOwner}`} />}
               <Row k={t("profile.about.joined")} v={joined} />
             </dl>
@@ -336,7 +340,7 @@ function Row({ k, v, href }: { k: string; v: string; href?: string }) {
       <dt className="text-muted-foreground">{k}</dt>
       <dd className="truncate text-foreground">
         {href ? (
-          <a href={href} target="_blank" rel="noreferrer" className="text-synapse hover:underline">
+          <a href={href} target="_blank" rel="noreferrer nofollow" className="text-synapse hover:underline">
             {v}
           </a>
         ) : (

@@ -10,6 +10,7 @@
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { requireUser } from "@/cortex/auth";
+import { enforceRateLimit, type RateLimitName } from "@/cortex/rate-limit";
 import { evaluateBadges } from "@/cortex/badges";
 import { skillRepository } from "@/cortex/repository";
 import { addComment, createPost, deleteComment, deletePost, toggleImpulse, toggleWatch, type ImpulseSummary, type WatchSummary } from "@/cortex/social";
@@ -27,10 +28,21 @@ async function run<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
   }
 }
 
+/**
+ * Server actions are a public POST endpoint like any other, so the write
+ * budget applies here too — otherwise posts, comments and impulse toggles are
+ * an unmetered spam and notification-flood channel.
+ */
+async function requireUserWithin(limit: RateLimitName = "write") {
+  const user = await requireUser();
+  enforceRateLimit(limit, `user:${user.id}`);
+  return user;
+}
+
 /** Fire / withdraw an impulse at the developer behind `handle`. */
 export async function sendImpulse(toId: string, handle: string): Promise<ActionResult<ImpulseSummary>> {
   return run(async () => {
-    const user = await requireUser();
+    const user = await requireUserWithin();
     const summary = await toggleImpulse(user.id, toId);
     if (summary.active) await evaluateBadges(toId);
     revalidatePath(`/u/${handle}`);
@@ -40,7 +52,7 @@ export async function sendImpulse(toId: string, handle: string): Promise<ActionR
 
 export async function publishPost(body: string, handle: string): Promise<ActionResult<Post>> {
   return run(async () => {
-    const user = await requireUser();
+    const user = await requireUserWithin();
     const post = await createPost(user.id, body);
     await evaluateBadges(user.id);
     revalidatePath(`/u/${handle}`);
@@ -50,7 +62,7 @@ export async function publishPost(body: string, handle: string): Promise<ActionR
 
 export async function removePost(postId: string, handle: string): Promise<ActionResult<null>> {
   return run(async () => {
-    const user = await requireUser();
+    const user = await requireUserWithin();
     await deletePost(user.id, postId);
     revalidatePath(`/u/${handle}`);
     return null;
@@ -59,7 +71,7 @@ export async function removePost(postId: string, handle: string): Promise<Action
 
 export async function commentOnPost(postId: string, body: string): Promise<ActionResult<Comment>> {
   return run(async () => {
-    const user = await requireUser();
+    const user = await requireUserWithin();
     const comment = await addComment(user.id, { kind: "post", id: postId }, body);
     await evaluateBadges(user.id);
     return comment;
@@ -68,7 +80,7 @@ export async function commentOnPost(postId: string, body: string): Promise<Actio
 
 export async function commentOnSkill(skillId: string, body: string): Promise<ActionResult<Comment>> {
   return run(async () => {
-    const user = await requireUser();
+    const user = await requireUserWithin();
     const skill = await skillRepository.byId(skillId);
     if (!skill) throw Object.assign(new Error("Skill not found"), { status: 404 });
     const comment = await addComment(user.id, { kind: "skill", id: skill.id, ownerId: skill.authorId, slug: skill.slug, name: skill.name }, body);
@@ -80,7 +92,7 @@ export async function commentOnSkill(skillId: string, body: string): Promise<Act
 
 export async function removeComment(commentId: string): Promise<ActionResult<null>> {
   return run(async () => {
-    const user = await requireUser();
+    const user = await requireUserWithin();
     await deleteComment(user.id, commentId);
     return null;
   });
@@ -89,7 +101,7 @@ export async function removeComment(commentId: string): Promise<ActionResult<nul
 /** Add / remove a skill from the user's "watched" list. */
 export async function watchSkill(skillId: string, slug: string): Promise<ActionResult<WatchSummary>> {
   return run(async () => {
-    const user = await requireUser();
+    const user = await requireUserWithin();
     const summary = await toggleWatch(user.id, skillId);
     if (summary.watching) await evaluateBadges(user.id);
     revalidatePath(`/skills/${slug}`);

@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { parseHttpUrl } from "@/lib/url-safety";
 
 interface Props {
   source: string;
@@ -8,15 +9,22 @@ interface Props {
   className?: string;
 }
 
+/**
+ * READMEs come from arbitrary repositories, so a link target is only emitted
+ * when it is an in-document anchor, a mailto:, or a real http(s) URL — a
+ * `javascript:` href in a crawled README would otherwise execute on click.
+ */
 function resolve(href: string | undefined, base: string | null | undefined, raw = false): string | undefined {
-  if (!href || !base) return href;
-  if (/^(https?:|mailto:|#)/i.test(href)) return href;
+  if (!href) return undefined;
+  if (/^(#|mailto:[^\s]+$)/i.test(href)) return href;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return parseHttpUrl(href)?.toString();
+  if (!base) return undefined; // relative path with nothing to resolve against
   const root = base.replace(/\/$/, "");
   const target = raw ? root.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/") : root;
-  return `${target}/${href.replace(/^\.?\//, "")}`;
+  return parseHttpUrl(`${target}/${href.replace(/^\.?\//, "")}`)?.toString();
 }
 
-/** README / SKILL.md renderer. Raw HTML is dropped by react-markdown, so untrusted content is safe. */
+/** README / SKILL.md renderer. Raw HTML is dropped by react-markdown and link targets go through `resolve()`. */
 export function Markdown({ source, baseUrl, className }: Props) {
   return (
     <div className={className}>

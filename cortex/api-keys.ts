@@ -4,8 +4,10 @@
  */
 
 import { createHash, randomBytes } from "node:crypto";
-import { auth } from "@/cortex/auth";
+import { auth, ForbiddenError, UnauthorizedError } from "@/cortex/auth";
+import { getProfile } from "@/cortex/account";
 import { prisma, hasDatabase } from "@/cortex/db";
+import type { UserRole } from "@/types/auth";
 
 export const API_KEY_PREFIX = "syn_";
 /** Works only on the in-memory store, for local agents and docs examples. */
@@ -37,6 +39,25 @@ export async function resolveCaller(request: Request): Promise<Caller | null> {
 
   const session = await auth();
   return session?.user?.id ? { userId: session.user.id, via: "session" } : null;
+}
+
+/** `resolveCaller` or 401 — for handlers that agents reach with `X-Synapth-Key`. */
+export async function requireCaller(request: Request): Promise<Caller> {
+  const caller = await resolveCaller(request);
+  if (!caller) throw new UnauthorizedError();
+  return caller;
+}
+
+/**
+ * Role check that works for both credentials: the JWT carries the role for a
+ * session, but an API key only carries a user id, so the role is read from the
+ * stored profile either way.
+ */
+export async function requireCallerRole(request: Request, ...roles: UserRole[]): Promise<Caller & { role: UserRole }> {
+  const caller = await requireCaller(request);
+  const role = (await getProfile(caller.userId))?.role ?? "user";
+  if (!roles.includes(role)) throw new ForbiddenError(`Requires role: ${roles.join(" or ")}`);
+  return { ...caller, role };
 }
 
 function bearer(header: string | null): string | null {

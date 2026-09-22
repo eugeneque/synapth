@@ -4,7 +4,8 @@ import { getProfile, getProfileByHandle, profileUpdateSchema, updateProfile, Han
 import { AVATAR_IMAGE, COVER_IMAGE, OCCUPATIONS, dataUrlBytes, isImageDataUrl } from "@/types/profile";
 
 /** A `data:image/jpeg;base64` URL carrying roughly `bytes` of payload. */
-const jpegDataUrl = (bytes: number) => `data:image/jpeg;base64,${"A".repeat(Math.ceil((bytes * 4) / 3))}`;
+/** Base64 is always a multiple of 4 characters; the validator now insists on it. */
+const jpegDataUrl = (bytes: number) => `data:image/jpeg;base64,${"A".repeat(Math.ceil(Math.ceil((bytes * 4) / 3) / 4) * 4)}`;
 
 const base = { name: "Demo Creator", handle: "demo", bio: "", organization: "", location: "", website: "", defaultTarget: null };
 
@@ -23,7 +24,9 @@ test("profile schema accepts uploaded images within the ceiling and rejects over
 
   assert.throws(() => profileUpdateSchema.parse({ ...base, image: jpegDataUrl(AVATAR_IMAGE.maxBytes + 4096) }), /larger than/);
   assert.throws(() => profileUpdateSchema.parse({ ...base, coverImage: "data:text/html;base64,PHNjcmlwdD4=" }), /JPEG, PNG or WebP/);
-  assert.throws(() => profileUpdateSchema.parse({ ...base, image: "http://insecure.example/a.png" }), /JPEG, PNG or WebP/);
+  assert.throws(() => profileUpdateSchema.parse({ ...base, image: "http://insecure.example/a.png" }), /https URL/);
+  assert.throws(() => profileUpdateSchema.parse({ ...base, image: "javascript:alert(1)" }), /https URL/);
+  assert.throws(() => profileUpdateSchema.parse({ ...base, coverImage: "data:image/png;base64,<script>" }), /JPEG, PNG or WebP/);
   assert.throws(() => profileUpdateSchema.parse({ ...base, occupation: "wizard" }));
 
   // OAuth avatars stay as https URLs; empty strings collapse to null.

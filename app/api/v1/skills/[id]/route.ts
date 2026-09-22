@@ -10,6 +10,7 @@ import { resolveCaller } from "@/cortex/api-keys";
 import { isAgentRequest, buildAgentContext } from "@/cortex/agent-context";
 import { scanManifest } from "@/lib/sandbox-scanner";
 import { agentJson, json, withErrors } from "@/lib/api";
+import { enforceRequestLimit } from "@/cortex/rate-limit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -18,6 +19,7 @@ async function load(id: string) {
 }
 
 export const GET = withErrors(async (request: Request, { params }: Ctx) => {
+  enforceRequestLimit("read", request);
   const { id } = await params;
   const found = await load(id);
   if (!found) return json({ error: "Skill not found" }, { status: 404 });
@@ -48,6 +50,8 @@ export const POST = withErrors(async (request: Request, { params }: Ctx) => {
 
   const { client } = actionSchema.parse(await request.json());
   const caller = await resolveCaller(request);
+  // Install counts feed ranking: without a budget they are trivially inflated.
+  enforceRequestLimit("install", request, caller?.userId);
   await skillRepository.recordInstall(skill.id, client, caller?.userId);
   const fresh = await skillRepository.byId(skill.id);
   return json({ ok: true, downloadsCount: fresh?.downloadsCount ?? skill.downloadsCount + 1 });

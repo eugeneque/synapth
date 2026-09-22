@@ -7,19 +7,26 @@ import { compare } from "bcryptjs";
 import { z } from "zod";
 import { prisma, hasDatabase } from "@/cortex/db";
 import { memoryUsers } from "@/cortex/seed";
+import { clientIp, enforceRateLimit } from "@/cortex/rate-limit";
 import type { UserRole } from "@/types/auth";
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(8).max(128),
 });
 
 async function findUserByEmail(email: string) {
   if (hasDatabase) {
-    return prisma.user.findUnique({ where: { email } });
+    return prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
   }
-  return memoryUsers.find((u) => u.email === email) ?? null;
+  return memoryUsers.find((u) => u.email.toLowerCase() === email) ?? null;
 }
+
+/**
+ * Burned when no account matches, so a wrong email costs the same time as a
+ * wrong password: without it, response latency enumerates registered users.
+ */
+const DUMMY_HASH = "$2a$12$WfnUn5XzBGA2UJylDU20Je4ljsT6e8dTn3goWlFrXT76iikImUa1W";
 
 export const authConfig: NextAuthConfig = {
   // Adapter is only wired when a DB exists; JWT strategy keeps sessions stateless either way.
@@ -43,15 +50,19 @@ export const authConfig: NextAuthConfig = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(raw) {
+      async authorize(raw, request) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
-        const user = await findUserByEmail(parsed.data.email);
-        if (!user?.passwordHash) return null;
+        // Brute force / credential stuffing: budget per source IP and per account.
+        enforceRateLimit("signin", `ip:${clientIp(request as unknown as Request)}`);
+        enforceRateLimit("signin", `email:${parsed.data.email}`);
 
-        const ok = await compare(parsed.data.password, user.passwordHash);
-        if (!ok) return null;
+        const user = await findUserByEmail(parsed.data.email);
+        // Always run one bcrypt comparison so timing does not reveal whether the account exists.
+        // `|| ` and not `?? `: OAuth-only rows carry an empty hash, which bcrypt would reject instantly.
+        const ok = await compare(parsed.data.password, user?.passwordHash || DUMMY_HASH);
+        if (!user?.passwordHash || !ok) return null;
 
         return {
           id: user.id,
@@ -111,6 +122,15 @@ export async function requireUser() {
     throw new UnauthorizedError();
   }
   return session.user;
+}
+
+/** Thrown by the role checks in `cortex/api-keys.ts`; rendered as 403 by `lib/api`. */
+export class ForbiddenError extends Error {
+  status = 403 as const;
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
 }
 
 export class UnauthorizedError extends Error {

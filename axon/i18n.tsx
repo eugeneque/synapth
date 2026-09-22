@@ -26,7 +26,7 @@ export function I18nProvider({ locale, messages, children }: { locale: Locale; m
       ...createTranslator(locale, messages),
       setLocale: (next) => {
         if (next === locale) return;
-        document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=${LOCALE_COOKIE_MAX_AGE}; samesite=lax`;
+        document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=${LOCALE_COOKIE_MAX_AGE}; samesite=lax${location.protocol === "https:" ? "; secure" : ""}`;
         router.refresh();
       },
     }),

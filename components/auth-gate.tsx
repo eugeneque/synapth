@@ -17,6 +17,7 @@ import { AuthGlass } from "@/components/auth-glass";
 import { CopyButton } from "@/components/copy-button";
 import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
+import { safeCallbackPath } from "@/lib/url-safety";
 
 export interface AuthGateProps {
   mode: "signin" | "signup";
@@ -69,7 +70,8 @@ function Field({ id, label, side, children }: { id: string; label: string; side?
 export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get("callbackUrl") ?? "/dashboard";
+  // Anyone can craft the query string, so the redirect target stays inside the app.
+  const callbackUrl = safeCallbackPath(params.get("callbackUrl"));
   const { t, n } = useI18n();
 
   const [tab, setTab] = useState<"dev" | "machine">("dev");

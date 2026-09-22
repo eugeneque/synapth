@@ -141,5 +141,6 @@ test("badges: auto criteria award once, notify, and manual grants need an admin"
   assert.equal((await socialSignals(DEMO)).impulsesReceived, 5);
   assert.ok((await evaluateBadges(DEMO)).some((b) => b.badgeId === "resonance"));
 
-  await assert.rejects(grantBadge(DEMO, KITE, "early-adopter"), BadgeGrantError);
+  // KITE has role "user"; the seeded demo operator is the only admin.
+  await assert.rejects(grantBadge(KITE, DEMO, "early-adopter"), BadgeGrantError);
 });

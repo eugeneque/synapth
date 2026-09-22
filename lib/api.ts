@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { UnauthorizedError } from "@/cortex/auth";
+import { ForbiddenError, UnauthorizedError } from "@/cortex/auth";
 import { InsufficientFundsError } from "@/cortex/billing";
 import { HandleTakenError } from "@/cortex/account";
 import { SandboxViolationError } from "@/lib/sandbox-scanner";
 import { GithubParseError } from "@/lib/github-parser";
+import { RateLimitError } from "@/cortex/rate-limit";
+import { BlockedUrlError } from "@/cortex/ssrf";
 
 export function json<T>(data: T, init: ResponseInit = {}) {
   return NextResponse.json(data, init);
@@ -22,6 +24,14 @@ export function agentJson<T>(data: T, init: ResponseInit = {}) {
 export function errorResponse(err: unknown) {
   if (err instanceof ZodError) return json({ error: "Validation failed", issues: err.issues }, { status: 400 });
   if (err instanceof UnauthorizedError) return json({ error: err.message }, { status: 401 });
+  if (err instanceof ForbiddenError) return json({ error: err.message }, { status: 403 });
+  if (err instanceof RateLimitError) {
+    return json(
+      { error: err.message, retryAfter: err.result.retryAfter },
+      { status: 429, headers: { "Retry-After": String(err.result.retryAfter), "X-RateLimit-Limit": String(err.result.limit), "X-RateLimit-Remaining": "0" } },
+    );
+  }
+  if (err instanceof BlockedUrlError) return json({ error: err.message }, { status: 400 });
   if (err instanceof HandleTakenError) return json({ error: err.message }, { status: 409 });
   if (err instanceof InsufficientFundsError) return json({ error: err.message, requiredUsd: err.requiredUsd, balanceUsd: err.balanceUsd }, { status: 402 });
   if (err instanceof SandboxViolationError) return json({ error: err.message, scan: err.report }, { status: 422 });

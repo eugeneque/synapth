@@ -31,8 +31,12 @@ export interface SkillRepository {
   /** Full README / SKILL.md body; `Skill.readme` only carries an excerpt for search and cards. */
   readme(id: string): Promise<string | null>;
   create(input: SkillCreateInput, authorId: string, securityLevel: SecurityLevel): Promise<Skill>;
-  /** Insert or update by slug — what the crawler calls. Returns counts. */
-  upsertMany(items: Array<{ input: SkillCreateInput; authorId: string; authorName: string; securityLevel: SecurityLevel }>): Promise<{ created: number; updated: number }>;
+  /**
+   * Insert or update by slug — what the crawler calls. An existing row is only
+   * updated by the author that owns it: otherwise an import of a look-alike
+   * repository could overwrite somebody else's manifest (`skipped` counts those).
+   */
+  upsertMany(items: Array<{ input: SkillCreateInput; authorId: string; authorName: string; securityLevel: SecurityLevel }>): Promise<{ created: number; updated: number; skipped: number }>;
   recordInstall(skillId: string, client: string, userId?: string): Promise<void>;
   /** Changes whenever the catalogue changes; used to invalidate the search index. */
   version(): Promise<string>;
@@ -287,9 +291,14 @@ class FileSkillRepository implements SkillRepository {
     this.load();
     let created = 0;
     let updated = 0;
+    let skipped = 0;
     for (const { input, authorId, authorName, securityLevel } of items) {
       const base = input.slug ?? slugify(`${authorName}-${input.name}`);
       const existing = this.bySlugMap.get(base);
+      if (existing && existing.authorId !== authorId) {
+        skipped += 1;
+        continue;
+      }
       if (existing) {
         const previousVersion = existing.version;
         const next = toSkill(input, existing.id, existing.slug, authorId, authorName, securityLevel, existing);
@@ -307,7 +316,7 @@ class FileSkillRepository implements SkillRepository {
       }
     }
     if (created || updated) this.save();
-    return { created, updated };
+    return { created, updated, skipped };
   }
 
   async recordInstall(skillId: string) {
@@ -388,10 +397,15 @@ class PrismaSkillRepository implements SkillRepository {
   async upsertMany(items: Array<{ input: SkillCreateInput; authorId: string; authorName: string; securityLevel: SecurityLevel }>) {
     let created = 0;
     let updated = 0;
+    let skipped = 0;
     for (const { input, authorId, authorName, securityLevel } of items) {
       const slug = input.slug ?? slugify(`${authorName}-${input.name}`);
       await prisma.user.upsert({ where: { id: authorId }, create: { id: authorId, name: authorName, handle: authorId.replace(/^gh:/, "gh-").toLowerCase(), role: "creator" }, update: {} });
-      const existing = await prisma.skill.findUnique({ where: { slug }, select: { id: true, securityLevel: true, version: true, name: true } });
+      const existing = await prisma.skill.findUnique({ where: { slug }, select: { id: true, securityLevel: true, version: true, name: true, authorId: true } });
+      if (existing && existing.authorId !== authorId) {
+        skipped += 1;
+        continue;
+      }
       const data = {
         name: input.name,
         description: input.description,
@@ -415,7 +429,7 @@ class PrismaSkillRepository implements SkillRepository {
         created += 1;
       }
     }
-    return { created, updated };
+    return { created, updated, skipped };
   }
 
   async list(query: SkillQuery) {

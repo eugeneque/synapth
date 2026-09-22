@@ -2,14 +2,15 @@
  * POST /api/v1/crawl   start a crawl in the background (one at a time)
  * GET  /api/v1/crawl   progress of the running / last crawl + state summary
  *
- * Requires an authenticated caller. In production you would gate this on
- * role === "admin"; the in-memory demo lets any signed-in user run it.
+ * Admin only: a crawl spends the server's GitHub quota, writes the shared
+ * catalogue and runs for minutes, so any signed-in user must not be able to
+ * start one.
  */
 
 import { z } from "zod";
 import { crawl, loadState, type CrawlProgress } from "@/cortex/crawler";
-import { resolveCaller } from "@/cortex/api-keys";
-import { UnauthorizedError } from "@/cortex/auth";
+import { requireCallerRole } from "@/cortex/api-keys";
+import { enforceRequestLimit } from "@/cortex/rate-limit";
 import { json, withErrors } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -52,11 +53,15 @@ function summary() {
   };
 }
 
-export const GET = withErrors(async () => json(summary()));
+/** Progress is operational detail: admins only, same as starting a crawl. */
+export const GET = withErrors(async (request: Request) => {
+  await requireCallerRole(request, "admin");
+  return json(summary());
+});
 
 export const POST = withErrors(async (request: Request) => {
-  const caller = await resolveCaller(request);
-  if (!caller) throw new UnauthorizedError();
+  const admin = await requireCallerRole(request, "admin");
+  enforceRequestLimit("crawl", request, admin.userId);
   if (job.running) return json({ ...summary(), error: "A crawl is already running" }, { status: 409 });
 
   const body = startSchema.parse(await request.json().catch(() => ({})));
@@ -91,8 +96,7 @@ export const POST = withErrors(async (request: Request) => {
 });
 
 export const DELETE = withErrors(async (request: Request) => {
-  const caller = await resolveCaller(request);
-  if (!caller) throw new UnauthorizedError();
+  await requireCallerRole(request, "admin");
   job.controller?.abort();
   return json({ aborted: job.running, ...summary() });
 });
