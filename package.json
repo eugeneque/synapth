@@ -17,7 +17,8 @@
     "db:seed": "prisma db seed",
     "test": "rm -f .test-catalog.json && SYNAPTH_CATALOG_PATH=.test-catalog.json tsx --test tests/*.test.ts",
     "crawl": "node --env-file-if-exists=.env --import tsx scripts/crawl.ts",
-    "rescan": "node --env-file-if-exists=.env --import tsx scripts/rescan.ts"
+    "rescan": "node --env-file-if-exists=.env --import tsx scripts/rescan.ts",
+    "setup": "node scripts/install.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",

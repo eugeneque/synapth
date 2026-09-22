@@ -29,6 +29,18 @@ npm run db:push && npm run db:seed
 
 Тесты (node:test через tsx): `npm test`.
 
+## Установка на сервер
+
+`./install.sh` (Linux/macOS, Node.js 20+) — самостоятельный установщик с живым прогресс-баром: ставит npm-зависимости, создаёт `.env`, синхронизирует Prisma-схему при заданном `DATABASE_URL` и проверяет, что всё установилось корректно (структура каталогов, пакеты, Prisma client, `tsc --noEmit`).
+
+```bash
+./install.sh                      # интерактивно — спросит DATABASE_URL и AUTH_URL
+./install.sh --yes                # без вопросов, in-memory сторе по умолчанию
+./install.sh --yes --database-url="postgresql://..." --auth-url="https://example.com"
+```
+
+Опции — `node scripts/install.mjs --help`.
+
 ## Каталог из GitHub
 
 ```bash

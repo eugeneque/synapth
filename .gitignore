@@ -17,3 +17,4 @@ tsconfig.tsbuildinfo
 .test-catalog.json
 .next-isolated/
 .next-profile/
+.next-sec/
