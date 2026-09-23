@@ -1,8 +1,12 @@
-# Netlify deploys Next.js through its OpenNext adapter (@netlify/plugin-nextjs),
-# which is applied automatically once a build command and `.next` are set.
+# Next.js on Netlify runs through the OpenNext adapter; it turns `.next` into
+# serverless/edge functions. It is not auto-applied to this site, so it is
+# declared explicitly (Netlify installs it from its plugin registry).
 [build]
   command = "npm run build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
