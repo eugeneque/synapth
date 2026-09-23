@@ -85,7 +85,6 @@ export const authConfig: NextAuthConfig = {
           id: user.id,
           name: user.name,
           email: user.email,
-          image: user.image,
           role: user.role as UserRole,
           handle: user.handle,
         };
@@ -94,6 +93,10 @@ export const authConfig: NextAuthConfig = {
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {
+      // Avatars are `data:` URLs up to ~160 KB: in the cookie they chunk into dozens of
+      // session-token.N cookies and proxies answer 400 (header too large). The header
+      // reads the image from `getProfile()`, so the token never carries it.
+      delete token.picture;
       if (user) {
         token.id = user.id;
         token.role = user.role ?? "user";
