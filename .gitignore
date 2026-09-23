@@ -18,3 +18,4 @@ tsconfig.tsbuildinfo
 .next-isolated/
 .next-profile/
 .next-sec/
+.next-verify/

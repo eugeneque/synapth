@@ -45,7 +45,7 @@ const securityHeaders = [
  * import, execute) is same-origin only: those answer to a session cookie or an
  * API key and must not be reachable from a third-party page.
  */
-const PUBLIC_API_PATHS = ["/api/v1/skills", "/api/v1/skills/:path*", "/api/v1/search"];
+const PUBLIC_API_PATHS = ["/api/v1/skills", "/api/v1/skills/:path*", "/api/v1/skillsets", "/api/v1/skillsets/:path*", "/api/v1/search"];
 
 const corsHeaders = [
   { key: "Access-Control-Allow-Origin", value: "*" },

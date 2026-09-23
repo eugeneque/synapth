@@ -445,3 +445,79 @@ export const seedNotifications = [
   { id: "ntf_seed_3", userId: "usr_demo", kind: "impulse" as const, actorId: "usr_kite", subject: { kind: "impulse" as const, total: 1 }, readAt: hoursAgo(40), createdAt: hoursAgo(47) },
   { id: "ntf_seed_4", userId: "usr_demo", kind: "comment.post" as const, actorId: "usr_kite", subject: { kind: "comment.post" as const, postId: "post_demo_1", commentId: "cmt_1", excerpt: "Looks great — the cover upload works on mobile too." }, readAt: hoursAgo(40), createdAt: hoursAgo(48) },
 ];
+
+// ---------------------------------------------------------------------------
+// Skillsets (cortex/skillsets.ts) — in-memory demo rows
+// ---------------------------------------------------------------------------
+
+export const seedSkillsets = [
+  {
+    id: "sks_data",
+    slug: "data-engineering",
+    name: "Data engineering",
+    summary: "Query Postgres safely, keep SQL habits in check and search your docs semantically.",
+    description: "## What's inside\n\n- **Postgres MCP** — schema-aware queries against your database.\n- **SQL Guardrails** — no `SELECT *`, no `DELETE` without `WHERE`.\n- **Semantic Search** — find the right doc before writing the query.\n\n> Set `DATABASE_URL` before the first run.",
+    avatar: null,
+    authorId: "usr_acme",
+    verified: true,
+    verifiedById: "usr_demo",
+    verifiedAt: hoursAgo(20),
+    createdAt: hoursAgo(72),
+    updatedAt: hoursAgo(30),
+  },
+  {
+    id: "sks_team",
+    slug: "team-ops",
+    name: "Team ops",
+    summary: "Triage Jira, summarise meetings and read the web for the weekly report.",
+    description: "Everything a team lead's agent needs for the Monday sync.",
+    avatar: null,
+    authorId: "usr_nimbus",
+    verified: false,
+    verifiedById: null,
+    verifiedAt: null,
+    createdAt: hoursAgo(26),
+    updatedAt: hoursAgo(3),
+  },
+];
+
+export const seedSkillsetItems = [
+  { skillsetId: "sks_data", skillId: "skl_postgres", position: 0, addedById: "usr_acme", addedAt: hoursAgo(72) },
+  { skillsetId: "sks_data", skillId: "skl_sqlguard", position: 1, addedById: "usr_acme", addedAt: hoursAgo(72) },
+  { skillsetId: "sks_data", skillId: "skl_semantic", position: 2, addedById: "usr_acme", addedAt: hoursAgo(30) },
+  { skillsetId: "sks_team", skillId: "skl_jira", position: 0, addedById: "usr_nimbus", addedAt: hoursAgo(26) },
+  { skillsetId: "sks_team", skillId: "skl_meetings", position: 1, addedById: "usr_nimbus", addedAt: hoursAgo(26) },
+  { skillsetId: "sks_team", skillId: "skl_browser", position: 2, addedById: "usr_nimbus", addedAt: hoursAgo(3) },
+];
+
+const change = (id: string, skillsetId: string, actorId: string | null, action: "created" | "added" | "removed" | "edited" | "verified" | "unverified", createdAt: string, skill?: { id: string; name: string; slug: string }, fields: Array<"name" | "summary" | "description" | "avatar"> = []) => ({
+  id,
+  skillsetId,
+  actorId,
+  action,
+  skillId: skill?.id ?? null,
+  skillName: skill?.name ?? null,
+  skillSlug: skill?.slug ?? null,
+  fields,
+  auto: false,
+  createdAt,
+});
+
+/** Oldest first: the store reads the history in insertion order. */
+export const seedSkillsetChanges = [
+  change("ssc_1", "sks_data", "usr_acme", "created", hoursAgo(72)),
+  change("ssc_2", "sks_data", "usr_acme", "added", hoursAgo(72), { id: "skl_postgres", name: "Postgres MCP", slug: "acme-postgres-mcp" }),
+  change("ssc_3", "sks_data", "usr_acme", "added", hoursAgo(72), { id: "skl_sqlguard", name: "SQL Guardrails", slug: "kite-sql-guardrails" }),
+  change("ssc_4", "sks_data", "usr_acme", "added", hoursAgo(30), { id: "skl_semantic", name: "Semantic Search", slug: "nimbus-semantic-search" }),
+  change("ssc_5", "sks_data", "usr_acme", "edited", hoursAgo(30), undefined, ["description"]),
+  change("ssc_6", "sks_data", "usr_demo", "verified", hoursAgo(20)),
+  change("ssc_7", "sks_team", "usr_nimbus", "created", hoursAgo(26)),
+  change("ssc_8", "sks_team", "usr_nimbus", "added", hoursAgo(26), { id: "skl_jira", name: "Jira Triage", slug: "nimbus-jira-triage" }),
+  change("ssc_9", "sks_team", "usr_nimbus", "added", hoursAgo(26), { id: "skl_meetings", name: "Meeting Summariser", slug: "nimbus-meeting-summariser" }),
+  change("ssc_10", "sks_team", "usr_nimbus", "added", hoursAgo(3), { id: "skl_browser", name: "Headless Browser", slug: "nimbus-headless-browser" }),
+];
+
+export const seedSkillsetFavorites = [
+  { userId: "usr_demo", skillsetId: "sks_data", createdAt: hoursAgo(19) },
+  { userId: "usr_kite", skillsetId: "sks_data", createdAt: hoursAgo(10) },
+];

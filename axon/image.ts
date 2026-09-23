@@ -36,24 +36,37 @@ function loadImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-/** Cover-crop `file` into `box` and return a JPEG data URL, stepping quality down until it fits. */
-export async function prepareImage(file: File, box: ImageBox): Promise<string> {
+/**
+ * Fit `file` into `box` and return a JPEG data URL, stepping quality down until it fits.
+ * `cover` (avatars, banners) crops to the exact box; `contain` (images inside
+ * a description) only scales down and keeps the whole picture.
+ */
+export async function prepareImage(file: File, box: ImageBox, { fit = "cover" }: { fit?: "cover" | "contain" } = {}): Promise<string> {
   if (!(IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) throw new ImageError("type");
   const img = await loadImage(file);
 
-  const scale = Math.max(box.width / img.naturalWidth, box.height / img.naturalHeight);
-  const sw = Math.min(img.naturalWidth, box.width / scale);
-  const sh = Math.min(img.naturalHeight, box.height / scale);
-  const sx = (img.naturalWidth - sw) / 2;
-  const sy = (img.naturalHeight - sh) / 2;
-
   const canvas = document.createElement("canvas");
-  canvas.width = box.width;
-  canvas.height = box.height;
+  let draw: [number, number, number, number, number, number, number, number];
+  if (fit === "contain") {
+    const scale = Math.min(1, box.width / img.naturalWidth, box.height / img.naturalHeight);
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    draw = [0, 0, img.naturalWidth, img.naturalHeight, 0, 0, canvas.width, canvas.height];
+  } else {
+    const scale = Math.max(box.width / img.naturalWidth, box.height / img.naturalHeight);
+    const sw = Math.min(img.naturalWidth, box.width / scale);
+    const sh = Math.min(img.naturalHeight, box.height / scale);
+    canvas.width = box.width;
+    canvas.height = box.height;
+    draw = [(img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, 0, 0, box.width, box.height];
+  }
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new ImageError("decode");
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, box.width, box.height);
+  // JPEG has no alpha: transparent screenshots would otherwise turn black.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, ...draw);
 
   for (const quality of [0.86, 0.78, 0.68, 0.58]) {
     const url = canvas.toDataURL("image/jpeg", quality);

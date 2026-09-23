@@ -37,6 +37,8 @@ export const RATE_LIMITS = {
   read: { limit: 300, windowMs: 60_000 },
   write: { limit: 60, windowMs: 60_000 },
   moderationRequest: { limit: 10, windowMs: 60 * 60_000 },
+  /** Images pasted into skillset descriptions: stored rows, so metered like publishing. */
+  skillsetImage: { limit: 40, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

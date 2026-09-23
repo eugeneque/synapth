@@ -40,6 +40,10 @@ export function describeNotification(n: Notification, { t, n: plural }: Pick<Tra
         cta: t("notif.cta.skill"),
         href: `/skills/${s.slug}`,
       };
+    case "skillset.updated":
+      return { ...withActor("notif.skillsetUpdated.title", { skillset: s.name }), body: t("notif.skillsetUpdated.body", { added: s.added, removed: s.removed }), cta: t("notif.cta.skillset"), href: `/skillsets/${s.slug}#history` };
+    case "skillset.verified":
+      return { title: t(s.verified ? "notif.skillsetVerified.title" : "notif.skillsetUnverified.title", { skillset: s.name }), verb: "", body: t(s.verified ? "notif.skillsetVerified.body" : "notif.skillsetUnverified.body"), cta: t("notif.cta.skillset"), href: `/skillsets/${s.slug}` };
     case "badge":
       return { title: t("notif.badge.title", { badge: t(`badge.${s.badgeId}.title` as UiKey) }), verb: "", body: t(`badge.${s.badgeId}.body` as UiKey), cta: t("notif.cta.badges"), href: viewerHandle ? `/u/${viewerHandle}#badges` : null };
     case "system":

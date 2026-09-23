@@ -57,7 +57,7 @@ export const COMMENT_MAX_LENGTH = 1000;
 // Notifications
 // ---------------------------------------------------------------------------
 
-export const NOTIFICATION_KINDS = ["impulse", "comment.post", "comment.skill", "skill.updated", "moderation.requested", "moderation.decided", "badge", "system"] as const;
+export const NOTIFICATION_KINDS = ["impulse", "comment.post", "comment.skill", "skill.updated", "moderation.requested", "moderation.decided", "skillset.updated", "skillset.verified", "badge", "system"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /** Drawer filter tabs; each kind belongs to exactly one channel. */
@@ -69,6 +69,8 @@ export const NOTIFICATION_CHANNEL: Record<NotificationKind, NotificationChannel>
   "skill.updated": "skills",
   "moderation.requested": "skills",
   "moderation.decided": "skills",
+  "skillset.updated": "skills",
+  "skillset.verified": "skills",
   badge: "system",
   system: "system",
 };
@@ -83,6 +85,10 @@ export type NotificationSubject =
   | { kind: "moderation.requested"; requestId: string; skillId: string; slug: string; skillName: string }
   /** To the requester and the author: the review is closed. */
   | { kind: "moderation.decided"; requestId: string; skillId: string; slug: string; skillName: string; verdict: "approved" | "rejected"; note: string | null }
+  /** To users who favorited a skillset: its composition changed. */
+  | { kind: "skillset.updated"; skillsetId: string; slug: string; name: string; added: number; removed: number }
+  /** To the skillset author: staff set or revoked `verified`. */
+  | { kind: "skillset.verified"; skillsetId: string; slug: string; name: string; verified: boolean }
   | { kind: "badge"; badgeId: string }
   | { kind: "system"; title: string; body: string; href: string | null; tone: "info" | "success" | "warn" | "danger" };
 
