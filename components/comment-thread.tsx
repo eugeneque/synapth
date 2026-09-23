@@ -19,6 +19,8 @@ import { COMMENT_MAX_LENGTH, type AuthorRef, type Comment } from "@/types/social
 interface Props {
   initial: Comment[];
   viewer: AuthorRef | null;
+  /** Viewer holds `content.moderate`: delete controls on everyone's comments. */
+  canModerate?: boolean;
   submit: (body: string) => Promise<ActionResult<Comment>>;
   /** Where to send a signed-out reader. */
   signInHref: string;
@@ -26,7 +28,7 @@ interface Props {
   className?: string;
 }
 
-export function CommentThread({ initial, viewer, submit, signInHref, onCountChange, className }: Props) {
+export function CommentThread({ initial, viewer, canModerate = false, submit, signInHref, onCountChange, className }: Props) {
   const i18n = useI18n();
   const { t } = i18n;
   const { toast } = useToast();
@@ -75,7 +77,7 @@ export function CommentThread({ initial, viewer, submit, signInHref, onCountChan
               <span className="label-mono-sm normal-case tracking-normal">@{c.author.handle}</span>
               {c.author.occupation && <span className="label-mono-sm rounded bg-muted px-1.5">{t(`occupation.${c.author.occupation}`)}</span>}
               <span className="label-mono-sm ml-auto normal-case tracking-normal">{timeAgo(c.createdAt, i18n)}</span>
-              {viewer?.id === c.author.id && (
+              {(viewer?.id === c.author.id || canModerate) && (
                 <button type="button" onClick={() => remove(c.id)} disabled={pending} aria-label={t("comments.delete")} className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-danger group-hover:opacity-100">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

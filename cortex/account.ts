@@ -13,8 +13,9 @@
 import { z } from "zod";
 import { prisma, hasDatabase } from "@/cortex/db";
 import { memoryUsers } from "@/cortex/seed";
+import { handleSchema, isReservedHandle } from "@/cortex/registration";
 import type { InstallTarget } from "@/axon/install";
-import type { UserRole } from "@/types/auth";
+import { toUserRole, type UserRole } from "@/types/auth";
 import { AVATAR_IMAGE, COVER_IMAGE, OCCUPATIONS, dataUrlBytes, isImageDataUrl, isOccupation, type Occupation } from "@/types/profile";
 import { httpUrlSchema, isHttpUrl } from "@/lib/url-safety";
 import type { AuthorRef } from "@/types/social";
@@ -68,12 +69,7 @@ function imageField(maxBytes: number) {
 
 export const profileUpdateSchema = z.object({
   name: z.string().trim().min(2).max(64),
-  handle: z
-    .string()
-    .trim()
-    .min(3)
-    .max(32)
-    .regex(/^[a-z0-9-]+$/, "lowercase letters, digits and dashes only"),
+  handle: handleSchema,
   image: imageField(AVATAR_IMAGE.maxBytes),
   coverImage: imageField(COVER_IMAGE.maxBytes),
   occupation: z.enum(OCCUPATIONS).nullable().default(null),
@@ -89,8 +85,8 @@ export type ProfileUpdate = z.infer<typeof profileUpdateSchema>;
 
 export class HandleTakenError extends Error {
   status = 409 as const;
-  constructor() {
-    super("Handle already taken");
+  constructor(message = "Handle already taken") {
+    super(message);
     this.name = "HandleTakenError";
   }
 }
@@ -144,7 +140,7 @@ export async function getProfile(userId: string): Promise<AccountProfile | null>
     email: u.email,
     image: u.image,
     coverImage: u.coverImage,
-    role: u.role as UserRole,
+    role: toUserRole(u.role),
     occupation: isOccupation(u.occupation) ? u.occupation : null,
     bio: u.bio ?? "",
     organization: u.organization ?? "",
@@ -157,6 +153,8 @@ export async function getProfile(userId: string): Promise<AccountProfile | null>
 
 export async function updateProfile(userId: string, raw: unknown): Promise<AccountProfile> {
   const input = profileUpdateSchema.parse(raw);
+  // Reserved names stay with whoever already holds them (the platform account), nobody can switch to one.
+  if (isReservedHandle(input.handle) && (await getProfile(userId))?.handle !== input.handle) throw new HandleTakenError("This handle is reserved");
 
   if (!hasDatabase) {
     const u = memoryUsers.find((m) => m.id === userId);
@@ -177,7 +175,7 @@ export async function updateProfile(userId: string, raw: unknown): Promise<Accou
     return (await getProfile(userId))!;
   }
 
-  const clash = await prisma.user.findFirst({ where: { handle: input.handle, NOT: { id: userId } }, select: { id: true } });
+  const clash = await prisma.user.findFirst({ where: { handle: { equals: input.handle, mode: "insensitive" }, NOT: { id: userId } }, select: { id: true } });
   if (clash) throw new HandleTakenError();
   await prisma.user.update({
     where: { id: userId },

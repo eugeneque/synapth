@@ -2,7 +2,9 @@
 # serverless/edge functions. It is not auto-applied to this site, so it is
 # declared explicitly (Netlify installs it from its plugin registry).
 [build]
-  command = "npm run build"
+  # db-sync pushes prisma/schema.prisma to the attached Neon database first
+  # (additive changes only; set SYNAPTH_SKIP_DB_SYNC=1 to opt out).
+  command = "node scripts/db-sync.mjs && npm run build"
   publish = ".next"
 
 [build.environment]

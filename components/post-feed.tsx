@@ -21,12 +21,14 @@ interface Props {
   handle: string;
   ownerId: string;
   viewer: AuthorRef | null;
+  /** Viewer holds `content.moderate`: delete controls on every post and comment. */
+  canModerate?: boolean;
   initialPosts: Post[];
   /** Threads preloaded by the server, keyed by post id. */
   initialComments: Record<string, Comment[]>;
 }
 
-export function PostFeed({ handle, ownerId, viewer, initialPosts, initialComments }: Props) {
+export function PostFeed({ handle, ownerId, viewer, canModerate = false, initialPosts, initialComments }: Props) {
   const { t } = useI18n();
   const { toast } = useToast();
   const [posts, setPosts] = useState(initialPosts);
@@ -106,13 +108,13 @@ export function PostFeed({ handle, ownerId, viewer, initialPosts, initialComment
       )}
 
       {posts.map((post) => (
-        <PostCard key={post.id} post={post} viewer={viewer} initialComments={initialComments[post.id] ?? []} onDelete={() => remove(post)} />
+        <PostCard key={post.id} post={post} viewer={viewer} canModerate={canModerate} initialComments={initialComments[post.id] ?? []} onDelete={() => remove(post)} />
       ))}
     </div>
   );
 }
 
-function PostCard({ post, viewer, initialComments, onDelete }: { post: Post; viewer: AuthorRef | null; initialComments: Comment[]; onDelete: () => void }) {
+function PostCard({ post, viewer, canModerate, initialComments, onDelete }: { post: Post; viewer: AuthorRef | null; canModerate: boolean; initialComments: Comment[]; onDelete: () => void }) {
   const i18n = useI18n();
   const { t, n } = i18n;
   const [open, setOpen] = useState(false);
@@ -141,7 +143,7 @@ function PostCard({ post, viewer, initialComments, onDelete }: { post: Post; vie
             {post.author.occupation && <span className="label-mono-sm text-synapse">{t(`occupation.${post.author.occupation}`)}</span>}
           </div>
         </div>
-        {viewer?.id === post.author.id && (
+        {(viewer?.id === post.author.id || canModerate) && (
           <div className="relative">
             <button type="button" onClick={() => setMenu((m) => !m)} aria-label={t("posts.more")} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
               <MoreHorizontal className="h-4 w-4" />
@@ -173,7 +175,7 @@ function PostCard({ post, viewer, initialComments, onDelete }: { post: Post; vie
       </div>
 
       {open && (
-        <CommentThread className="mt-4" initial={initialComments} viewer={viewer} submit={(body) => commentOnPost(post.id, body)} signInHref={`/signin?callbackUrl=/u/${post.author.handle}`} onCountChange={(d) => setCount((c) => c + d)} />
+        <CommentThread className="mt-4" initial={initialComments} viewer={viewer} canModerate={canModerate} submit={(body) => commentOnPost(post.id, body)} signInHref={`/signin?callbackUrl=/u/${post.author.handle}`} onCountChange={(d) => setCount((c) => c + d)} />
       )}
     </article>
   );

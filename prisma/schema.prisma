@@ -16,9 +16,10 @@ datasource db {
 // Identity (Auth.js tables + Synapth extensions)
 // ---------------------------------------------------------------------------
 
+/// types/auth.ts: user < moderator (catalogue verification) < admin (everything).
 enum UserRole {
   user
-  creator
+  moderator
   admin
 }
 
@@ -212,6 +213,8 @@ model SecurityScan {
   /// Array of ScanFinding (see lib/sandbox-scanner.ts)
   findings  Json
   scannerVersion String
+  /// Moderator/admin who set the level by hand; null for automated scans.
+  reviewedBy String?
   createdAt DateTime      @default(now())
 
   skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)

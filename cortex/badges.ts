@@ -14,6 +14,7 @@ import { getProfile } from "@/cortex/account";
 import { notify } from "@/cortex/notifications";
 import { skillRepository } from "@/cortex/repository";
 import { socialSignals } from "@/cortex/social";
+import { hasPermission } from "@/cortex/roles";
 import { BADGES, BADGE_CRITERIA, badgeById, isBadgeId, type BadgeDefinition, type BadgeId, type BadgeSignals, type UserBadge } from "@/types/badges";
 
 const g = globalThis as unknown as { __synapthBadges_v1?: Map<string, UserBadge[]> };
@@ -90,8 +91,7 @@ export class BadgeGrantError extends Error {
 
 /** Manual grant: only admins, any badge id. Returns null when already held. */
 export async function grantBadge(adminId: string, userId: string, badgeId: string): Promise<UserBadge | null> {
-  const admin = await getProfile(adminId);
-  if (admin?.role !== "admin") throw new BadgeGrantError("Only admins can grant badges");
+  if (!(await hasPermission(adminId, "badges.grant"))) throw new BadgeGrantError("Only admins can grant badges");
   if (!isBadgeId(badgeId)) throw new BadgeGrantError(`Unknown badge ${badgeId}`);
   return award(userId, badgeId, adminId);
 }

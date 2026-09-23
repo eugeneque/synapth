@@ -1,4 +1,5 @@
-import NextAuth, { type NextAuthConfig } from "next-auth";
+import NextAuth, { type NextAuthConfig, type User } from "next-auth";
+import type { Adapter } from "next-auth/adapters";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
@@ -7,8 +8,10 @@ import { compare } from "bcryptjs";
 import { z } from "zod";
 import { prisma, hasDatabase } from "@/cortex/db";
 import { memoryUsers } from "@/cortex/seed";
+import { createOAuthUser } from "@/cortex/registration";
+import { requirePermission } from "@/cortex/roles";
 import { clientIp, enforceRateLimit } from "@/cortex/rate-limit";
-import type { UserRole } from "@/types/auth";
+import type { Permission, UserRole } from "@/types/auth";
 
 const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -28,9 +31,21 @@ async function findUserByEmail(email: string) {
  */
 const DUMMY_HASH = "$2a$12$WfnUn5XzBGA2UJylDU20Je4ljsT6e8dTn3goWlFrXT76iikImUa1W";
 
+/**
+ * Prisma adapter with Synapth's own `createUser`: a first OAuth sign-in gets a
+ * unique handle, a wallet and the welcome credit, exactly like a password signup.
+ */
+function synapthAdapter(): Adapter {
+  const base = PrismaAdapter(prisma);
+  return {
+    ...base,
+    createUser: ({ id: _id, ...data }) => createOAuthUser({ ...data, login: (data as { login?: string }).login }),
+  };
+}
+
 export const authConfig: NextAuthConfig = {
   // Adapter is only wired when a DB exists; JWT strategy keeps sessions stateless either way.
-  adapter: hasDatabase ? PrismaAdapter(prisma) : undefined,
+  adapter: hasDatabase ? synapthAdapter() : undefined,
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   pages: { signIn: "/signin", newUser: "/signup", error: "/signin" },
   providers: [
@@ -38,6 +53,8 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.AUTH_GITHUB_ID,
       clientSecret: process.env.AUTH_GITHUB_SECRET,
       allowDangerousEmailAccountLinking: false,
+      // The GitHub login is the best handle seed; `createOAuthUser` reads it.
+      profile: (p) => ({ id: String(p.id), name: p.name ?? p.login, email: p.email, image: p.avatar_url, login: p.login }) as User,
     }),
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
@@ -122,6 +139,13 @@ export async function requireUser() {
     throw new UnauthorizedError();
   }
   return session.user;
+}
+
+/** Session user + a permission check against the stored role (server actions, pages). */
+export async function requireSessionPermission(permission: Permission) {
+  const user = await requireUser();
+  const role = await requirePermission(user.id, permission);
+  return { ...user, role };
 }
 
 /** Thrown by the role checks in `cortex/api-keys.ts`; rendered as 403 by `lib/api`. */

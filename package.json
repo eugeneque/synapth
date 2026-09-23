@@ -15,6 +15,8 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "db:seed": "prisma db seed",
+    "db:sync": "node --env-file-if-exists=.env scripts/db-sync.mjs",
+    "role": "node --env-file-if-exists=.env --import tsx scripts/set-role.ts",
     "test": "rm -f .test-catalog.json && SYNAPTH_CATALOG_PATH=.test-catalog.json tsx --test tests/*.test.ts",
     "crawl": "node --env-file-if-exists=.env --import tsx scripts/crawl.ts",
     "rescan": "node --env-file-if-exists=.env --import tsx scripts/rescan.ts",
