@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Bell, KeyRound, Rocket, ShieldCheck, ShieldEllipsis, SlidersHorizontal, UserRound } from "lucide-react";
+import { Activity, Bell, Boxes, KeyRound, Rocket, ShieldCheck, ShieldEllipsis, SlidersHorizontal, UserRound } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
@@ -17,6 +17,7 @@ const ITEMS: Array<{ key: UiKey; href: string | ((handle: string) => string); ic
   { key: "console.nav.overview", href: "/dashboard", icon: Activity, match: (p) => p === "/dashboard" },
   { key: "console.nav.publish", href: "/dashboard#publish", icon: Rocket, match: () => false },
   { key: "console.nav.keys", href: "/dashboard#keys", icon: KeyRound, match: () => false },
+  { key: "console.nav.skillsets", href: "/dashboard/skillsets", icon: Boxes, match: (p) => p.startsWith("/dashboard/skillsets") },
   { key: "console.nav.moderation", href: "/dashboard/moderation", icon: ShieldCheck, match: (p) => p.startsWith("/dashboard/moderation"), requires: "catalog.moderate" },
   { key: "console.nav.notifications", href: "/dashboard/notifications", icon: Bell, match: (p) => p.startsWith("/dashboard/notifications") },
   { key: "console.nav.settings", href: "/dashboard/settings", icon: SlidersHorizontal, match: (p) => p.startsWith("/dashboard/settings") },

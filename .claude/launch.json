@@ -29,6 +29,16 @@
       ],
       "port": 3200,
       "autoPort": true
+    },
+    {
+      "name": "synapth-dev-verify",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "NEXT_DIST_DIR=.next-verify npx next dev -p ${PORT:-3300}"
+      ],
+      "port": 3300,
+      "autoPort": true
     }
   ]
 }

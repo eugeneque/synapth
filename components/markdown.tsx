@@ -7,6 +7,14 @@ interface Props {
   /** Base URL used to resolve relative links/images (the repo's blob URL). */
   baseUrl?: string | null;
   className?: string;
+  /** Same-origin path prefixes whose images may be rendered as-is (uploaded skillset images). */
+  localImagePrefixes?: readonly string[];
+}
+
+/** An id-shaped path under one of `prefixes`: no `..`, no query, nothing that could point elsewhere. */
+function localImage(src: string | undefined, prefixes: readonly string[] | undefined): string | undefined {
+  if (!src || !prefixes?.length) return undefined;
+  return prefixes.some((p) => src.startsWith(p) && /^[A-Za-z0-9_-]{1,64}$/.test(src.slice(p.length))) ? src : undefined;
 }
 
 /**
@@ -25,7 +33,7 @@ function resolve(href: string | undefined, base: string | null | undefined, raw 
 }
 
 /** README / SKILL.md renderer. Raw HTML is dropped by react-markdown and link targets go through `resolve()`. */
-export function Markdown({ source, baseUrl, className }: Props) {
+export function Markdown({ source, baseUrl, className, localImagePrefixes }: Props) {
   return (
     <div className={className}>
       <ReactMarkdown
@@ -36,8 +44,11 @@ export function Markdown({ source, baseUrl, className }: Props) {
               {children}
             </a>
           ),
-          // eslint-disable-next-line @next/next/no-img-element
-          img: ({ src, alt }) => <img src={resolve(typeof src === "string" ? src : undefined, baseUrl, true)} alt={alt ?? ""} loading="lazy" className="my-3 max-h-80 border border-border" />,
+          img: ({ src, alt }) => {
+            const raw = typeof src === "string" ? src : undefined;
+            // eslint-disable-next-line @next/next/no-img-element
+            return <img src={localImage(raw, localImagePrefixes) ?? resolve(raw, baseUrl, true)} alt={alt ?? ""} loading="lazy" className="my-3 max-h-80 border border-border" />;
+          },
           h1: ({ children }) => <h1 className="mb-3 mt-6 text-xl font-semibold first:mt-0">{children}</h1>,
           h2: ({ children }) => <h2 className="mb-2 mt-6 border-b border-border pb-1 text-lg font-semibold">{children}</h2>,
           h3: ({ children }) => <h3 className="mb-2 mt-4 text-base font-semibold">{children}</h3>,

@@ -1,0 +1,80 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Heart, PlusCircle } from "lucide-react";
+import { auth } from "@/cortex/auth";
+import { getI18n } from "@/cortex/locale";
+import { listFavoriteSkillsets, listSkillsets } from "@/cortex/skillsets";
+import { SkillsetCard } from "@/components/skillset-card";
+import { Button } from "@/components/ui/button";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t("console.skillsets.meta") };
+}
+export const dynamic = "force-dynamic";
+
+/** The viewer's own skillsets and the ones they favorited. */
+export default async function DashboardSkillsetsPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/signin?callbackUrl=/dashboard/skillsets");
+  const [{ t, n }, mine, favorites] = await Promise.all([getI18n(), listSkillsets({ authorId: session.user.id, sort: "updated", limit: 200 }), listFavoriteSkillsets(session.user.id)]);
+
+  return (
+    <div className="space-y-10">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 md:flex-row md:items-end">
+        <div className="space-y-2">
+          <p className="label-mono-sm flex items-center gap-2 tracking-[0.2em]">
+            <span className="text-synapse">{t("console.skillsets.crumb")}</span>
+            <span className="text-border">/</span>
+            <span>{n("skillset.entries", mine.length)}</span>
+          </p>
+          <h1 className="font-display text-3xl font-medium tracking-tight sm:text-4xl">{t("console.skillsets.title")}</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">{t("console.skillsets.lead")}</p>
+        </div>
+        <Button asChild className="self-start font-mono text-[11px] uppercase tracking-[0.14em] md:self-auto">
+          <Link href="/skillsets/new">
+            <PlusCircle /> {t("skillsets.create")}
+          </Link>
+        </Button>
+      </header>
+
+      <section className="space-y-3">
+        <h2 className="label-mono">
+          <span className="mr-1.5 text-synapse/70">/</span>
+          {t("console.skillsets.mine")}
+        </h2>
+        {mine.length ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {mine.map((set) => (
+              <SkillsetCard key={set.id} set={set} />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">{t("console.skillsets.mineEmpty")}</p>
+        )}
+      </section>
+
+      <section id="favorites" className="scroll-mt-24 space-y-3">
+        <h2 className="label-mono flex items-center gap-1.5">
+          <Heart className="h-3.5 w-3.5 text-synapse" />
+          {t("console.skillsets.favorites")}
+        </h2>
+        {favorites.length ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {favorites.map((set) => (
+              <SkillsetCard key={set.id} set={set} />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">
+            {t("console.skillsets.favoritesEmpty")}{" "}
+            <Link href="/skillsets" className="text-synapse hover:underline">
+              {t("console.skillsets.browse")}
+            </Link>
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}

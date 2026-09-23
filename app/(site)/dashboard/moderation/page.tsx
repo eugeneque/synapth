@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowUpRight, BadgeCheck, Gavel, Hourglass } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, Boxes, Gavel, Hourglass } from "lucide-react";
 import { auth } from "@/cortex/auth";
 import { getRole } from "@/cortex/roles";
 import { listModerationRequests, moderationQueue } from "@/cortex/moderation";
+import { listSkillsets } from "@/cortex/skillsets";
 import { getI18n } from "@/cortex/locale";
 import { can } from "@/types/auth";
 import { formatCompact, timeAgo } from "@/lib/utils";
@@ -12,6 +13,7 @@ import { Panel } from "@/components/panel";
 import { Badge } from "@/components/ui/badge";
 import { SecurityBadge } from "@/components/security-badge";
 import { VerifyControl } from "@/components/verify-control";
+import { SkillsetVerifyControl } from "@/components/skillset-verify-control";
 import { ModerationStatusChip } from "@/components/moderation-status";
 import type { ModerationRequest } from "@/types/moderation";
 import type { Translator, UiKey } from "@/lib/i18n";
@@ -28,7 +30,7 @@ export default async function ModerationPage() {
   if (!session?.user) redirect("/signin?callbackUrl=/dashboard/moderation");
   // 404 rather than 403: the console does not advertise staff pages.
   if (!can(await getRole(session.user.id), "catalog.moderate")) notFound();
-  const [pending, decided, queue, i18n] = await Promise.all([listModerationRequests("pending"), listModerationRequests("decided", 20), moderationQueue(), getI18n()]);
+  const [pending, decided, queue, skillsets, i18n] = await Promise.all([listModerationRequests("pending"), listModerationRequests("decided", 20), moderationQueue(), listSkillsets({ verified: false, sort: "updated", limit: 50 }), getI18n()]);
   const { t } = i18n;
 
   return (
@@ -49,6 +51,33 @@ export default async function ModerationPage() {
 
       <Panel title={t("moderation.decided")} meta={String(decided.length)} icon={<Gavel className="h-4 w-4 shrink-0 text-synapse" />} corners>
         <RequestList requests={decided} empty={t("moderation.emptyDecided")} i18n={i18n} />
+      </Panel>
+
+      <Panel title={t("moderation.skillsets")} meta={String(skillsets.length)} icon={<Boxes className="h-4 w-4 shrink-0 text-synapse" />} corners footer={<span>{t("moderation.skillsetsHint")}</span>}>
+        {skillsets.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-muted-foreground">{t("moderation.skillsetsEmpty")}</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {skillsets.map((s) => {
+              const total = s.counts.MCP + s.counts.Prompt + s.counts.Tool;
+              return (
+                <li key={s.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <Link href={`/skillsets/${s.slug}`} className="block truncate font-medium hover:text-synapse">
+                      {s.name}
+                    </Link>
+                    <p className="label-mono-sm truncate normal-case tracking-normal">
+                      @{s.author.handle} · {i18n.n("skillset.entries", total)} · {timeAgo(s.updatedAt, i18n)}
+                    </p>
+                  </div>
+                  <div className="shrink-0 self-start sm:self-center">
+                    <SkillsetVerifyControl skillsetId={s.id} name={s.name} verified={s.verified} empty={total === 0} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </Panel>
 
       <Panel title={t("moderation.verifiedList")} meta={String(queue.verified.length)} icon={<BadgeCheck className="h-4 w-4 shrink-0 text-synapse" />} corners>

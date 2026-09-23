@@ -137,3 +137,168 @@ function preferredTarget(): InstallTarget | null {
 export function defaultTarget(skill: Skill): InstallTarget {
   return preferredTarget() ?? (skill.manifest.entrypoint.type === "http" ? "curl" : "claude-code");
 }
+
+// ---------------------------------------------------------------------------
+// Skillsets: every entry of a set in one command
+// ---------------------------------------------------------------------------
+
+/** Why an entry is left out of a skillset install. */
+export type SkillsetSkipReason = "sandbox" | "http" | "unsupported";
+
+export interface SkillsetInstallPlan {
+  target: InstallTarget;
+  /** What the user runs (or pastes, for `claude-desktop`). */
+  command: string;
+  commandLanguage: "bash" | "json" | "markdown";
+  /** The script / config behind `command`, shown in an expander. */
+  body: string;
+  bodyLanguage: "bash" | "json" | "markdown";
+  included: Array<{ slug: string; name: string }>;
+  skipped: Array<{ slug: string; name: string; reason: SkillsetSkipReason }>;
+  /** Union of `requiredEnv` over the included entries. */
+  env: string[];
+}
+
+/** POSIX single-quoting: the only safe way to put manifest data (commands, args, URLs) into a script. */
+export function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/** A heredoc terminator that cannot occur as a line of `body`, so a prompt can never end the heredoc early. */
+function heredocTag(body: string, key: string): string {
+  const lines = new Set(body.split("\n").map((l) => l.trim()));
+  let tag = `SYNAPTH_${key.replace(/[^a-z0-9]/gi, "_").toUpperCase()}_EOF`;
+  while (lines.has(tag)) tag += "_X";
+  return tag;
+}
+
+function writeFile(path: string, content: string, key: string): string {
+  const tag = heredocTag(content, key);
+  const dir = path.split("/").slice(0, -1).join("/");
+  return `mkdir -p ${shellQuote(dir)} && cat > ${shellQuote(path)} <<'${tag}'\n${content}\n${tag}`;
+}
+
+function degitSource(skill: Skill): { spec: string; dirName: string } | null {
+  const src = skill.source;
+  if (!src || src.manifestFile !== "SKILL.md") return null;
+  const dir = src.manifestPath.split("/").slice(0, -1).join("/");
+  const branch = src.defaultBranch !== "main" && src.defaultBranch !== "master" ? `#${src.defaultBranch}` : "";
+  return { spec: `${src.fullName}${dir ? `/${dir}` : ""}${branch}`, dirName: (dir.split("/").pop() || serverKey(skill)).replace(/[^A-Za-z0-9._-]/g, "-") };
+}
+
+const yamlString = (value: string) => JSON.stringify(value.replace(/\s+/g, " ").trim());
+
+/** URL of the script behind the one-liner; the route renders `skillsetInstall(...).body`. */
+export function skillsetScriptUrl(slug: string, target: InstallTarget): string {
+  return `${APP_URL}/api/v1/skillsets/${encodeURIComponent(slug)}/install?target=${target}`;
+}
+
+/**
+ * Install plan for a whole skillset. `claude-code` and `cursor` get a POSIX
+ * script (served by `/api/v1/skillsets/<slug>/install`) so the set installs
+ * with `curl … | sh`; `claude-desktop` gets one merged `mcpServers` block;
+ * `curl` gets the agent-context request. Sandbox entries are never put into a
+ * piped script, and HTTP tools have nothing to install locally.
+ *
+ * Every piece of manifest data is shell-quoted: a set is assembled from other
+ * people's entries, so their commands and prompts are untrusted input here.
+ */
+export function skillsetInstall(set: { slug: string; name: string }, skills: Skill[], target: InstallTarget): SkillsetInstallPlan {
+  const included: SkillsetInstallPlan["included"] = [];
+  const skipped: SkillsetInstallPlan["skipped"] = [];
+  const env = new Set<string>();
+  const steps: string[] = [];
+  const mcpServers: Record<string, Record<string, unknown>> = {};
+  const prompts: string[] = [];
+
+  for (const skill of skills) {
+    const ep = skill.manifest.entrypoint;
+    const key = serverKey(skill);
+    const ref = { slug: skill.slug, name: skill.name };
+    if (target !== "curl" && skill.securityLevel === "Sandbox") {
+      skipped.push({ ...ref, reason: "sandbox" });
+      continue;
+    }
+    if (target !== "curl" && ep.type === "http") {
+      skipped.push({ ...ref, reason: "http" });
+      continue;
+    }
+    for (const name of skill.manifest.requiredEnv ?? []) env.add(name);
+    included.push(ref);
+    const say = `echo ${shellQuote(`→ ${skill.name}`)}`;
+
+    if (target === "curl") continue;
+
+    if (ep.type === "mcp-stdio" || ep.type === "mcp-sse") {
+      if (target === "claude-code") {
+        const add = ep.type === "mcp-stdio" ? `claude mcp add ${shellQuote(key)} -- ${[ep.command, ...(ep.args ?? [])].map(shellQuote).join(" ")}` : `claude mcp add --transport sse ${shellQuote(key)} ${shellQuote(ep.url)}`;
+        steps.push(`${say}\n${add} || echo ${shellQuote(`  ! ${key} is already configured or could not be added`)}`);
+      } else {
+        mcpServers[key] = mcpServerConfig(skill) ?? {};
+      }
+      continue;
+    }
+
+    if (ep.type === "prompt") {
+      const git = degitSource(skill);
+      const body = skill.manifest.systemPrompt ?? skill.description;
+      if (target === "claude-desktop") {
+        prompts.push(`## ${skill.name}\n\n${git ? `Read and follow the skill at https://raw.githubusercontent.com/${skill.source!.fullName}/${skill.source!.defaultBranch}/${skill.source!.manifestPath}\n\n${skill.description}` : body}`);
+        continue;
+      }
+      const root = target === "claude-code" ? ".claude/skills" : ".cursor/skills";
+      if (git) {
+        steps.push(`${say}\nnpx -y degit --force ${shellQuote(git.spec)} ${shellQuote(`${root}/${git.dirName}`)}`);
+      } else if (target === "claude-code") {
+        steps.push(`${say}\n${writeFile(`${root}/${key}/SKILL.md`, `---\nname: ${yamlString(skill.name)}\ndescription: ${yamlString(skill.description)}\n---\n${body}`, key)}`);
+      } else {
+        steps.push(`${say}\n${writeFile(`.cursor/rules/${key}.mdc`, `---\ndescription: ${yamlString(skill.description)}\nalwaysApply: true\n---\n${body}`, key)}`);
+      }
+      continue;
+    }
+
+    included.pop();
+    skipped.push({ ...ref, reason: "unsupported" });
+  }
+
+  const envList = [...env].sort();
+
+  if (target === "curl") {
+    const url = `${APP_URL}/api/v1/skillsets/${encodeURIComponent(set.slug)}`;
+    return { target, command: `curl -s -H 'X-Agent-Request: true' ${shellQuote(url)}`, commandLanguage: "bash", body: `# ${set.name}\n# Returns the agent context (system prompts + tool schemas) of every entry in the set.\ncurl -s -H 'X-Agent-Request: true' ${shellQuote(url)}`, bodyLanguage: "bash", included, skipped, env: envList };
+  }
+
+  if (target === "claude-desktop") {
+    // One block for claude_desktop_config.json; prompt entries have no config file there and go to project instructions.
+    const config = JSON.stringify({ mcpServers }, null, 2);
+    const instructions = prompts.join("\n\n---\n\n");
+    const hasServers = Object.keys(mcpServers).length > 0;
+    return {
+      target,
+      command: hasServers ? config : instructions,
+      commandLanguage: hasServers ? "json" : "markdown",
+      body: hasServers ? instructions : "",
+      bodyLanguage: "markdown",
+      included,
+      skipped,
+      env: envList,
+    };
+  }
+
+  if (target === "cursor" && Object.keys(mcpServers).length) {
+    // Merge into the project's .cursor/mcp.json without clobbering servers that are already there.
+    const merge = `const fs=require("fs"),p=".cursor/mcp.json",add=JSON.parse(process.argv[1]);let c={};try{c=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){}c.mcpServers=Object.assign({},c.mcpServers,add);fs.mkdirSync(".cursor",{recursive:true});fs.writeFileSync(p,JSON.stringify(c,null,2)+"\\n")`;
+    steps.push(`echo ${shellQuote(`→ MCP servers: ${Object.keys(mcpServers).join(", ")}`)}\nnode -e ${shellQuote(merge)} ${shellQuote(JSON.stringify(mcpServers))}`);
+  }
+
+  const header = [
+    "#!/bin/sh",
+    `# Synapth skillset: ${set.name.replace(/\n/g, " ")}`,
+    `# ${APP_URL}/skillsets/${set.slug}`,
+    `# Target: ${INSTALL_TARGETS.find((t) => t.id === target)?.label ?? target} — run in the project directory.`,
+    ...skipped.map((s) => `# skipped (${s.reason}): ${s.name.replace(/\n/g, " ")}`),
+  ];
+  const footer = [`echo ${shellQuote(`✓ ${set.name}: ${included.length} installed${skipped.length ? `, ${skipped.length} skipped` : ""}`)}`, ...(envList.length ? [`echo ${shellQuote(`  Set these environment variables: ${envList.join(", ")}`)}`] : [])];
+  const body = [...header, "", ...steps, "", ...footer].join("\n") + "\n";
+  return { target, command: `curl -fsSL ${shellQuote(skillsetScriptUrl(set.slug, target))} | sh`, commandLanguage: "bash", body, bodyLanguage: "bash", included, skipped, env: envList };
+}

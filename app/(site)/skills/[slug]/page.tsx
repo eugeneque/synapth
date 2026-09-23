@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Code2, Eye, ExternalLink, KeyRound, ShieldQuestion, Terminal } from "lucide-react";
+import { Boxes, Code2, Eye, ExternalLink, KeyRound, Plus, ShieldQuestion, Terminal } from "lucide-react";
 import { skillRepository, hydratePrompt } from "@/cortex/repository";
 import { auth } from "@/cortex/auth";
 import { getAuthorRef } from "@/cortex/account";
@@ -29,6 +29,8 @@ import { pendingRequestFor } from "@/cortex/moderation";
 import { getRole } from "@/cortex/roles";
 import { can } from "@/types/auth";
 import { safeExternalHref } from "@/lib/url-safety";
+import { listSkillsets } from "@/cortex/skillsets";
+import { SkillsetAvatar } from "@/components/skillset-avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -47,12 +49,13 @@ export default async function SkillPage({ params }: Params) {
   const [i18n, session] = await Promise.all([getI18n(), auth()]);
   const { t } = i18n;
   const viewerId = session?.user?.id ?? null;
-  const [watch, comments, viewer, role, review] = await Promise.all([
+  const [watch, comments, viewer, role, review, inSkillsets] = await Promise.all([
     watchSummary(skill.id, viewerId),
     listComments("skill", skill.id),
     viewerId ? getAuthorRef(viewerId) : Promise.resolve(null),
     viewerId ? getRole(viewerId) : Promise.resolve(null),
     pendingRequestFor(skill.id),
+    listSkillsets({ skillId: skill.id, sort: "popular", limit: 6 }),
   ]);
 
   const scan = scanManifest(skill.manifest, { reviewed: skill.securityLevel === "Verified" });
@@ -187,6 +190,30 @@ export default async function SkillPage({ params }: Params) {
                 <ExternalLink className="h-3.5 w-3.5" /> {t("skill.sourceRepo")}
               </a>
             )}
+          </Panel>
+
+          <Panel title={t("skill.skillsets")} meta={inSkillsets.length ? String(inSkillsets.length) : undefined} icon={<Boxes className="h-4 w-4 shrink-0 text-synapse" />} corners>
+            {inSkillsets.length > 0 && (
+              <ul className="divide-y divide-border">
+                {inSkillsets.map((set) => (
+                  <li key={set.id}>
+                    <Link href={`/skillsets/${set.slug}`} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-low/60">
+                      <SkillsetAvatar name={set.name} avatar={set.avatar} size="sm" className="h-8 w-8 text-xs" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{set.name}</span>
+                        <span className="label-mono-sm block truncate normal-case tracking-normal">@{set.author.handle}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className={inSkillsets.length ? "border-t border-border p-3" : "p-4"}>
+              {!inSkillsets.length && <p className="mb-3 text-xs text-muted-foreground">{t("skill.skillsetsEmpty")}</p>}
+              <Link href={`/skillsets/new?skill=${encodeURIComponent(skill.slug)}`} className="label-mono-sm inline-flex items-center gap-1.5 text-synapse hover:underline">
+                <Plus className="h-3.5 w-3.5" /> {t("skill.skillsetsCreate")}
+              </Link>
+            </div>
           </Panel>
 
           {skill.source && <RepoCard source={skill.source} />}
