@@ -37,7 +37,8 @@ export default async function HomePage() {
   return (
     <>
       {/* Hero — the dot-matrix hands are the background; content floats on top. */}
-      <section className="relative overflow-hidden border-b border-border">
+      {/* `data-pixel-glow`: the only zone where the global PixelField follows the pointer. */}
+      <section data-pixel-glow className="relative overflow-hidden border-b border-border">
         <AsciiHands className="absolute inset-0 h-full w-full" />
 
         <div className="container relative flex min-h-[780px] flex-col items-center justify-start pt-12 text-center md:min-h-[840px] md:pt-24">
