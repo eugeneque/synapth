@@ -7,22 +7,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Bell, KeyRound, Radar, Rocket, ShieldCheck, SlidersHorizontal, UserRound, Users } from "lucide-react";
+import { Activity, Bell, KeyRound, Rocket, ShieldCheck, ShieldEllipsis, SlidersHorizontal, UserRound } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
 import { can, type Permission, type UserRole } from "@/types/auth";
 
-const ITEMS: Array<{ key: UiKey; href: string | ((handle: string) => string); icon: typeof Activity; match: (p: string) => boolean; requires?: Permission }> = [
+const ITEMS: Array<{ key: UiKey; href: string | ((handle: string) => string); icon: typeof Activity; match: (p: string) => boolean; requires?: Permission; onlyWhenActive?: boolean }> = [
   { key: "console.nav.overview", href: "/dashboard", icon: Activity, match: (p) => p === "/dashboard" },
   { key: "console.nav.publish", href: "/dashboard#publish", icon: Rocket, match: () => false },
-  // The crawler panel only renders for its permission holders; the rail must not link to a missing anchor.
-  { key: "console.nav.crawler", href: "/dashboard#crawl", icon: Radar, match: () => false, requires: "crawler.run" },
   { key: "console.nav.keys", href: "/dashboard#keys", icon: KeyRound, match: () => false },
   { key: "console.nav.moderation", href: "/dashboard/moderation", icon: ShieldCheck, match: (p) => p.startsWith("/dashboard/moderation"), requires: "catalog.moderate" },
-  { key: "console.nav.users", href: "/dashboard/users", icon: Users, match: (p) => p.startsWith("/dashboard/users"), requires: "users.manageRoles" },
   { key: "console.nav.notifications", href: "/dashboard/notifications", icon: Bell, match: (p) => p.startsWith("/dashboard/notifications") },
   { key: "console.nav.settings", href: "/dashboard/settings", icon: SlidersHorizontal, match: (p) => p.startsWith("/dashboard/settings") },
+  // Admin tools are opened from settings ("Open admin panel"); the rail only lights up while inside.
+  { key: "console.nav.admin", href: "/dashboard/admin", icon: ShieldEllipsis, match: (p) => p.startsWith("/dashboard/admin"), requires: "admin.access", onlyWhenActive: true },
   { key: "console.nav.profile", href: (handle) => `/u/${handle}`, icon: UserRound, match: () => false },
 ];
 
@@ -33,7 +32,7 @@ export function ConsoleNav({ store, handle, role, className }: { store: string; 
     <aside className={cn("flex flex-col justify-between gap-6", className)}>
       <nav aria-label={t("console.nav.label")} className="flex flex-col gap-1">
         <p className="label-mono-sm mb-2 tracking-[0.2em]">{t("console.nav.label")}</p>
-        {ITEMS.filter((item) => !item.requires || can(role, item.requires)).map((item) => {
+        {ITEMS.filter((item) => (!item.requires || can(role, item.requires)) && (!item.onlyWhenActive || item.match(pathname))).map((item) => {
           const href = typeof item.href === "function" ? item.href(handle) : item.href;
           const active = item.match(pathname);
           const Icon = item.icon;

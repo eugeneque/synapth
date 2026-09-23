@@ -30,6 +30,16 @@ export function describeNotification(n: Notification, { t, n: plural }: Pick<Tra
       return { ...withActor("notif.commentSkill.title", { skill: s.skillName }), body: s.excerpt, cta: t("notif.cta.discussion"), href: `/skills/${s.slug}#discussion` };
     case "skill.updated":
       return { title: t("notif.skillUpdated.title", { skill: s.skillName, version: s.version }), verb: "", body: s.previousVersion ? t("notif.skillUpdated.body", { prev: s.previousVersion }) : t("notif.skillUpdated.first"), cta: t("notif.cta.skill"), href: `/skills/${s.slug}` };
+    case "moderation.requested":
+      return { ...withActor("notif.modRequested.title", { skill: s.skillName }), body: t("notif.modRequested.body"), cta: t("notif.cta.review"), href: `/dashboard/moderation/${s.requestId}` };
+    case "moderation.decided":
+      return {
+        title: t(s.verdict === "approved" ? "notif.modApproved.title" : "notif.modRejected.title", { skill: s.skillName }),
+        verb: "",
+        body: s.note || t(s.verdict === "approved" ? "notif.modApproved.body" : "notif.modRejected.body"),
+        cta: t("notif.cta.skill"),
+        href: `/skills/${s.slug}`,
+      };
     case "badge":
       return { title: t("notif.badge.title", { badge: t(`badge.${s.badgeId}.title` as UiKey) }), verb: "", body: t(`badge.${s.badgeId}.body` as UiKey), cta: t("notif.cta.badges"), href: viewerHandle ? `/u/${viewerHandle}#badges` : null };
     case "system":

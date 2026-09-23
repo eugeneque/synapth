@@ -36,6 +36,7 @@ export const RATE_LIMITS = {
   search: { limit: 120, windowMs: 60_000 },
   read: { limit: 300, windowMs: 60_000 },
   write: { limit: 60, windowMs: 60_000 },
+  moderationRequest: { limit: 10, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

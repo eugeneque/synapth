@@ -61,6 +61,7 @@ model User {
   watches          SkillWatch[]
   notifications    Notification[] @relation("NotificationUser")
   badges           UserBadge[]
+  moderationRequests ModerationRequest[] @relation("ModerationRequester")
 }
 
 model Account {
@@ -159,6 +160,7 @@ model Skill {
   usage     UsageEvent[]
   stats     SkillStats?
   watchers  SkillWatch[]
+  moderationRequests ModerationRequest[]
 
   @@index([category, securityLevel])
   @@index([createdAt])
@@ -386,4 +388,54 @@ model UserBadge {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, badgeId])
+}
+
+// ---------------------------------------------------------------------------
+// Staff · moderation requests, crawler run log (types/moderation.ts, cortex/crawl-jobs.ts)
+// ---------------------------------------------------------------------------
+
+/// A user asks staff to review a catalogue entry; a moderator/admin closes it with a verdict.
+model ModerationRequest {
+  id          String    @id @default(cuid())
+  skillId     String
+  requesterId String
+  note        String?
+  /// "pending" | "approved" | "rejected"
+  status      String    @default("pending")
+  reviewerId  String?
+  verdictNote String?
+  /// Security level the entry ended with when the verdict was recorded.
+  resultLevel String?
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  skill     Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  requester User  @relation("ModerationRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([skillId, status])
+}
+
+/// One crawler run (scheduled or manual) with its counters and the tail of its log.
+model CrawlRun {
+  id         String    @id @default(cuid())
+  /// "schedule" | "manual"
+  trigger    String
+  /// "running" | "done" | "aborted" | "failed"
+  status     String    @default("running")
+  actorId    String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  discovered Int       @default(0)
+  processed  Int       @default(0)
+  imported   Int       @default(0)
+  rejected   Int       @default(0)
+  errors     Int       @default(0)
+  created    Int       @default(0)
+  updated    Int       @default(0)
+  error      String?
+  /// Array of log lines (capped).
+  log        Json      @default("[]")
+
+  @@index([startedAt])
 }

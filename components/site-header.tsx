@@ -64,7 +64,7 @@ export async function SiteHeader() {
             <>
               <NotificationBell />
               <div className="hidden items-center gap-2 lg:flex">{authActions}</div>
-              <Link href="/dashboard" aria-label={t("header.console")} className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-transparent bg-foreground text-background transition-colors hover:border-synapse hover:bg-synapse">
+              <Link href={profile?.handle ? `/u/${profile.handle}` : "/dashboard/settings"} aria-label={t("header.profile")} title={t("header.profile")} className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-transparent bg-foreground text-background transition-colors hover:border-synapse hover:bg-synapse">
                 {profile?.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={profile.image} alt="" className="h-full w-full object-cover" />

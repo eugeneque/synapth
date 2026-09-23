@@ -17,6 +17,7 @@ import { createGithubFetcher, importAllFromGithub, toRepoMeta, GithubParseError,
 import { scanManifest, type ScanReport } from "@/lib/sandbox-scanner";
 import { skillRepository } from "@/cortex/repository";
 import { resolveGithubToken } from "@/cortex/github-token";
+import { isServerless } from "@/cortex/db";
 import type { SkillCreateInput } from "@/types/skill";
 
 export const DEFAULT_QUERIES = [
@@ -52,6 +53,10 @@ export interface CrawlOptions {
   fetcher?: RepoFetcher;
   /** Injected discovery (tests): candidate repos instead of the Search API. */
   candidates?: RepoCandidate[];
+  /** Epoch ms after which no new search page or repo is started (serverless time budget). */
+  deadline?: number;
+  /** Lower-cased `owner/repo` names to treat as already seen (the catalogue, when the state file is ephemeral). */
+  knownRepos?: ReadonlySet<string>;
 }
 
 export interface RepoCandidate {
@@ -84,7 +89,11 @@ export interface CrawlProgress {
   log: string[];
 }
 
-export const CRAWL_STATE_PATH = process.env.SYNAPTH_CRAWL_STATE_PATH ?? join(process.cwd(), "data", "crawl-state.json");
+/** Serverless bundles are read-only; only `/tmp` is writable there (and it does not outlive the instance). */
+export const CRAWL_STATE_PATH =
+  process.env.SYNAPTH_CRAWL_STATE_PATH ?? (isServerless ? join("/tmp", "synapth", "crawl-state.json") : join(process.cwd(), "data", "crawl-state.json"));
+
+const pastDeadline = (opts: CrawlOptions) => opts.deadline !== undefined && Date.now() >= opts.deadline;
 
 // ---------------------------------------------------------------------------
 // State persistence
@@ -185,9 +194,9 @@ export async function discover(opts: CrawlOptions, gate: RateGate, log: (m: stri
 
   const queries = opts.queries ?? DEFAULT_QUERIES;
   for (const q of queries) {
-    if (seen.size >= want * 2) break;
+    if (seen.size >= want * 2 || pastDeadline(opts)) break;
     for (let page = 1; page <= 10; page++) {
-      if (seen.size >= want * 2) break;
+      if (seen.size >= want * 2 || pastDeadline(opts)) break;
       const qs = new URLSearchParams({ q: minStars ? `${q} stars:>=${minStars}` : q, sort: "stars", order: "desc", per_page: "100", page: String(page) });
       const res = await githubSearch<SearchRepoResponse>(`/search/repositories?${qs}`, token, gate, "search", opts.signal);
       if (!res) break;
@@ -200,9 +209,9 @@ export async function discover(opts: CrawlOptions, gate: RateGate, log: (m: stri
   if (opts.codeSearch ?? true) {
     const variants = ["filename:SKILL.md description", "filename:SKILL.md claude", "filename:SKILL.md agent", "filename:SKILL.md tools"];
     for (const q of variants) {
-      if (seen.size >= want * 2) break;
+      if (seen.size >= want * 2 || pastDeadline(opts)) break;
       for (let page = 1; page <= 10; page++) {
-        if (seen.size >= want * 2) break;
+        if (seen.size >= want * 2 || pastDeadline(opts)) break;
         const qs = new URLSearchParams({ q, per_page: "100", page: String(page) });
         const res = await githubSearch<SearchCodeResponse>(`/search/code?${qs}`, token, gate, "code_search", opts.signal);
         if (!res) break;
@@ -290,8 +299,8 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlProgress> {
   };
 
   const candidates = (opts.candidates ?? (await discover({ ...opts, token }, gate, log))).filter((c) => {
-    const prev = state.repos[c.fullName.toLowerCase()];
-    if (prev && !opts.refresh) return false;
+    const key = c.fullName.toLowerCase();
+    if ((state.repos[key] || opts.knownRepos?.has(key)) && !opts.refresh) return false;
     if (opts.minStars && c.json && c.json.stargazers_count < opts.minStars) return false;
     return true;
   });
@@ -304,7 +313,7 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlProgress> {
   const concurrency = Math.max(1, Math.min(opts.concurrency ?? 4, 8));
   let cursor = 0;
   const worker = async () => {
-    while (cursor < queue.length && !opts.signal?.aborted) {
+    while (cursor < queue.length && !opts.signal?.aborted && !pastDeadline(opts)) {
       const candidate = queue[cursor++];
       progress.current = candidate.fullName;
       await gate.wait("core", opts.signal);
@@ -336,6 +345,7 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlProgress> {
   };
   await Promise.all(Array.from({ length: concurrency }, worker));
 
+  if (pastDeadline(opts) && progress.processed < queue.length) log(`time budget spent: ${queue.length - progress.processed} repo(s) left for the next run`);
   progress.phase = opts.signal?.aborted ? "aborted" : "done";
   progress.current = null;
   state.runs.push({ startedAt: progress.startedAt, finishedAt: new Date().toISOString(), discovered: progress.discovered, processed: progress.processed, created: progress.skillsCreated, updated: progress.skillsUpdated });

@@ -92,6 +92,26 @@ export async function listUsers(options: { q?: string; role?: UserRole; limit?: 
   return rows.map((r) => ({ id: r.id, name: r.name ?? "", handle: r.handle ?? "", email: r.email, role: toUserRole(r.role), createdAt: r.createdAt.toISOString() }));
 }
 
+/** People per role, for the admin overview. */
+export async function countUsersByRole(): Promise<Record<UserRole, number>> {
+  const out: Record<UserRole, number> = { user: 0, moderator: 0, admin: 0 };
+  if (!hasDatabase) {
+    for (const u of memoryUsers) if (!isSystemAccount(u.id)) out[toUserRole(u.role)] += 1;
+    return out;
+  }
+  const groups = await prisma.user.groupBy({ by: ["role"], where: { NOT: [{ id: { startsWith: "gh:" } }, { id: "usr_platform" }] }, _count: { _all: true } });
+  for (const g of groups) out[toUserRole(g.role)] += g._count._all;
+  return out;
+}
+
+/** Accounts that review the catalogue (moderators and admins), for staff notifications. */
+export async function listStaffIds(): Promise<string[]> {
+  const staffRoles: UserRole[] = USER_ROLES.filter((r) => can(r, "catalog.verify"));
+  if (!hasDatabase) return memoryUsers.filter((u) => staffRoles.includes(toUserRole(u.role)) && !isSystemAccount(u.id)).map((u) => u.id);
+  const rows = await prisma.user.findMany({ where: { role: { in: staffRoles }, NOT: [{ id: { startsWith: "gh:" } }, { id: "usr_platform" }] }, select: { id: true } });
+  return rows.map((r) => r.id);
+}
+
 /** Admins who are people: the platform ledger account may carry the role too, it cannot sign in. */
 async function adminCount(): Promise<number> {
   if (!hasDatabase) return memoryUsers.filter((u) => u.role === "admin" && !isSystemAccount(u.id)).length;
