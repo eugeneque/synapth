@@ -44,6 +44,11 @@ export function describeNotification(n: Notification, { t, n: plural }: Pick<Tra
       return { ...withActor("notif.skillsetUpdated.title", { skillset: s.name }), body: t("notif.skillsetUpdated.body", { added: s.added, removed: s.removed }), cta: t("notif.cta.skillset"), href: `/skillsets/${s.slug}#history` };
     case "skillset.verified":
       return { title: t(s.verified ? "notif.skillsetVerified.title" : "notif.skillsetUnverified.title", { skillset: s.name }), verb: "", body: t(s.verified ? "notif.skillsetVerified.body" : "notif.skillsetUnverified.body"), cta: t("notif.cta.skillset"), href: `/skillsets/${s.slug}` };
+    case "verification.requested":
+      return { ...withActor("notif.verifyRequested.title"), body: t("notif.verifyRequested.body"), cta: t("notif.cta.review"), href: `/dashboard/admin/verification/${s.requestId}` };
+    case "verification.updated":
+      if (s.code === "claimed") return { ...withActor("notif.verify.claimed.title"), body: t("notif.verify.claimed.body"), cta: t("notif.cta.verification"), href: "/dashboard/settings#verification" };
+      return { title: t(`notif.verify.${s.code}.title`), verb: "", body: s.note || t(`notif.verify.${s.code}.body`), cta: t("notif.cta.verification"), href: "/dashboard/settings#verification" };
     case "badge":
       return { title: t("notif.badge.title", { badge: t(`badge.${s.badgeId}.title` as UiKey) }), verb: "", body: t(`badge.${s.badgeId}.body` as UiKey), cta: t("notif.cta.badges"), href: viewerHandle ? `/u/${viewerHandle}#badges` : null };
     case "system":

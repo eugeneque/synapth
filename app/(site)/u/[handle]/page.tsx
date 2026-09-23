@@ -12,12 +12,14 @@ import { getI18n } from "@/cortex/locale";
 import { ActivityHeatmap, HeatmapLegend, bucketActivity } from "@/components/activity-heatmap";
 import { BadgeList } from "@/components/badge-list";
 import { ImpulseButton } from "@/components/impulse-button";
+import { CountUp } from "@/components/count-up";
+import { VerifiedMark } from "@/components/verified-mark";
+import { ProfileDetails } from "@/components/profile-details";
 import { Panel } from "@/components/panel";
 import { PostFeed } from "@/components/post-feed";
 import { SkillCard } from "@/components/skill-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatCompact } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { Comment } from "@/types/social";
 import { safeExternalHref, safeImageSrc } from "@/lib/url-safety";
@@ -120,7 +122,8 @@ export default async function UserProfilePage({ params }: Params) {
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="font-display text-3xl font-medium tracking-tight sm:text-4xl">{name}</h1>
-                  {verified > 0 && <ShieldCheck className="h-5 w-5 text-synapse" aria-label={t("author.verifiedCreator")} />}
+                  {profile.verified && <VerifiedMark size="lg" />}
+                  {verified > 0 && <ShieldCheck className="h-5 w-5 text-muted-foreground" aria-label={t("author.verifiedCreator")} />}
                   {profile.occupation && (
                     <Badge variant="synapse" className="h-6 gap-1.5 px-2.5">
                       <Briefcase className="h-3 w-3" /> {t(`occupation.${profile.occupation}`)}
@@ -132,7 +135,6 @@ export default async function UserProfilePage({ params }: Params) {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
-              <ImpulseButton toId={profile.id} handle={profile.handle} name={name} initial={impulses} viewerId={viewerId} />
               {isOwner && (
                 <Button asChild variant="mono">
                   <Link href="/dashboard/settings">
@@ -157,38 +159,65 @@ export default async function UserProfilePage({ params }: Params) {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col justify-between gap-4 border-t border-border pt-5 lg:flex-row lg:items-center">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-xs text-muted-foreground">
-              {profile.location && (
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin className="h-4 w-4" /> {profile.location}
-                </span>
-              )}
-              {profile.organization && (
-                <span className="inline-flex items-center gap-1.5">
-                  <Building2 className="h-4 w-4" /> {profile.organization}
-                </span>
-              )}
-              {website && (
-                <a href={website} target="_blank" rel="noreferrer nofollow" className="inline-flex items-center gap-1.5 text-synapse hover:underline">
-                  <Globe className="h-4 w-4" /> {website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                </a>
-              )}
-              {githubOwner && (
-                <a href={`https://github.com/${githubOwner}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-foreground">
-                  <Code2 className="h-4 w-4" /> github/{githubOwner}
-                </a>
-              )}
-              <span className="inline-flex items-center gap-1.5">
-                <Calendar className="h-4 w-4 text-synapse" /> {t("profile.memberSince", { date: joined })}
-              </span>
-            </div>
-            <div className="grid w-full grid-cols-5 divide-x divide-border rounded-lg border border-border bg-surface-lowest/80 py-3 lg:w-auto">
-              <Stat value={String(impulses.total)} label={t("profile.stats.impulses")} accent />
-              <Stat value={String(skills.length)} label={t("profile.stats.skills")} />
-              <Stat value={formatCompact(installs)} label={t("profile.stats.installs")} />
-              <Stat value={formatCompact(stars)} label={t("profile.stats.stars")} />
-              <Stat value={String(verified)} label={t("profile.stats.verified")} />
+          <div className="mt-6 grid gap-6 border-t border-border pt-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+            <ProfileDetails
+              tabs={[
+                {
+                  id: "about",
+                  label: t("profile.about.title"),
+                  icon: <Briefcase className="h-3.5 w-3.5 text-synapse" />,
+                  content: (
+                    <dl className="stagger grid gap-x-6 gap-y-2.5 font-mono text-xs sm:grid-cols-2 lg:grid-cols-3">
+                      <Fact icon={<Briefcase />} k={t("profile.about.occupation")} v={profile.occupation ? t(`occupation.${profile.occupation}`) : "—"} />
+                      <Fact icon={<ShieldCheck />} k={t("profile.about.role")} v={t(`settings.role.${profile.role}`)} />
+                      {profile.organization && <Fact icon={<Building2 />} k={t("profile.about.organization")} v={profile.organization} />}
+                      {profile.location && <Fact icon={<MapPin />} k={t("profile.about.location")} v={profile.location} />}
+                      {website && <Fact icon={<Globe />} k={t("profile.about.website")} v={website.replace(/^https?:\/\//, "").replace(/\/$/, "")} href={website} />}
+                      {githubOwner && <Fact icon={<Code2 />} k={t("profile.about.github")} v={`@${githubOwner}`} href={`https://github.com/${githubOwner}`} />}
+                      <Fact icon={<Calendar />} k={t("profile.about.joined")} v={joined} />
+                    </dl>
+                  ),
+                },
+                {
+                  id: "focus",
+                  label: t("profile.focus.title"),
+                  icon: <Bolt className="h-3.5 w-3.5 text-synapse" />,
+                  count: Object.keys(byCategory).length + languages.length,
+                  content:
+                    skills.length > 0 ? (
+                      <div className="stagger flex flex-wrap gap-1.5">
+                        {Object.entries(byCategory).map(([c, count]) => (
+                          <Badge key={c} variant="synapse" className="h-6 px-2 transition-transform hover:-translate-y-px">
+                            {count} {c}
+                          </Badge>
+                        ))}
+                        {languages.map((l) => (
+                          <Badge key={l} variant="chip" className="h-6 px-2 text-moss transition-transform hover:-translate-y-px">
+                            {l}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">{t("profile.skills.empty")}</p>
+                    ),
+                },
+                {
+                  id: "badges",
+                  label: t("profile.badges.title"),
+                  icon: <Award className="h-3.5 w-3.5 text-synapse" />,
+                  count: badges.length,
+                  content: badges.length > 0 ? <BadgeList badges={badges} t={t} className="stagger" /> : <p className="text-xs leading-relaxed text-muted-foreground">{t("profile.badge.none")}</p>,
+                },
+              ]}
+            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+              <ImpulseButton toId={profile.id} handle={profile.handle} name={name} initial={impulses} viewer={!viewerId ? "anonymous" : isOwner ? "self" : "member"} className="h-auto min-h-16 shrink-0" />
+              <div className="grid flex-1 grid-cols-4 divide-x divide-border rounded-xl border border-border bg-surface-lowest/80 py-3">
+                <Stat value={skills.length} label={t("profile.stats.skills")} />
+                <Stat value={installs} label={t("profile.stats.installs")} />
+                <Stat value={stars} label={t("profile.stats.stars")} />
+                <Stat value={verified} label={t("profile.stats.verified")} />
+              </div>
             </div>
           </div>
         </div>
@@ -209,145 +238,108 @@ export default async function UserProfilePage({ params }: Params) {
         </nav>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Skills + activity. */}
-        <div className="min-w-0 space-y-6 lg:col-span-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Layers className="h-5 w-5 text-synapse" />
-              <h2 className="text-lg font-semibold tracking-tight">{t("profile.skills.title")}</h2>
-              <Badge variant="chip">{n("author.skillsCount", skills.length)}</Badge>
-            </div>
-            {skills.length > 0 && (
-              <Link href={`/explore?author=${encodeURIComponent(searchAuthor)}`} className="label-mono-sm text-synapse hover:underline">
-                {t("profile.skills.all")}
-              </Link>
+      {/* Skills, posts, activity. */}
+      <div className="min-w-0 space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Layers className="h-5 w-5 text-synapse" />
+            <h2 className="text-lg font-semibold tracking-tight">{t("profile.skills.title")}</h2>
+            <Badge variant="chip">{n("author.skillsCount", skills.length)}</Badge>
+          </div>
+          {skills.length > 0 && (
+            <Link href={`/explore?author=${encodeURIComponent(searchAuthor)}`} className="label-mono-sm text-synapse hover:underline">
+              {t("profile.skills.all")}
+            </Link>
+          )}
+        </div>
+
+        {skills.length > 0 ? (
+          <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {sorted.map((s) => (
+              <SkillCard key={s.id} skill={s} />
+            ))}
+          </div>
+        ) : (
+          <div className="hatch flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card/40 p-10 text-center">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface text-muted-foreground">
+              <Layers className="h-5 w-5" />
+            </span>
+            <span className="text-lg font-semibold tracking-tight">{t("profile.skills.empty")}</span>
+            <span className="max-w-sm text-sm text-muted-foreground">{isOwner ? t("author.publishNewLead") : t("profile.skills.emptyLead")}</span>
+            {isOwner && (
+              <Button asChild variant="mono" size="sm" className="mt-1">
+                <Link href="/dashboard#publish">
+                  <Plus className="text-synapse" /> {t("author.publishNewCta")}
+                </Link>
+              </Button>
             )}
           </div>
+        )}
 
-          {skills.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {sorted.map((s) => (
-                <SkillCard key={s.id} skill={s} />
-              ))}
+        <section id="posts" className="scroll-mt-24 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-synapse" />
+              <h2 className="text-lg font-semibold tracking-tight">{t("posts.title")}</h2>
             </div>
-          ) : (
-            <div className="hatch flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card/40 p-10 text-center">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface text-muted-foreground">
-                <Layers className="h-5 w-5" />
+            <span className="label-mono-sm normal-case tracking-normal">{t("posts.meta", { handle: profile.handle })}</span>
+          </div>
+          <PostFeed handle={profile.handle} ownerId={profile.id} viewer={viewer} canModerate={canModerate} initialPosts={posts} initialComments={threads} />
+        </section>
+
+        <Panel
+          id="activity"
+          title={t("author.activity.title")}
+          meta={t("author.activity.meta", { n: activity.stats.total })}
+          icon={<Activity className="h-4 w-4 shrink-0 text-synapse" />}
+          actions={<HeatmapLegend less={t("author.activity.less")} more={t("author.activity.more")} />}
+          className="scroll-mt-24"
+          bodyClassName="p-5"
+          footer={
+            <>
+              <span>
+                {t("author.activity.current")} <span className="text-synapse">{n("author.activity.days", activity.stats.currentStreak)}</span>
               </span>
-              <span className="text-lg font-semibold tracking-tight">{t("profile.skills.empty")}</span>
-              <span className="max-w-sm text-sm text-muted-foreground">{isOwner ? t("author.publishNewLead") : t("profile.skills.emptyLead")}</span>
-              {isOwner && (
-                <Button asChild variant="mono" size="sm" className="mt-1">
-                  <Link href="/dashboard#publish">
-                    <Plus className="text-synapse" /> {t("author.publishNewCta")}
-                  </Link>
-                </Button>
-              )}
-            </div>
-          )}
-
-          <section id="posts" className="scroll-mt-24 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-synapse" />
-                <h2 className="text-lg font-semibold tracking-tight">{t("posts.title")}</h2>
-              </div>
-              <span className="label-mono-sm normal-case tracking-normal">{t("posts.meta", { handle: profile.handle })}</span>
-            </div>
-            <PostFeed handle={profile.handle} ownerId={profile.id} viewer={viewer} canModerate={canModerate} initialPosts={posts} initialComments={threads} />
-          </section>
-
-          <Panel
-            id="activity"
-            title={t("author.activity.title")}
-            meta={t("author.activity.meta", { n: activity.stats.total })}
-            icon={<Activity className="h-4 w-4 shrink-0 text-synapse" />}
-            actions={<HeatmapLegend less={t("author.activity.less")} more={t("author.activity.more")} />}
-            className="scroll-mt-24"
-            bodyClassName="p-5"
-            footer={
-              <>
-                <span>
-                  {t("author.activity.current")} <span className="text-synapse">{n("author.activity.days", activity.stats.currentStreak)}</span>
-                </span>
-                <span>
-                  {t("author.activity.longest")} <span className="text-foreground">{n("author.activity.days", activity.stats.longestStreak)}</span>
-                  <span className="mx-3 text-border">·</span>
-                  {t("author.activity.active")} <span className="text-foreground">{n("author.activity.days", activity.stats.activeDays)}</span>
-                </span>
-              </>
-            }
-          >
-            <ActivityHeatmap cells={activity.cells} months={activity.months} />
-          </Panel>
-        </div>
-
-        {/* About / focus / badges rail. */}
-        <div className="min-w-0 space-y-6 lg:col-span-4">
-          <Panel title={t("profile.about.title")} icon={<Briefcase className="h-4 w-4 shrink-0 text-synapse" />} bodyClassName="p-4">
-            <dl className="grid gap-y-2 font-mono text-xs">
-              <Row k={t("profile.about.occupation")} v={profile.occupation ? t(`occupation.${profile.occupation}`) : "—"} />
-              <Row k={t("profile.about.role")} v={t(`settings.role.${profile.role}`)} />
-              {profile.organization && <Row k={t("profile.about.organization")} v={profile.organization} />}
-              {profile.location && <Row k={t("profile.about.location")} v={profile.location} />}
-              {website && <Row k={t("profile.about.website")} v={website.replace(/^https?:\/\//, "")} href={website} />}
-              {githubOwner && <Row k={t("profile.about.github")} v={`@${githubOwner}`} href={`https://github.com/${githubOwner}`} />}
-              <Row k={t("profile.about.joined")} v={joined} />
-            </dl>
-          </Panel>
-
-          <Panel title={t("profile.focus.title")} meta={t("profile.focus.meta")} icon={<Bolt className="h-4 w-4 shrink-0 text-synapse" />} bodyClassName="p-4">
-            {skills.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(byCategory).map(([c, count]) => (
-                  <Badge key={c} variant="synapse">
-                    {count} {c}
-                  </Badge>
-                ))}
-                {languages.map((l) => (
-                  <Badge key={l} variant="chip" className="text-moss">
-                    {l}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">{t("profile.skills.empty")}</p>
-            )}
-          </Panel>
-
-          <Panel id="badges" title={t("profile.badges.title")} meta={n("profile.badges.count", badges.length)} icon={<Award className="h-4 w-4 shrink-0 text-synapse" />} className="scroll-mt-24" bodyClassName="p-4">
-            {badges.length > 0 ? <BadgeList badges={badges} t={t} /> : <p className="text-xs leading-relaxed text-muted-foreground">{t("profile.badge.none")}</p>}
-          </Panel>
-        </div>
+              <span>
+                {t("author.activity.longest")} <span className="text-foreground">{n("author.activity.days", activity.stats.longestStreak)}</span>
+                <span className="mx-3 text-border">·</span>
+                {t("author.activity.active")} <span className="text-foreground">{n("author.activity.days", activity.stats.activeDays)}</span>
+              </span>
+            </>
+          }
+        >
+          <ActivityHeatmap cells={activity.cells} months={activity.months} />
+        </Panel>
       </div>
     </div>
   );
 }
 
-function Stat({ value, label, accent }: { value: string; label: string; accent?: boolean }) {
+function Stat({ value, label }: { value: number; label: string }) {
   return (
-    <div className="min-w-0 px-2 text-center sm:px-4">
-      <div className={cn("font-display text-2xl font-medium leading-none tracking-tight", accent ? "text-synapse" : "text-foreground")}>{value}</div>
-      <div className="label-mono-sm mt-1 leading-tight">{label}</div>
+    <div className="group/stat min-w-0 px-2 text-center sm:px-4">
+      <CountUp value={value} className="block font-display text-2xl font-medium leading-none tracking-tight text-foreground tabular-nums transition-colors group-hover/stat:text-synapse" />
+      <div className="label-mono-sm mt-1.5 truncate leading-tight">{label}</div>
     </div>
   );
 }
 
-function Row({ k, v, href }: { k: string; v: string; href?: string }) {
+function Fact({ icon, k, v, href }: { icon: React.ReactNode; k: string; v: string; href?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/60 py-1.5 last:border-b-0">
-      <dt className="text-muted-foreground">{k}</dt>
-      <dd className="truncate text-foreground">
-        {href ? (
-          <a href={href} target="_blank" rel="noreferrer nofollow" className="text-synapse hover:underline">
-            {v}
-          </a>
-        ) : (
-          v
-        )}
-      </dd>
+    <div className="group/fact flex min-w-0 items-center gap-2.5 rounded-lg border border-transparent px-2 py-1.5 transition-colors hover:border-border hover:bg-surface-lowest/60">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-surface-lowest text-muted-foreground transition-colors group-hover/fact:text-synapse [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
+      <div className="min-w-0">
+        <dt className="label-mono-sm">{k}</dt>
+        <dd className="truncate text-foreground">
+          {href ? (
+            <a href={href} target="_blank" rel="noreferrer nofollow" className="text-synapse hover:underline">
+              {v}
+            </a>
+          ) : (
+            v
+          )}
+        </dd>
+      </div>
     </div>
   );
 }

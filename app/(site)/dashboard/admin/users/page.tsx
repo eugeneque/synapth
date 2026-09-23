@@ -7,6 +7,8 @@ import { getI18n } from "@/cortex/locale";
 import { can, isUserRole, USER_ROLES } from "@/types/auth";
 import { Panel } from "@/components/panel";
 import { RoleSelect } from "@/components/role-select";
+import { CheckMarkToggle } from "@/components/check-mark-toggle";
+import { VerifiedMark } from "@/components/verified-mark";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -20,7 +22,9 @@ type Props = { searchParams: Promise<{ q?: string; role?: string }> };
 export default async function UsersPage({ searchParams }: Props) {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/dashboard/admin/users");
-  if (!can(await getRole(session.user.id), "users.manageRoles")) notFound();
+  const viewerRole = await getRole(session.user.id);
+  if (!can(viewerRole, "users.manageRoles")) notFound();
+  const canVerify = can(viewerRole, "users.verify");
   const { q = "", role } = await searchParams;
   const [users, { t }] = await Promise.all([listUsers({ q: q.slice(0, 100), role: isUserRole(role) ? role : undefined, limit: 100 }), getI18n()]);
 
@@ -51,16 +55,21 @@ export default async function UsersPage({ searchParams }: Props) {
         {users.length === 0 ? (
           <p className="px-5 py-6 text-sm text-muted-foreground">{t("users.empty")}</p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="stagger divide-y divide-border">
             {users.map((u) => (
               <li key={u.id} className="flex flex-col gap-3 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <a href={`/u/${u.handle}`} className="block truncate font-medium hover:text-synapse">
-                    {u.name || u.handle} <span className="font-mono text-xs text-muted-foreground">@{u.handle}</span>
+                  <a href={`/u/${u.handle}`} className="flex items-center gap-1.5 truncate font-medium hover:text-synapse">
+                    {u.name || u.handle}
+                    {u.verified && <VerifiedMark size="sm" />}
+                    <span className="font-mono text-xs text-muted-foreground">@{u.handle}</span>
                   </a>
                   <p className="label-mono-sm truncate normal-case tracking-normal">{u.email ?? "—"}</p>
                 </div>
-                <RoleSelect userId={u.id} handle={u.handle} initial={u.role} self={u.id === session.user.id} />
+                <div className="flex shrink-0 items-center gap-2">
+                  {canVerify && <CheckMarkToggle userId={u.id} handle={u.handle} initial={u.verified} self={u.id === session.user.id} />}
+                  <RoleSelect userId={u.id} handle={u.handle} initial={u.role} self={u.id === session.user.id} />
+                </div>
               </li>
             ))}
           </ul>

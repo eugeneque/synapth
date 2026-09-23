@@ -8,7 +8,7 @@
  */
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Bell, BellOff, ExternalLink, Volume2, VolumeX, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useNotifications } from "@/axon/notifications";
@@ -25,17 +25,21 @@ export function NotificationBell({ className }: { className?: string }) {
       onClick={() => setOpen(!open)}
       aria-label={unread ? t("notif.bellUnread", { n: unread }) : t("notif.bell")}
       aria-expanded={open}
-      className={cn("relative flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-low text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground", open && "border-synapse/40 text-synapse", className)}
+      className={cn("relative flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-low text-muted-foreground transition-all hover:border-foreground/40 hover:text-foreground active:scale-95", open && "border-synapse/40 text-synapse", className)}
     >
-      <Bell className="h-4 w-4" />
+      {/* Re-keyed on the count so a new notification rings the bell and pops the counter. */}
+      <Bell key={`bell-${unread}`} className={cn("h-4 w-4 origin-top", unread > 0 && "animate-bell-ring")} />
       {unread > 0 && (
-        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-synapse px-1 font-mono text-[9px] font-semibold text-synapse-foreground shadow-glow">
+        <span key={`count-${unread}`} className="absolute -right-1.5 -top-1.5 flex animate-pop-in h-4 min-w-4 items-center justify-center rounded-full bg-synapse px-1 font-mono text-[9px] font-semibold text-synapse-foreground shadow-glow">
           {unread > 99 ? "99+" : unread}
         </span>
       )}
     </button>
   );
 }
+
+/** Matches `drawer-out` / `fade-out` in tailwind.config.ts. */
+const DRAWER_EXIT_MS = 220;
 
 export function NotificationDrawer() {
   const { t } = useI18n();
@@ -50,11 +54,23 @@ export function NotificationDrawer() {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
-  if (!userId || !open) return null;
+  // Stay mounted for the exit animation after `open` flips off.
+  const [mounted, setMounted] = useState(open);
+  const leaving = mounted && !open;
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    const timer = setTimeout(() => setMounted(false), DRAWER_EXIT_MS);
+    return () => clearTimeout(timer);
+  }, [open]);
+
+  if (!userId || !mounted) return null;
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <button type="button" aria-label={t("notif.close")} onClick={() => setOpen(false)} className="absolute inset-0 bg-background/60 backdrop-blur-[2px]" />
-      <aside role="dialog" aria-label={t("notif.title")} className="relative flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-2xl animate-drawer-in">
+    <div className={cn("fixed inset-0 z-50 flex justify-end", leaving && "pointer-events-none")}>
+      <button type="button" aria-label={t("notif.close")} onClick={() => setOpen(false)} className={cn("absolute inset-0 bg-background/60 backdrop-blur-[2px]", leaving ? "animate-fade-out" : "animate-fade-in")} />
+      <aside role="dialog" aria-label={t("notif.title")} className={cn("relative flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-2xl", leaving ? "animate-drawer-out" : "animate-drawer-in")}>
         <header className="flex items-center justify-between gap-3 border-b border-border bg-surface-lowest px-4 py-3">
           <div className="min-w-0">
             <p className="label-mono-sm flex items-center gap-2 tracking-[0.2em] text-synapse">

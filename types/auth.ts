@@ -35,6 +35,8 @@ export const PERMISSIONS = [
   "badges.grant",
   /** Delete other people's posts and comments. */
   "content.moderate",
+  /** Review verification requests and grant / revoke the account check mark. */
+  "users.verify",
   /** Open the admin panel (users & roles, crawler, run log). */
   "admin.access",
 ] as const;

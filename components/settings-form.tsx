@@ -12,7 +12,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, Briefcase, Check, ChevronDown, Globe, IdCard, Loader2, LogOut, MapPin, MonitorSmartphone, Save, ShieldCheck, Terminal, Undo2 } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Briefcase, Check, ChevronDown, Globe, IdCard, Loader2, LogOut, MapPin, MonitorSmartphone, Save, ShieldCheck, Terminal, Undo2 } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { INSTALL_TARGETS, TARGET_COOKIE, type InstallTarget } from "@/axon/install";
@@ -29,11 +29,15 @@ interface Props {
   profile: AccountProfile;
   catalogue: { published: number; verified: number };
   signOutAction: () => Promise<void>;
+  /** The verification section body (`VerificationPanel`), rendered by the page with its server state. */
+  verification: React.ReactNode;
+  verified: boolean;
 }
 
 const SECTIONS: Array<{ id: string; key: UiKey; icon: typeof IdCard }> = [
   { id: "identity", key: "settings.sec.identity", icon: IdCard },
   { id: "environments", key: "settings.sec.environments", icon: MonitorSmartphone },
+  { id: "verification", key: "settings.sec.verification", icon: BadgeCheck },
   { id: "session", key: "settings.sec.session", icon: ShieldCheck },
 ];
 
@@ -51,7 +55,7 @@ function writeTargetCookie(target: InstallTarget | null) {
   document.cookie = target ? `${TARGET_COOKIE}=${target}; path=/; max-age=31536000; samesite=lax${secure}` : `${TARGET_COOKIE}=; path=/; max-age=0`;
 }
 
-export function SettingsForm({ profile, catalogue, signOutAction }: Props) {
+export function SettingsForm({ profile, catalogue, signOutAction, verification, verified }: Props) {
   const { t } = useI18n();
   const { toast } = useToast();
   const [saved, setSaved] = useState<ProfileUpdate>(() => toUpdate(profile));
@@ -239,10 +243,22 @@ export function SettingsForm({ profile, catalogue, signOutAction }: Props) {
         </section>
 
         {/* 03 Session & access. */}
-        <section id="session" className="scroll-mt-24 overflow-hidden rounded-xl border border-border bg-card">
+        {/* 03 Verification. */}
+        <section id="verification" className="scroll-mt-24 overflow-hidden rounded-xl border border-border bg-card">
           <header className="panel-head">
             <div className="flex items-center gap-3">
               <span className="label-mono-sm text-synapse">{t("settings.section", { n: "03" })}</span>
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">{t("verify.title")}</h2>
+            </div>
+            <Badge variant={verified ? "synapse" : "chip"}>{t(verified ? "verify.badge.on" : "verify.badge.off")}</Badge>
+          </header>
+          <div className="p-5">{verification}</div>
+        </section>
+
+        <section id="session" className="scroll-mt-24 overflow-hidden rounded-xl border border-border bg-card">
+          <header className="panel-head">
+            <div className="flex items-center gap-3">
+              <span className="label-mono-sm text-synapse">{t("settings.section", { n: "04" })}</span>
               <h2 className="text-sm font-semibold tracking-tight text-foreground">{t("settings.session.title")}</h2>
             </div>
             <Badge variant="synapse">

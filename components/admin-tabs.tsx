@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Gauge, Radar, Users } from "lucide-react";
+import { BadgeCheck, Gauge, Radar, Users } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import type { UiKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 const TABS: Array<{ key: UiKey; href: string; icon: typeof Gauge; exact?: boolean }> = [
   { key: "admin.tab.overview", href: "/dashboard/admin", icon: Gauge, exact: true },
   { key: "admin.tab.users", href: "/dashboard/admin/users", icon: Users },
+  { key: "admin.tab.verification", href: "/dashboard/admin/verification", icon: BadgeCheck },
   { key: "admin.tab.crawler", href: "/dashboard/admin/crawler", icon: Radar },
 ];
 

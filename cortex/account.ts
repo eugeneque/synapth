@@ -19,6 +19,7 @@ import { toUserRole, type UserRole } from "@/types/auth";
 import { AVATAR_IMAGE, COVER_IMAGE, OCCUPATIONS, dataUrlBytes, isImageDataUrl, isOccupation, type Occupation } from "@/types/profile";
 import { httpUrlSchema, isHttpUrl } from "@/lib/url-safety";
 import type { AuthorRef } from "@/types/social";
+import type { UserVerification } from "@/types/verification";
 
 export const INSTALL_TARGET_IDS = ["cursor", "claude-desktop", "claude-code", "curl"] as const satisfies readonly InstallTarget[];
 
@@ -37,6 +38,8 @@ export interface AccountProfile {
   location: string;
   website: string;
   defaultTarget: InstallTarget | null;
+  /** Account check mark; null = not verified. */
+  verified: UserVerification | null;
   /** ISO timestamp; the in-memory store reports the process start. */
   createdAt: string;
 }
@@ -104,6 +107,27 @@ interface MemoryExtras {
 const g = globalThis as unknown as { __synapthAccount_v2?: Map<string, MemoryExtras>; __synapthAccountBoot_v2?: string };
 const extras = g.__synapthAccount_v2 ?? (g.__synapthAccount_v2 = new Map());
 const bootedAt = g.__synapthAccountBoot_v2 ?? (g.__synapthAccountBoot_v2 = new Date().toISOString());
+const gv = globalThis as unknown as { __synapthVerified_v1?: Map<string, UserVerification> };
+const memoryVerified = gv.__synapthVerified_v1 ?? (gv.__synapthVerified_v1 = new Map());
+
+function verificationFromRow(u: { verifiedAt: Date | null; verifiedById: string | null; verifiedVia: string | null }): UserVerification | null {
+  return u.verifiedAt ? { verifiedAt: u.verifiedAt.toISOString(), verifiedBy: u.verifiedById, via: u.verifiedVia === "manual" ? "manual" : "request" } : null;
+}
+
+/** Sets or clears the check mark. Callers (cortex/verification.ts) own the permission checks. */
+export async function setAccountVerification(userId: string, value: UserVerification | null): Promise<void> {
+  if (!hasDatabase) {
+    if (value) memoryVerified.set(userId, value);
+    else memoryVerified.delete(userId);
+    return;
+  }
+  await prisma.user.update({ where: { id: userId }, data: value ? { verifiedAt: new Date(value.verifiedAt), verifiedById: value.verifiedBy, verifiedVia: value.via } : { verifiedAt: null, verifiedById: null, verifiedVia: null } });
+}
+
+/** Test helper for the in-memory store. */
+export function resetAccountVerificationForTests() {
+  memoryVerified.clear();
+}
 
 function isTarget(value: string | null | undefined): value is InstallTarget {
   return (INSTALL_TARGET_IDS as readonly string[]).includes(value ?? "");
@@ -128,6 +152,7 @@ export async function getProfile(userId: string): Promise<AccountProfile | null>
       location: x?.location ?? "",
       website: x?.website ?? "",
       defaultTarget: x?.defaultTarget ?? null,
+      verified: memoryVerified.get(u.id) ?? null,
       createdAt: bootedAt,
     };
   }
@@ -147,6 +172,7 @@ export async function getProfile(userId: string): Promise<AccountProfile | null>
     location: u.location ?? "",
     website: u.website ?? "",
     defaultTarget: isTarget(u.defaultTarget) ? u.defaultTarget : null,
+    verified: verificationFromRow(u),
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -213,12 +239,12 @@ export async function getAuthorRefs(ids: Iterable<string>): Promise<Map<string, 
   if (!unique.length) return out;
   if (!hasDatabase) {
     for (const u of memoryUsers) {
-      if (unique.includes(u.id)) out.set(u.id, { id: u.id, name: u.name, handle: u.handle, image: u.image, occupation: extras.get(u.id)?.occupation ?? null });
+      if (unique.includes(u.id)) out.set(u.id, { id: u.id, name: u.name, handle: u.handle, image: u.image, occupation: extras.get(u.id)?.occupation ?? null, verified: memoryVerified.has(u.id) });
     }
     return out;
   }
-  const rows = await prisma.user.findMany({ where: { id: { in: unique } }, select: { id: true, name: true, handle: true, image: true, occupation: true } });
-  for (const r of rows) out.set(r.id, { id: r.id, name: r.name ?? "", handle: r.handle ?? "", image: r.image, occupation: isOccupation(r.occupation) ? r.occupation : null });
+  const rows = await prisma.user.findMany({ where: { id: { in: unique } }, select: { id: true, name: true, handle: true, image: true, occupation: true, verifiedAt: true } });
+  for (const r of rows) out.set(r.id, { id: r.id, name: r.name ?? "", handle: r.handle ?? "", image: r.image, occupation: isOccupation(r.occupation) ? r.occupation : null, verified: Boolean(r.verifiedAt) });
   return out;
 }
 

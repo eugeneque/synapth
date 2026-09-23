@@ -43,6 +43,11 @@ model User {
   coverImage    String?
   /// Preferred install target (`cursor` | `claude-desktop` | `claude-code` | `curl`); null = per-skill default.
   defaultTarget String?
+  /// Account check mark (types/verification.ts): set by an approved request or by an admin by hand.
+  verifiedAt    DateTime?
+  verifiedById  String?
+  /// "request" | "manual"
+  verifiedVia   String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -65,6 +70,7 @@ model User {
   skillsets          Skillset[]         @relation("SkillsetAuthor")
   skillsetFavorites  SkillsetFavorite[]
   skillsetImages     SkillsetImage[]
+  verificationRequests VerificationRequest[] @relation("VerificationApplicant")
 }
 
 model Account {
@@ -535,4 +541,33 @@ model SkillsetImage {
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
+}
+
+// ---------------------------------------------------------------------------
+// Account verification (cortex/verification.ts)
+// ---------------------------------------------------------------------------
+
+model VerificationRequest {
+  id           String    @id @default(cuid())
+  userId       String
+  /// E.164, shown in full to admins only.
+  phone        String
+  /// "pending" | "approved" | "rejected" | "withdrawn"
+  status       String    @default("pending")
+  /// Current stage: "submitted" | "scan" | "review" | "decision"
+  stage        String    @default("submitted")
+  /// VerificationEvent[] — the timeline the applicant watches.
+  events       Json      @default("[]")
+  /// Eligibility snapshot at submission.
+  eligibility  Json
+  reviewerId   String?
+  decisionNote String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  decidedAt    DateTime?
+
+  user User @relation("VerificationApplicant", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }

@@ -121,12 +121,25 @@
   }
 
   /* Underline tab: mono label, 2px synapse rule when active. */
+  /* The rule grows from the centre on hover (dimmed) and settles solid when active. */
   .tab-line {
-    @apply relative inline-flex h-10 items-center gap-2 whitespace-nowrap font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground transition-colors after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-transparent hover:text-foreground;
+    @apply relative inline-flex h-10 items-center gap-2 whitespace-nowrap font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground transition-colors after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:scale-x-0 after:bg-synapse/50 after:transition-transform after:duration-300 after:ease-out hover:text-foreground hover:after:scale-x-100;
   }
   .tab-line[data-active="true"],
   .tab-line[aria-current="page"] {
-    @apply text-foreground after:bg-synapse;
+    @apply text-foreground after:scale-x-100 after:bg-synapse;
+  }
+
+  /* Hover lift for cards and tiles. */
+  .lift {
+    @apply transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-12px_hsl(var(--synapse)/0.25)];
+  }
+
+  /* Loading placeholder: a slow sheen across a recessed bar. */
+  .skeleton {
+    @apply animate-shimmer rounded-md;
+    background-image: linear-gradient(90deg, hsl(var(--surface-low)) 0%, hsl(var(--surface-high)) 50%, hsl(var(--surface-low)) 100%);
+    background-size: 200% 100%;
   }
 
   /* Status pill: dot + mono text in a bordered chip. */
@@ -192,6 +205,21 @@
 }
 
 @layer utilities {
+  /* Children rise in one after another; the first twelve get their own delay, the rest share the last. */
+  .stagger > * {
+    animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+  }
+  .stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger > *:nth-child(5) { animation-delay: 160ms; }
+  .stagger > *:nth-child(6) { animation-delay: 200ms; }
+  .stagger > *:nth-child(7) { animation-delay: 240ms; }
+  .stagger > *:nth-child(8) { animation-delay: 280ms; }
+  .stagger > *:nth-child(9) { animation-delay: 320ms; }
+  .stagger > *:nth-child(10) { animation-delay: 360ms; }
+  .stagger > *:nth-child(11) { animation-delay: 400ms; }
+  .stagger > *:nth-child(n + 12) { animation-delay: 440ms; }
   .text-balance {
     text-wrap: balance;
   }
@@ -232,9 +260,29 @@
   }
 }
 
+@keyframes rise {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cursor::after,
   .auth-blob {
     animation: none;
+  }
+  /* Everything else: keep state changes, drop the motion. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
