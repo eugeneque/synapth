@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Award, CheckCheck, Inbox, Info, Layers, MessageSquare, X, Zap } from "lucide-react";
+import { ArrowRight, Award, CheckCheck, Gavel, Inbox, Info, Layers, MessageSquare, ShieldCheck, X, Zap } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useNotifications } from "@/axon/notifications";
 import { describeNotification } from "@/axon/notification-text";
@@ -30,7 +30,7 @@ const TABS: Array<{ id: Tab; key: UiKey }> = [
   { id: "system", key: "notif.tab.system" },
 ];
 
-const KIND_ICON: Record<Notification["kind"], typeof Zap> = { impulse: Zap, "comment.post": MessageSquare, "comment.skill": MessageSquare, "skill.updated": Layers, badge: Award, system: Info };
+const KIND_ICON: Record<Notification["kind"], typeof Zap> = { impulse: Zap, "comment.post": MessageSquare, "comment.skill": MessageSquare, "skill.updated": Layers, "moderation.requested": ShieldCheck, "moderation.decided": Gavel, badge: Award, system: Info };
 
 export function NotificationFeed({ compact = false, limit = 50 }: { compact?: boolean; limit?: number }) {
   const { t } = useI18n();
@@ -177,6 +177,9 @@ function NotificationCard({ n, viewerHandle, onRead, onDismiss }: { n: Notificat
               <span className="label-mono-sm rounded bg-muted px-2 py-0.5">v{s.version}</span>
               {s.verified && <span className="label-mono-sm rounded bg-synapse/10 px-2 py-0.5 text-synapse">Verified</span>}
             </>
+          )}
+          {s.kind === "moderation.decided" && (
+            <span className={cn("label-mono-sm rounded px-2 py-0.5", s.verdict === "approved" ? "bg-synapse/10 text-synapse" : "bg-danger/10 text-danger")}>{t(`moderation.status.${s.verdict}`)}</span>
           )}
           {s.kind === "badge" && <span className="label-mono-sm rounded bg-synapse/10 px-2 py-0.5 text-synapse">{t("notif.badgeChip")}</span>}
           {n.actor?.occupation && <span className="label-mono-sm rounded bg-muted px-2 py-0.5">{t(`occupation.${n.actor.occupation}`)}</span>}

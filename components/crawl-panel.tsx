@@ -46,6 +46,7 @@ export function CrawlPanel({ initial }: { initial: CrawlStatus }) {
   const pct = p && p.discovered ? Math.round((p.processed / p.discovered) * 100) : 0;
   const log = p?.log.slice(-40) ?? [];
   const last = status.state.lastRun;
+  const scheduled = status.running && status.trigger === "schedule";
 
   return (
     <div className="flex flex-col gap-5 p-5 text-sm">
@@ -113,6 +114,7 @@ export function CrawlPanel({ initial }: { initial: CrawlStatus }) {
         <div className="label-mono-sm flex items-center justify-between border-t border-border bg-surface px-3 py-1.5">
           <span className="inline-flex items-center gap-2">
             {status.running && <Radar className="h-3.5 w-3.5 animate-pulse text-synapse" />}
+            {scheduled && <span className="text-synapse">{t("cp.scheduled")}</span>}
             {p ? `${t("cp.progress", { phase: p.phase, processed: p.processed, discovered: p.discovered, created: p.skillsCreated, updated: p.skillsUpdated })}${p.current ? ` · ${p.current}` : ""}` : t("cp.listener")}
           </span>
           <span>{p ? `${pct}%` : t("cp.runtime", { state: status.running ? t("cp.active") : t("cp.idleState") })}</span>

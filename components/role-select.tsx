@@ -1,6 +1,6 @@
 "use client";
 
-/** RoleSelect — the admin's per-row role switch in /dashboard/users. */
+/** RoleSelect — the admin's per-row role switch in /dashboard/admin/users. */
 
 import { useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";

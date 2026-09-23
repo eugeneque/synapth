@@ -35,6 +35,8 @@ export const PERMISSIONS = [
   "badges.grant",
   /** Delete other people's posts and comments. */
   "content.moderate",
+  /** Open the admin panel (users & roles, crawler, run log). */
+  "admin.access",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

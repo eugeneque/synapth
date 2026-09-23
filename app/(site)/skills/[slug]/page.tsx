@@ -24,7 +24,8 @@ import { Panel } from "@/components/panel";
 import { Corners } from "@/components/corners";
 import { SkillDiscussion } from "@/components/skill-discussion";
 import { WatchButton } from "@/components/watch-button";
-import { VerifyControl } from "@/components/verify-control";
+import { ModerationRequestButton } from "@/components/moderation-request-button";
+import { pendingRequestFor } from "@/cortex/moderation";
 import { getRole } from "@/cortex/roles";
 import { can } from "@/types/auth";
 import { safeExternalHref } from "@/lib/url-safety";
@@ -46,7 +47,13 @@ export default async function SkillPage({ params }: Params) {
   const [i18n, session] = await Promise.all([getI18n(), auth()]);
   const { t } = i18n;
   const viewerId = session?.user?.id ?? null;
-  const [watch, comments, viewer, role] = await Promise.all([watchSummary(skill.id, viewerId), listComments("skill", skill.id), viewerId ? getAuthorRef(viewerId) : Promise.resolve(null), viewerId ? getRole(viewerId) : Promise.resolve(null)]);
+  const [watch, comments, viewer, role, review] = await Promise.all([
+    watchSummary(skill.id, viewerId),
+    listComments("skill", skill.id),
+    viewerId ? getAuthorRef(viewerId) : Promise.resolve(null),
+    viewerId ? getRole(viewerId) : Promise.resolve(null),
+    pendingRequestFor(skill.id),
+  ]);
 
   const scan = scanManifest(skill.manifest, { reviewed: skill.securityLevel === "Verified" });
   const ep = skill.manifest.entrypoint;
@@ -110,7 +117,8 @@ export default async function SkillPage({ params }: Params) {
           <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
             <InstallButton skill={full} size="lg" label={t("install.toAgent")} className="h-11 px-6 text-base font-semibold normal-case tracking-tight" />
             <WatchButton skillId={skill.id} slug={skill.slug} name={skill.name} initial={watch} signedIn={Boolean(viewerId)} />
-            {can(role, "catalog.verify") && <VerifyControl skillId={skill.id} name={skill.name} level={skill.securityLevel} />}
+            {/* Verification goes through a review request; Verified entries have nothing left to request. */}
+            {skill.securityLevel !== "Verified" && <ModerationRequestButton skillId={skill.id} slug={skill.slug} name={skill.name} pendingId={review?.id ?? null} signedIn={Boolean(viewerId)} canReview={can(role, "catalog.moderate")} />}
             <Button asChild variant="mono" size="icon" className="h-11 w-11" aria-label={t("skill.viewDiff")}>
               <a href="#pipeline">
                 <Eye />

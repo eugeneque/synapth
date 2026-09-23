@@ -109,6 +109,8 @@ export class Axon {
 
 export interface CrawlStatus {
   running: boolean;
+  /** Who started the running crawl: the 2-hour schedule or an admin. */
+  trigger?: "schedule" | "manual" | null;
   error: string | null;
   progress: {
     phase: string;

@@ -57,7 +57,7 @@ export const COMMENT_MAX_LENGTH = 1000;
 // Notifications
 // ---------------------------------------------------------------------------
 
-export const NOTIFICATION_KINDS = ["impulse", "comment.post", "comment.skill", "skill.updated", "badge", "system"] as const;
+export const NOTIFICATION_KINDS = ["impulse", "comment.post", "comment.skill", "skill.updated", "moderation.requested", "moderation.decided", "badge", "system"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /** Drawer filter tabs; each kind belongs to exactly one channel. */
@@ -67,6 +67,8 @@ export const NOTIFICATION_CHANNEL: Record<NotificationKind, NotificationChannel>
   "comment.post": "social",
   "comment.skill": "skills",
   "skill.updated": "skills",
+  "moderation.requested": "skills",
+  "moderation.decided": "skills",
   badge: "system",
   system: "system",
 };
@@ -77,6 +79,10 @@ export type NotificationSubject =
   | { kind: "comment.post"; postId: string; commentId: string; excerpt: string }
   | { kind: "comment.skill"; skillId: string; slug: string; skillName: string; commentId: string; excerpt: string }
   | { kind: "skill.updated"; skillId: string; slug: string; skillName: string; version: string; previousVersion: string | null; verified: boolean }
+  /** To staff: someone asked for a review of this entry. */
+  | { kind: "moderation.requested"; requestId: string; skillId: string; slug: string; skillName: string }
+  /** To the requester and the author: the review is closed. */
+  | { kind: "moderation.decided"; requestId: string; skillId: string; slug: string; skillName: string; verdict: "approved" | "rejected"; note: string | null }
   | { kind: "badge"; badgeId: string }
   | { kind: "system"; title: string; body: string; href: string | null; tone: "info" | "success" | "warn" | "danger" };
 

@@ -9,7 +9,6 @@ export const NAV = [
   { key: "nav.overview", href: "/", match: (p: string) => p === "/" },
   { key: "nav.explore", href: "/explore", match: (p: string) => p.startsWith("/explore") || p.startsWith("/skills") || p.startsWith("/authors") },
   { key: "nav.docs", href: "/faq", match: (p: string) => p.startsWith("/faq") },
-  { key: "nav.console", href: "/dashboard", match: (p: string) => p.startsWith("/dashboard") },
 ] as const;
 
 /** Header navigation: mono uppercase labels, a 2px synapse rule under the active section. */

@@ -1,22 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { KeyRound, Lock, Radar, RefreshCw, Rocket } from "lucide-react";
+import { KeyRound, Lock, RefreshCw, Rocket } from "lucide-react";
 import { auth } from "@/cortex/auth";
-import { getRole } from "@/cortex/roles";
-import { can } from "@/types/auth";
+import { skillRepository } from "@/cortex/repository";
 import { getI18n } from "@/cortex/locale";
 import { rich } from "@/lib/i18n/rich";
 import { hasDatabase } from "@/cortex/db";
 import { DEMO_API_KEY } from "@/cortex/api-keys";
 import { PublishForm } from "@/components/publish-form";
-import { CrawlPanel } from "@/components/crawl-panel";
 import { Panel, StatTile } from "@/components/panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/copy-button";
-import { loadState } from "@/cortex/crawler";
-import type { CrawlStatus } from "@/axon/client";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -28,25 +24,10 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/dashboard");
 
-  const { t } = await getI18n();
-  const crawlState = loadState();
-  const repos = Object.values(crawlState.repos);
-  const crawlStatus: CrawlStatus = {
-    running: false,
-    error: null,
-    progress: null,
-    state: {
-      repos: repos.length,
-      imported: repos.filter((r) => r.status === "imported").length,
-      rejected: repos.filter((r) => r.status === "rejected").length,
-      errors: repos.filter((r) => r.status === "error").length,
-      skills: repos.reduce((n, r) => n + r.skills, 0),
-      lastRun: crawlState.runs.at(-1) ?? null,
-    },
-  };
+  const [{ t }, all] = await Promise.all([getI18n(), skillRepository.all()]);
   const handle = session.user.handle ?? "account";
-  // The crawler writes the shared catalogue; its console follows the same permission as its API.
-  const canCrawl = can(await getRole(session.user.id), "crawler.run");
+  const mine = all.filter((s) => s.authorId === session.user.id);
+  const verified = mine.filter((s) => s.securityLevel === "Verified").length;
 
   return (
     <div className="space-y-8">
@@ -85,7 +66,7 @@ export default async function DashboardPage() {
 
       <section className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-2 sm:divide-y-0 sm:divide-x">
         <StatTile label={t("dash.apiKeys")} value={hasDatabase ? "—" : "01"} hint={t("dash.scopes")} />
-        <StatTile label={t("dash.crawlerQueue")} value={String(crawlStatus.state.repos)} unit={t("dash.repos")} hint={<span className="flex justify-between"><span>{t("dash.target")}</span><span className="text-synapse">{t("dash.indexed", { n: crawlStatus.state.skills })}</span></span>} />
+        <StatTile label={t("dash.myEntries")} value={String(mine.length).padStart(2, "0")} hint={<span className="flex justify-between"><span>{t("dash.myEntriesHint")}</span><span className="text-synapse">{t("dash.myVerified", { n: verified })}</span></span>} />
       </section>
 
       <div className="grid gap-8 lg:grid-cols-12">
@@ -94,12 +75,6 @@ export default async function DashboardPage() {
             <p className="mb-4 text-sm text-muted-foreground">{rich(t("dash.publish.lead"))}</p>
             <PublishForm mock={false} />
           </Panel>
-
-          {canCrawl && (
-            <Panel id="crawl" title={t("dash.crawl.title")} icon={<Radar className="h-4 w-4 shrink-0 text-synapse" />} actions={<Badge variant="synapse">{t("dash.crawl.status", { s: crawlStatus.state.lastRun ? t("dash.crawl.idle") : t("dash.crawl.never") })}</Badge>} corners className="scroll-mt-20">
-              <CrawlPanel initial={crawlStatus} />
-            </Panel>
-          )}
         </div>
 
         <div className="flex flex-col gap-8 lg:col-span-4">
