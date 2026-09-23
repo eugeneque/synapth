@@ -10,12 +10,12 @@ import { CommentThread } from "@/components/comment-thread";
 import { Panel } from "@/components/panel";
 import type { AuthorRef, Comment } from "@/types/social";
 
-export function SkillDiscussion({ skillId, slug, initial, viewer }: { skillId: string; slug: string; initial: Comment[]; viewer: AuthorRef | null }) {
+export function SkillDiscussion({ skillId, slug, initial, viewer, canModerate = false }: { skillId: string; slug: string; initial: Comment[]; viewer: AuthorRef | null; canModerate?: boolean }) {
   const { t, n } = useI18n();
   const [count, setCount] = useState(initial.length);
   return (
     <Panel id="discussion" title={t("discussion.title")} meta={n("posts.comments", count)} icon={<MessageSquare className="h-4 w-4 shrink-0 text-synapse" />} className="scroll-mt-24" bodyClassName="p-5">
-      <CommentThread initial={initial} viewer={viewer} submit={(body) => commentOnSkill(skillId, body)} signInHref={`/signin?callbackUrl=/skills/${slug}`} onCountChange={(d) => setCount((c) => c + d)} />
+      <CommentThread initial={initial} viewer={viewer} canModerate={canModerate} submit={(body) => commentOnSkill(skillId, body)} signInHref={`/signin?callbackUrl=/skills/${slug}`} onCountChange={(d) => setCount((c) => c + d)} />
     </Panel>
   );
 }

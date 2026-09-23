@@ -28,8 +28,8 @@ const seedUsers: MemoryUser[] = [
     role: "admin",
     passwordHash: "$2a$10$Ofc7QSru4aYuwQOVrR1vVO5d1/nEKkFxGkYTxLrWoACuEzyGgAv8i",
   },
-  { id: "usr_acme", name: "Acme Labs", email: "labs@acme.dev", handle: "acme", image: null, role: "creator", passwordHash: "" },
-  { id: "usr_nimbus", name: "Nimbus Tools", email: "hi@nimbus.tools", handle: "nimbus", image: null, role: "creator", passwordHash: "" },
+  { id: "usr_acme", name: "Acme Labs", email: "labs@acme.dev", handle: "acme", image: null, role: "user", passwordHash: "" },
+  { id: "usr_nimbus", name: "Nimbus Tools", email: "hi@nimbus.tools", handle: "nimbus", image: null, role: "user", passwordHash: "" },
   { id: "usr_kite", name: "kite", email: "kite@example.com", handle: "kite", image: null, role: "user", passwordHash: "" },
 ];
 

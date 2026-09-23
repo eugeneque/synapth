@@ -4,10 +4,10 @@
  */
 
 import { createHash, randomBytes } from "node:crypto";
-import { auth, ForbiddenError, UnauthorizedError } from "@/cortex/auth";
-import { getProfile } from "@/cortex/account";
+import { auth, UnauthorizedError } from "@/cortex/auth";
 import { prisma, hasDatabase } from "@/cortex/db";
-import type { UserRole } from "@/types/auth";
+import type { Permission, UserRole } from "@/types/auth";
+import { requirePermission } from "@/cortex/roles";
 
 export const API_KEY_PREFIX = "syn_";
 /** Works only on the in-memory store, for local agents and docs examples. */
@@ -49,14 +49,13 @@ export async function requireCaller(request: Request): Promise<Caller> {
 }
 
 /**
- * Role check that works for both credentials: the JWT carries the role for a
- * session, but an API key only carries a user id, so the role is read from the
- * stored profile either way.
+ * Permission check that works for both credentials: the JWT carries the role
+ * for a session, but an API key only carries a user id, so the stored role is
+ * read either way (`cortex/roles.ts`).
  */
-export async function requireCallerRole(request: Request, ...roles: UserRole[]): Promise<Caller & { role: UserRole }> {
+export async function requireCallerPermission(request: Request, permission: Permission): Promise<Caller & { role: UserRole }> {
   const caller = await requireCaller(request);
-  const role = (await getProfile(caller.userId))?.role ?? "user";
-  if (!roles.includes(role)) throw new ForbiddenError(`Requires role: ${roles.join(" or ")}`);
+  const role = await requirePermission(caller.userId, permission);
   return { ...caller, role };
 }
 

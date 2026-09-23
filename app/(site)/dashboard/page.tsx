@@ -3,6 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { KeyRound, Lock, Radar, RefreshCw, Rocket } from "lucide-react";
 import { auth } from "@/cortex/auth";
+import { getRole } from "@/cortex/roles";
+import { can } from "@/types/auth";
 import { getI18n } from "@/cortex/locale";
 import { rich } from "@/lib/i18n/rich";
 import { hasDatabase } from "@/cortex/db";
@@ -43,8 +45,8 @@ export default async function DashboardPage() {
     },
   };
   const handle = session.user.handle ?? "account";
-  // The crawler writes the shared catalogue; its console is admin-only, like its API.
-  const isAdmin = session.user.role === "admin";
+  // The crawler writes the shared catalogue; its console follows the same permission as its API.
+  const canCrawl = can(await getRole(session.user.id), "crawler.run");
 
   return (
     <div className="space-y-8">
@@ -93,7 +95,7 @@ export default async function DashboardPage() {
             <PublishForm mock={false} />
           </Panel>
 
-          {isAdmin && (
+          {canCrawl && (
             <Panel id="crawl" title={t("dash.crawl.title")} icon={<Radar className="h-4 w-4 shrink-0 text-synapse" />} actions={<Badge variant="synapse">{t("dash.crawl.status", { s: crawlStatus.state.lastRun ? t("dash.crawl.idle") : t("dash.crawl.never") })}</Badge>} corners className="scroll-mt-20">
               <CrawlPanel initial={crawlStatus} />
             </Panel>

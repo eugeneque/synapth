@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { crawl, loadState, type CrawlProgress } from "@/cortex/crawler";
-import { requireCallerRole } from "@/cortex/api-keys";
+import { requireCallerPermission } from "@/cortex/api-keys";
 import { enforceRequestLimit } from "@/cortex/rate-limit";
 import { json, withErrors } from "@/lib/api";
 
@@ -55,12 +55,12 @@ function summary() {
 
 /** Progress is operational detail: admins only, same as starting a crawl. */
 export const GET = withErrors(async (request: Request) => {
-  await requireCallerRole(request, "admin");
+  await requireCallerPermission(request, "crawler.run");
   return json(summary());
 });
 
 export const POST = withErrors(async (request: Request) => {
-  const admin = await requireCallerRole(request, "admin");
+  const admin = await requireCallerPermission(request, "crawler.run");
   enforceRequestLimit("crawl", request, admin.userId);
   if (job.running) return json({ ...summary(), error: "A crawl is already running" }, { status: 409 });
 
@@ -96,7 +96,7 @@ export const POST = withErrors(async (request: Request) => {
 });
 
 export const DELETE = withErrors(async (request: Request) => {
-  await requireCallerRole(request, "admin");
+  await requireCallerPermission(request, "crawler.run");
   job.controller?.abort();
   return json({ aborted: job.running, ...summary() });
 });

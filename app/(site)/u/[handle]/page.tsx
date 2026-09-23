@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Activity, Award, Bolt, Briefcase, Building2, Calendar, Code2, Github, Globe, Layers, MapPin, MessageSquare, Pencil, Plus, Search, ShieldCheck } from "lucide-react";
 import { skillRepository } from "@/cortex/repository";
 import { auth } from "@/cortex/auth";
+import { hasPermission } from "@/cortex/roles";
 import { getAuthorRef, getProfileByHandle } from "@/cortex/account";
 import { evaluateBadges, listBadges } from "@/cortex/badges";
 import { impulseSummary, listComments, listPosts } from "@/cortex/social";
@@ -46,7 +47,7 @@ export default async function UserProfilePage({ params }: Params) {
 
   // Social layer: impulses, posts with their threads, achievements (evaluated lazily so seeded data catches up).
   await evaluateBadges(profile.id);
-  const [impulses, posts, badges, viewer] = await Promise.all([impulseSummary(profile.id, viewerId), listPosts(profile.id), listBadges(profile.id), viewerId ? getAuthorRef(viewerId) : Promise.resolve(null)]);
+  const [impulses, posts, badges, viewer, canModerate] = await Promise.all([impulseSummary(profile.id, viewerId), listPosts(profile.id), listBadges(profile.id), viewerId ? getAuthorRef(viewerId) : Promise.resolve(null), hasPermission(viewerId, "content.moderate")]);
   const threads: Record<string, Comment[]> = Object.fromEntries(await Promise.all(posts.map(async (p) => [p.id, await listComments("post", p.id)] as const)));
 
   // A registered developer may also be a crawled GitHub owner under the same handle: merge both.
@@ -255,7 +256,7 @@ export default async function UserProfilePage({ params }: Params) {
               </div>
               <span className="label-mono-sm normal-case tracking-normal">{t("posts.meta", { handle: profile.handle })}</span>
             </div>
-            <PostFeed handle={profile.handle} ownerId={profile.id} viewer={viewer} initialPosts={posts} initialComments={threads} />
+            <PostFeed handle={profile.handle} ownerId={profile.id} viewer={viewer} canModerate={canModerate} initialPosts={posts} initialComments={threads} />
           </section>
 
           <Panel

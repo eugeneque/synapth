@@ -12,6 +12,7 @@ import { ZodError } from "zod";
 import { requireUser } from "@/cortex/auth";
 import { enforceRateLimit, type RateLimitName } from "@/cortex/rate-limit";
 import { evaluateBadges } from "@/cortex/badges";
+import { hasPermission } from "@/cortex/roles";
 import { skillRepository } from "@/cortex/repository";
 import { addComment, createPost, deleteComment, deletePost, toggleImpulse, toggleWatch, type ImpulseSummary, type WatchSummary } from "@/cortex/social";
 import type { Comment, Post } from "@/types/social";
@@ -63,7 +64,7 @@ export async function publishPost(body: string, handle: string): Promise<ActionR
 export async function removePost(postId: string, handle: string): Promise<ActionResult<null>> {
   return run(async () => {
     const user = await requireUserWithin();
-    await deletePost(user.id, postId);
+    await deletePost(user.id, postId, { moderator: await hasPermission(user.id, "content.moderate") });
     revalidatePath(`/u/${handle}`);
     return null;
   });
@@ -93,7 +94,7 @@ export async function commentOnSkill(skillId: string, body: string): Promise<Act
 export async function removeComment(commentId: string): Promise<ActionResult<null>> {
   return run(async () => {
     const user = await requireUserWithin();
-    await deleteComment(user.id, commentId);
+    await deleteComment(user.id, commentId, { moderator: await hasPermission(user.id, "content.moderate") });
     return null;
   });
 }

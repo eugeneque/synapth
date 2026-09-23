@@ -24,8 +24,14 @@ npm run dev               # http://localhost:3000
 С PostgreSQL:
 
 ```bash
-npm run db:push && npm run db:seed
+npm run db:sync                       # схема + разовые миграции данных (идемпотентно)
+npm run db:seed                       # демо-каталог (по желанию)
+npm run role -- you@example.com admin # первый администратор
 ```
+
+На Netlify база — Neon (расширение Netlify DB): `NETLIFY_DATABASE_URL` подхватывается сам, `DATABASE_URL` можно не задавать. Сборка (`netlify.toml`) перед `next build` запускает `scripts/db-sync.mjs` — только недеструктивные изменения схемы; отключается `SYNAPTH_SKIP_DB_SYNC=1`.
+
+Роли: **user** (обычный пользователь), **moderator** (+ верификация записей каталога, `/dashboard/moderation`), **admin** (все права, в т.ч. роли в `/dashboard/users`, краулер, модерация контента). Таблица прав — `types/auth.ts`.
 
 Тесты (node:test через tsx): `npm test`.
 

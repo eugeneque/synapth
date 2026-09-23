@@ -28,6 +28,8 @@ export interface AuthGateProps {
 }
 
 const DEMO = { email: "demo@synapth.dev", password: "synapth-demo" };
+/** `code` values of `RegistrationError` (cortex/registration.ts), each with an `auth.err.<code>` string. */
+const REGISTRATION_CODES = ["email_taken", "handle_taken", "handle_reserved", "unavailable"] as const;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 const CLI_AUTH = `curl -s ${APP_URL}/api/v1/account/me \\\n  -H 'X-Synapth-Key: syn_live_…'`;
 
@@ -108,11 +110,14 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
           }),
         });
         if (!res.ok) {
-          const body = (await res.json()) as {
+          const body = (await res.json().catch(() => ({}))) as {
             error?: string;
+            code?: (typeof REGISTRATION_CODES)[number];
             issues?: Array<{ message: string; path: (string | number)[] }>;
           };
-          setError(body.issues?.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") ?? body.error ?? t("auth.err.registration"));
+          if (body.code && REGISTRATION_CODES.includes(body.code)) setError(t(`auth.err.${body.code}`));
+          else if (res.status === 429) setError(t("auth.err.rateLimited"));
+          else setError(body.issues?.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") ?? body.error ?? t("auth.err.registration"));
           return;
         }
       }
@@ -227,7 +232,20 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
                     </Field>
                     <Field id="handle" label={t("auth.field.handle")} side={<span className="label-mono-sm text-muted-foreground/70">{t("auth.hint.unique")}</span>}>
                       <span className="pointer-events-none absolute left-3 top-2.5 font-mono text-xs text-muted-foreground">@</span>
-                      <input id="handle" name="handle" required minLength={3} pattern="[a-z0-9-]+" placeholder="ada" autoComplete="username" className={cn(inputClass, "pl-8")} />
+                      <input
+                        id="handle"
+                        name="handle"
+                        required
+                        minLength={3}
+                        maxLength={32}
+                        pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?"
+                        placeholder="ada"
+                        autoComplete="username"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        onChange={(e) => (e.currentTarget.value = e.currentTarget.value.toLowerCase())}
+                        className={cn(inputClass, "pl-8")}
+                      />
                     </Field>
                   </div>
                 )}

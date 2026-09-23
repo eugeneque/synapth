@@ -171,19 +171,19 @@ export async function listPosts(authorId: string, limit = 20): Promise<Post[]> {
   return hydratePosts(rows.map((r) => ({ id: r.id, authorId: r.authorId, body: r.body, createdAt: r.createdAt.toISOString() })));
 }
 
-/** Authors delete their own posts; the post's comments go with it. */
-export async function deletePost(userId: string, postId: string): Promise<void> {
+/** Authors delete their own posts (`moderator` = holder of `content.moderate`: anyone's); the post's comments go with it. */
+export async function deletePost(userId: string, postId: string, { moderator = false }: { moderator?: boolean } = {}): Promise<void> {
   if (!hasDatabase) {
     const i = mem.posts.findIndex((p) => p.id === postId);
     if (i < 0) throw new NotFoundError("Post not found");
-    if (mem.posts[i].authorId !== userId) throw new ForbiddenError();
+    if (mem.posts[i].authorId !== userId && !moderator) throw new ForbiddenError();
     mem.posts.splice(i, 1);
     mem.comments = mem.comments.filter((c) => !(c.targetKind === "post" && c.targetId === postId));
     return;
   }
   const row = await prisma.post.findUnique({ where: { id: postId }, select: { authorId: true } });
   if (!row) throw new NotFoundError("Post not found");
-  if (row.authorId !== userId) throw new ForbiddenError();
+  if (row.authorId !== userId && !moderator) throw new ForbiddenError();
   await prisma.$transaction([prisma.comment.deleteMany({ where: { targetKind: "post", targetId: postId } }), prisma.post.delete({ where: { id: postId } })]);
 }
 
@@ -243,18 +243,18 @@ export async function commentCounts(kind: CommentTargetKind, targetIds: string[]
   return out;
 }
 
-/** Comment authors may delete their own comments. */
-export async function deleteComment(userId: string, commentId: string): Promise<void> {
+/** Comment authors may delete their own comments; `moderator` (holder of `content.moderate`) deletes any. */
+export async function deleteComment(userId: string, commentId: string, { moderator = false }: { moderator?: boolean } = {}): Promise<void> {
   if (!hasDatabase) {
     const i = mem.comments.findIndex((c) => c.id === commentId);
     if (i < 0) throw new NotFoundError("Comment not found");
-    if (mem.comments[i].authorId !== userId) throw new ForbiddenError();
+    if (mem.comments[i].authorId !== userId && !moderator) throw new ForbiddenError();
     mem.comments.splice(i, 1);
     return;
   }
   const row = await prisma.comment.findUnique({ where: { id: commentId }, select: { authorId: true } });
   if (!row) throw new NotFoundError("Comment not found");
-  if (row.authorId !== userId) throw new ForbiddenError();
+  if (row.authorId !== userId && !moderator) throw new ForbiddenError();
   await prisma.comment.delete({ where: { id: commentId } });
 }
 

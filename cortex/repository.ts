@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Prisma } from "@prisma/client";
-import { prisma, hasDatabase } from "@/cortex/db";
+import { prisma, hasDatabase, isServerless } from "@/cortex/db";
 import { seedSkills, memoryUsers } from "@/cortex/seed";
 import { notifySkillUpdated } from "@/cortex/social";
 import { sortSkills } from "@/cortex/ranking";
@@ -38,12 +38,23 @@ export interface SkillRepository {
    */
   upsertMany(items: Array<{ input: SkillCreateInput; authorId: string; authorName: string; securityLevel: SecurityLevel }>): Promise<{ created: number; updated: number; skipped: number }>;
   recordInstall(skillId: string, client: string, userId?: string): Promise<void>;
+  /**
+   * Moderation: store a new security level decided by a human review
+   * (`cortex/moderation.ts`). The scan that backed the decision is kept as an
+   * audit row when a database is attached.
+   */
+  setSecurityLevel(id: string, level: SecurityLevel, review: SecurityReview): Promise<Skill | null>;
   /** Changes whenever the catalogue changes; used to invalidate the search index. */
   version(): Promise<string>;
 }
 
+export interface SecurityReview {
+  reviewerId: string;
+  scannerVersion: string;
+  findings: unknown[];
+}
+
 /** Serverless bundles (Netlify / Lambda) are read-only; only `/tmp` is writable there. */
-const isServerless = Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
 export const CATALOG_PATH =
   process.env.SYNAPTH_CATALOG_PATH ??
   (isServerless ? join("/tmp", "synapth", "catalog.json") : join(process.cwd(), "data", "catalog.json"));
@@ -323,6 +334,16 @@ class FileSkillRepository implements SkillRepository {
     return { created, updated, skipped };
   }
 
+  async setSecurityLevel(id: string, level: SecurityLevel) {
+    this.load();
+    const skill = this.byIdMap.get(id);
+    if (!skill) return null;
+    skill.securityLevel = level;
+    skill.updatedAt = new Date().toISOString();
+    this.save();
+    return skill;
+  }
+
   async recordInstall(skillId: string) {
     this.load();
     const skill = this.byIdMap.get(skillId);
@@ -404,7 +425,7 @@ class PrismaSkillRepository implements SkillRepository {
     let skipped = 0;
     for (const { input, authorId, authorName, securityLevel } of items) {
       const slug = input.slug ?? slugify(`${authorName}-${input.name}`);
-      await prisma.user.upsert({ where: { id: authorId }, create: { id: authorId, name: authorName, handle: authorId.replace(/^gh:/, "gh-").toLowerCase(), role: "creator" }, update: {} });
+      await prisma.user.upsert({ where: { id: authorId }, create: { id: authorId, name: authorName, handle: authorId.replace(/^gh:/, "gh-").toLowerCase(), role: "user" }, update: {} });
       const existing = await prisma.skill.findUnique({ where: { slug }, select: { id: true, securityLevel: true, version: true, name: true, authorId: true } });
       if (existing && existing.authorId !== authorId) {
         skipped += 1;
@@ -499,6 +520,18 @@ class PrismaSkillRepository implements SkillRepository {
     return toDomain(row);
   }
 
+  async setSecurityLevel(id: string, level: SecurityLevel, review: SecurityReview) {
+    const existing = await prisma.skill.findUnique({ where: { id }, select: { version: true } });
+    if (!existing) return null;
+    const [row] = await prisma.$transaction([
+      prisma.skill.update({ where: { id }, data: { securityLevel: level }, include: skillInclude }),
+      prisma.securityScan.create({
+        data: { skillId: id, version: existing.version, level, findings: review.findings as Prisma.InputJsonValue, scannerVersion: review.scannerVersion, reviewedBy: review.reviewerId },
+      }),
+    ]);
+    return toDomain(row);
+  }
+
   async recordInstall(skillId: string, client: string, userId?: string) {
     await prisma.$transaction([
       prisma.install.create({ data: { skillId, client, userId: userId ?? null } }),
@@ -514,6 +547,6 @@ class PrismaSkillRepository implements SkillRepository {
 
 // Module-level singleton so the store survives HMR in dev. The key carries a shape
 // version: bump it when the interface changes so a hot reload never keeps an old instance.
-const REPO_KEY = "__synapthRepo_v2";
+const REPO_KEY = "__synapthRepo_v3";
 const g = globalThis as unknown as Record<string, SkillRepository | undefined>;
 export const skillRepository: SkillRepository = g[REPO_KEY] ?? (g[REPO_KEY] = hasDatabase ? new PrismaSkillRepository() : new FileSkillRepository());
