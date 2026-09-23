@@ -9,6 +9,8 @@ import { skillRepository } from "@/cortex/repository";
 import { getI18n } from "@/cortex/locale";
 import { hasPermission } from "@/cortex/roles";
 import { SettingsForm } from "@/components/settings-form";
+import { VerificationPanel } from "@/components/verification-panel";
+import { verificationState } from "@/cortex/verification";
 import { Button } from "@/components/ui/button";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -21,7 +23,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/dashboard/settings");
-  const [profile, all, { t }, isAdmin] = await Promise.all([getProfile(session.user.id), skillRepository.all(), getI18n(), hasPermission(session.user.id, "admin.access")]);
+  const [profile, all, { t }, isAdmin, verification] = await Promise.all([getProfile(session.user.id), skillRepository.all(), getI18n(), hasPermission(session.user.id, "admin.access"), verificationState(session.user.id)]);
   if (!profile) redirect("/signin");
   const published = all.filter((s) => s.authorId === profile.id);
   const verified = published.filter((s) => s.securityLevel === "Verified").length;
@@ -75,6 +77,8 @@ export default async function SettingsPage() {
       <SettingsForm
         profile={profile}
         catalogue={{ published: published.length, verified }}
+        verification={<VerificationPanel initial={verification} />}
+        verified={Boolean(profile.verified)}
         signOutAction={async () => {
           "use server";
           await signOut({ redirectTo: "/" });

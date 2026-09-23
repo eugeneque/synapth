@@ -32,7 +32,7 @@ export function SkillCard({ skill, highlights, layout = "grid" }: Props) {
   const list = layout === "list";
 
   return (
-    <article className={cn("group relative flex rounded-xl border border-border bg-card transition-colors duration-150 hover:border-foreground/30", list ? "flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-5" : "flex-col")}>
+    <article className={cn("lift group relative flex rounded-xl border border-border bg-card hover:border-foreground/30", list ? "flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-5" : "flex-col")}>
       <Corners hover />
 
       <div className={cn("flex flex-col gap-3", list ? "min-w-0 flex-1" : "p-5")}>

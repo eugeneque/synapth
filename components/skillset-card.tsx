@@ -17,7 +17,7 @@ export function SkillsetCard({ set, className }: { set: SkillsetSummary; classNa
   const { t, n } = i18n;
   const total = set.counts.MCP + set.counts.Prompt + set.counts.Tool;
   return (
-    <article className={cn("group relative flex flex-col rounded-xl border border-border bg-card transition-colors duration-150 hover:border-foreground/30", className)}>
+    <article className={cn("lift group relative flex flex-col rounded-xl border border-border bg-card hover:border-foreground/30", className)}>
       <Corners hover />
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex items-start gap-3">

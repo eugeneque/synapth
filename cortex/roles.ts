@@ -11,6 +11,7 @@
 
 import { prisma, hasDatabase } from "@/cortex/db";
 import { memoryUsers } from "@/cortex/seed";
+import { getAuthorRefs } from "@/cortex/account";
 import { can, toUserRole, USER_ROLES, type Permission, type UserRole } from "@/types/auth";
 
 /** 403; rendered by `lib/api` and the server-action wrappers through its `status`. */
@@ -59,6 +60,7 @@ export interface DirectoryUser {
   handle: string;
   email: string | null;
   role: UserRole;
+  verified: boolean;
   createdAt: string | null;
 }
 
@@ -69,12 +71,13 @@ export async function listUsers(options: { q?: string; role?: UserRole; limit?: 
   const q = options.q?.trim().toLowerCase() ?? "";
   const limit = Math.min(options.limit ?? 50, 200);
   if (!hasDatabase) {
+    const verifiedIds = new Set([...(await getAuthorRefs(memoryUsers.map((u) => u.id))).values()].filter((r) => r.verified).map((r) => r.id));
     return memoryUsers
       .filter((u) => !isSystemAccount(u.id))
       .filter((u) => !options.role || u.role === options.role)
       .filter((u) => !q || [u.name, u.handle, u.email].some((f) => f.toLowerCase().includes(q)))
       .slice(0, limit)
-      .map((u) => ({ id: u.id, name: u.name, handle: u.handle, email: u.email, role: toUserRole(u.role), createdAt: null }));
+      .map((u) => ({ id: u.id, name: u.name, handle: u.handle, email: u.email, role: toUserRole(u.role), verified: verifiedIds.has(u.id), createdAt: null }));
   }
   const rows = await prisma.user.findMany({
     where: {
@@ -87,9 +90,9 @@ export async function listUsers(options: { q?: string; role?: UserRole; limit?: 
     // Staff first, then newest accounts.
     orderBy: [{ role: "desc" }, { createdAt: "desc" }],
     take: limit,
-    select: { id: true, name: true, handle: true, email: true, role: true, createdAt: true },
+    select: { id: true, name: true, handle: true, email: true, role: true, verifiedAt: true, createdAt: true },
   });
-  return rows.map((r) => ({ id: r.id, name: r.name ?? "", handle: r.handle ?? "", email: r.email, role: toUserRole(r.role), createdAt: r.createdAt.toISOString() }));
+  return rows.map((r) => ({ id: r.id, name: r.name ?? "", handle: r.handle ?? "", email: r.email, role: toUserRole(r.role), verified: Boolean(r.verifiedAt), createdAt: r.createdAt.toISOString() }));
 }
 
 /** People per role, for the admin overview. */
@@ -104,9 +107,9 @@ export async function countUsersByRole(): Promise<Record<UserRole, number>> {
   return out;
 }
 
-/** Accounts that review the catalogue (moderators and admins), for staff notifications. */
-export async function listStaffIds(): Promise<string[]> {
-  const staffRoles: UserRole[] = USER_ROLES.filter((r) => can(r, "catalog.verify"));
+/** Accounts holding `permission` (by default: catalogue reviewers — moderators and admins), for staff notifications. */
+export async function listStaffIds(permission: Permission = "catalog.verify"): Promise<string[]> {
+  const staffRoles: UserRole[] = USER_ROLES.filter((r) => can(r, permission));
   if (!hasDatabase) return memoryUsers.filter((u) => staffRoles.includes(toUserRole(u.role)) && !isSystemAccount(u.id)).map((u) => u.id);
   const rows = await prisma.user.findMany({ where: { role: { in: staffRoles }, NOT: [{ id: { startsWith: "gh:" } }, { id: "usr_platform" }] }, select: { id: true } });
   return rows.map((r) => r.id);
@@ -133,8 +136,8 @@ export async function setUserRole(actorId: string, targetId: string, rawRole: st
   if (!hasDatabase) {
     const u = memoryUsers.find((m) => m.id === targetId)!;
     u.role = role;
-    return { id: u.id, name: u.name, handle: u.handle, email: u.email, role, createdAt: null };
+    return { id: u.id, name: u.name, handle: u.handle, email: u.email, role, verified: Boolean((await getAuthorRefs([u.id])).get(u.id)?.verified), createdAt: null };
   }
-  const r = await prisma.user.update({ where: { id: targetId }, data: { role }, select: { id: true, name: true, handle: true, email: true, role: true, createdAt: true } });
-  return { id: r.id, name: r.name ?? "", handle: r.handle ?? "", email: r.email, role: toUserRole(r.role), createdAt: r.createdAt.toISOString() };
+  const r = await prisma.user.update({ where: { id: targetId }, data: { role }, select: { id: true, name: true, handle: true, email: true, role: true, verifiedAt: true, createdAt: true } });
+  return { id: r.id, name: r.name ?? "", handle: r.handle ?? "", email: r.email, role: toUserRole(r.role), verified: Boolean(r.verifiedAt), createdAt: r.createdAt.toISOString() };
 }

@@ -13,6 +13,7 @@ import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { commentOnPost, publishPost, removePost } from "@/app/(site)/social-actions";
 import { Avatar } from "@/components/avatar";
+import { VerifiedMark } from "@/components/verified-mark";
 import { CommentThread } from "@/components/comment-thread";
 import { cn, timeAgo } from "@/lib/utils";
 import { POST_MAX_LENGTH, type AuthorRef, type Comment, type Post } from "@/types/social";
@@ -127,7 +128,7 @@ function PostCard({ post, viewer, canModerate, initialComments, onDelete }: { po
   }, [post.id]);
 
   return (
-    <article id={`post-${post.id}`} className="scroll-mt-24 rounded-xl border border-border bg-card p-5">
+    <article id={`post-${post.id}`} className="animate-rise scroll-mt-24 rounded-xl border border-border bg-card p-5 transition-colors hover:border-foreground/20">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <Avatar author={post.author} size="md" link />
@@ -136,6 +137,7 @@ function PostCard({ post, viewer, canModerate, initialComments, onDelete }: { po
               <Link href={`/u/${post.author.handle}`} className="text-sm font-semibold text-foreground hover:underline">
                 {post.author.name || post.author.handle}
               </Link>
+              {post.author.verified && <VerifiedMark size="sm" className="-ml-1" />}
               <span className="label-mono-sm normal-case tracking-normal">
                 @{post.author.handle} · {timeAgo(post.createdAt, i18n)}
               </span>

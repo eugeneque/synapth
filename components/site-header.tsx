@@ -10,6 +10,7 @@ import { SearchTrigger } from "@/components/search-trigger";
 import { MobileNav } from "@/components/mobile-nav";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { NotificationBell } from "@/components/notification-center";
+import { UserHoverCard } from "@/components/user-hover-card";
 
 export async function SiteHeader() {
   const [session, { t }] = await Promise.all([auth(), getI18n()]);
@@ -45,6 +46,17 @@ export async function SiteHeader() {
     </>
   );
 
+  const avatarLink = (
+    <Link href={profile?.handle ? `/u/${profile.handle}` : "/dashboard/settings"} aria-label={t("header.profile")} title={t("header.profile")} className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-transparent bg-foreground text-background transition-all duration-200 hover:scale-105 hover:border-synapse hover:bg-synapse hover:shadow-glow">
+      {profile?.image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={profile.image} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <User className="h-4 w-4" />
+      )}
+    </Link>
+  );
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="container flex h-16 items-center justify-between gap-4">
@@ -64,14 +76,7 @@ export async function SiteHeader() {
             <>
               <NotificationBell />
               <div className="hidden items-center gap-2 lg:flex">{authActions}</div>
-              <Link href={profile?.handle ? `/u/${profile.handle}` : "/dashboard/settings"} aria-label={t("header.profile")} title={t("header.profile")} className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-transparent bg-foreground text-background transition-colors hover:border-synapse hover:bg-synapse">
-                {profile?.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.image} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <User className="h-4 w-4" />
-                )}
-              </Link>
+              {profile?.handle ? <UserHoverCard handle={profile.handle}>{avatarLink}</UserHoverCard> : avatarLink}
             </>
           ) : (
             <div className="hidden items-center gap-2 lg:flex">{authActions}</div>

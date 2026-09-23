@@ -14,7 +14,12 @@ export interface AuthorRef {
   handle: string;
   image: string | null;
   occupation: Occupation | null;
+  /** Account check mark (types/verification.ts); absent on refs built without a user lookup. */
+  verified?: boolean;
 }
+
+/** How a viewer relates to a profile for impulses: signed out, the owner, or another member. */
+export type ImpulseViewer = "anonymous" | "self" | "member";
 
 /** One impulse per (from, to) pair; withdrawing it deletes the row. Users cannot impulse themselves. */
 export interface Impulse {
@@ -57,7 +62,7 @@ export const COMMENT_MAX_LENGTH = 1000;
 // Notifications
 // ---------------------------------------------------------------------------
 
-export const NOTIFICATION_KINDS = ["impulse", "comment.post", "comment.skill", "skill.updated", "moderation.requested", "moderation.decided", "skillset.updated", "skillset.verified", "badge", "system"] as const;
+export const NOTIFICATION_KINDS = ["impulse", "comment.post", "comment.skill", "skill.updated", "moderation.requested", "moderation.decided", "skillset.updated", "skillset.verified", "verification.requested", "verification.updated", "badge", "system"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /** Drawer filter tabs; each kind belongs to exactly one channel. */
@@ -71,6 +76,8 @@ export const NOTIFICATION_CHANNEL: Record<NotificationKind, NotificationChannel>
   "moderation.decided": "skills",
   "skillset.updated": "skills",
   "skillset.verified": "skills",
+  "verification.requested": "system",
+  "verification.updated": "system",
   badge: "system",
   system: "system",
 };
@@ -89,6 +96,10 @@ export type NotificationSubject =
   | { kind: "skillset.updated"; skillsetId: string; slug: string; name: string; added: number; removed: number }
   /** To the skillset author: staff set or revoked `verified`. */
   | { kind: "skillset.verified"; skillsetId: string; slug: string; name: string; verified: boolean }
+  /** To admins: a developer filed a verification request that passed the scan. */
+  | { kind: "verification.requested"; requestId: string }
+  /** To the applicant (or the user, on a manual grant / revoke): the request moved or the mark changed. */
+  | { kind: "verification.updated"; requestId: string | null; code: "claimed" | "approved" | "rejected" | "scan_failed" | "granted" | "revoked"; note: string | null }
   | { kind: "badge"; badgeId: string }
   | { kind: "system"; title: string; body: string; href: string | null; tone: "info" | "success" | "warn" | "danger" };
 

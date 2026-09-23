@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Award, Boxes, CheckCheck, Gavel, Inbox, Info, Layers, MessageSquare, ShieldCheck, X, Zap } from "lucide-react";
+import { ArrowRight, Award, BadgeCheck, Boxes, CheckCheck, Gavel, Inbox, Info, Layers, MessageSquare, ShieldCheck, X, Zap } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useNotifications } from "@/axon/notifications";
 import { describeNotification } from "@/axon/notification-text";
@@ -30,7 +30,7 @@ const TABS: Array<{ id: Tab; key: UiKey }> = [
   { id: "system", key: "notif.tab.system" },
 ];
 
-const KIND_ICON: Record<Notification["kind"], typeof Zap> = { impulse: Zap, "comment.post": MessageSquare, "comment.skill": MessageSquare, "skill.updated": Layers, "moderation.requested": ShieldCheck, "moderation.decided": Gavel, "skillset.updated": Boxes, "skillset.verified": ShieldCheck, badge: Award, system: Info };
+const KIND_ICON: Record<Notification["kind"], typeof Zap> = { impulse: Zap, "comment.post": MessageSquare, "comment.skill": MessageSquare, "skill.updated": Layers, "moderation.requested": ShieldCheck, "moderation.decided": Gavel, "skillset.updated": Boxes, "skillset.verified": ShieldCheck, "verification.requested": BadgeCheck, "verification.updated": BadgeCheck, badge: Award, system: Info };
 
 export function NotificationFeed({ compact = false, limit = 50 }: { compact?: boolean; limit?: number }) {
   const { t } = useI18n();
