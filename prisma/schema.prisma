@@ -3,6 +3,8 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Netlify builds on Ubuntu but runs functions on Amazon Linux (rhel-openssl-3.0.x).
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
