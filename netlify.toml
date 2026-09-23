@@ -1,0 +1,8 @@
+# Netlify deploys Next.js through its OpenNext adapter (@netlify/plugin-nextjs),
+# which is applied automatically once a build command and `.next` are set.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"

@@ -42,7 +42,11 @@ export interface SkillRepository {
   version(): Promise<string>;
 }
 
-export const CATALOG_PATH = process.env.SYNAPTH_CATALOG_PATH ?? join(process.cwd(), "data", "catalog.json");
+/** Serverless bundles (Netlify / Lambda) are read-only; only `/tmp` is writable there. */
+const isServerless = Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
+export const CATALOG_PATH =
+  process.env.SYNAPTH_CATALOG_PATH ??
+  (isServerless ? join("/tmp", "synapth", "catalog.json") : join(process.cwd(), "data", "catalog.json"));
 /** Characters of README kept inline in the catalogue; the rest lives in a side file / column. */
 export const README_EXCERPT = 4_000;
 
