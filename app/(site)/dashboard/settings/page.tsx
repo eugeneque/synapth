@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowUpRight, Eye, ShieldEllipsis } from "lucide-react";
-import { auth, signOut } from "@/cortex/auth";
+import { auth } from "@/cortex/auth";
 import { getProfile } from "@/cortex/account";
 import { hasDatabase } from "@/cortex/db";
 import { skillRepository } from "@/cortex/repository";
@@ -79,10 +79,6 @@ export default async function SettingsPage() {
         catalogue={{ published: published.length, verified }}
         verification={<VerificationPanel initial={verification} />}
         verified={Boolean(profile.verified)}
-        signOutAction={async () => {
-          "use server";
-          await signOut({ redirectTo: "/" });
-        }}
       />
     </div>
   );

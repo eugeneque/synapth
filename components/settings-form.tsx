@@ -21,6 +21,7 @@ import type { AccountProfile, ProfileUpdate } from "@/cortex/account";
 import type { ImageError } from "@/axon/image";
 import { OCCUPATIONS } from "@/types/profile";
 import { AvatarPicker, CoverPicker } from "@/components/image-picker";
+import { SignOutButton } from "@/components/sign-out-button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
@@ -28,7 +29,6 @@ import type { UiKey } from "@/lib/i18n";
 interface Props {
   profile: AccountProfile;
   catalogue: { published: number; verified: number };
-  signOutAction: () => Promise<void>;
   /** The verification section body (`VerificationPanel`), rendered by the page with its server state. */
   verification: React.ReactNode;
   verified: boolean;
@@ -55,7 +55,7 @@ function writeTargetCookie(target: InstallTarget | null) {
   document.cookie = target ? `${TARGET_COOKIE}=${target}; path=/; max-age=31536000; samesite=lax${secure}` : `${TARGET_COOKIE}=; path=/; max-age=0`;
 }
 
-export function SettingsForm({ profile, catalogue, signOutAction, verification, verified }: Props) {
+export function SettingsForm({ profile, catalogue, verification, verified }: Props) {
   const { t } = useI18n();
   const { toast } = useToast();
   const [saved, setSaved] = useState<ProfileUpdate>(() => toUpdate(profile));
@@ -272,11 +272,9 @@ export function SettingsForm({ profile, catalogue, signOutAction, verification, 
               <Row k={t("settings.session.strategy")} v="jwt · 30d" />
               <Row k={t("settings.session.keys")} v={t("settings.session.keysValue")} link="/dashboard#keys" />
             </dl>
-            <form action={signOutAction}>
-              <button type="submit" className="inline-flex h-9 items-center gap-2 rounded-lg border border-danger/30 px-4 font-mono text-[11px] uppercase tracking-[0.14em] text-danger transition-colors hover:bg-danger/10">
-                <LogOut className="h-4 w-4" /> {t("settings.session.signOut")}
-              </button>
-            </form>
+            <SignOutButton label={t("settings.session.signOut")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-danger/30 px-4 font-mono text-[11px] uppercase tracking-[0.14em] text-danger transition-colors hover:bg-danger/10 disabled:opacity-60">
+              <LogOut className="h-4 w-4" /> {t("settings.session.signOut")}
+            </SignOutButton>
           </div>
         </section>
       </div>
