@@ -14,7 +14,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, Award, BadgeCheck, Boxes, CheckCheck, Gavel, Inbox, Info, Layers, MessageSquare, Newspaper, ShieldCheck, UserPlus, Users, X, Zap } from "lucide-react";
+import { ArrowUpRight, Award, BadgeCheck, Boxes, CheckCheck, Gavel, Inbox, Info, Layers, MessageSquare, Newspaper, AtSign, ShieldCheck, UserPlus, Users, X, Zap } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useNotifications } from "@/axon/notifications";
 import { describeNotification } from "@/axon/notification-text";
@@ -34,7 +34,7 @@ const TABS: Array<{ id: Tab; key: UiKey; short?: UiKey }> = [
   { id: "system", key: "notif.tab.system" },
 ];
 
-const KIND_ICON: Record<Notification["kind"], typeof Zap> = { impulse: Zap, "friend.request": UserPlus, "friend.accepted": Users, "post.new": Newspaper, "comment.post": MessageSquare, "comment.skill": MessageSquare, "skill.updated": Layers, "moderation.requested": ShieldCheck, "moderation.decided": Gavel, "skillset.updated": Boxes, "skillset.verified": ShieldCheck, "verification.requested": BadgeCheck, "verification.updated": BadgeCheck, badge: Award, system: Info };
+const KIND_ICON: Record<Notification["kind"], typeof Zap> = { impulse: Zap, "friend.request": UserPlus, "friend.accepted": Users, "post.new": Newspaper, "post.mention": AtSign, "comment.post": MessageSquare, "comment.skill": MessageSquare, "skill.updated": Layers, "moderation.requested": ShieldCheck, "moderation.decided": Gavel, "skillset.updated": Boxes, "skillset.verified": ShieldCheck, "verification.requested": BadgeCheck, "verification.updated": BadgeCheck, badge: Award, system: Info };
 
 /** Kinds that ask the viewer to act — their CTA gets the filled synapse button. */
 const ACTIONABLE = new Set<Notification["kind"]>(["moderation.requested", "verification.requested"]);
@@ -209,7 +209,7 @@ function NotificationCard({ n, viewerHandle, onRead, onDismiss, style }: { n: No
   const Icon = KIND_ICON[n.kind];
   const unread = n.readAt === null;
   const s = n.subject;
-  const quote = s.kind === "comment.post" || s.kind === "comment.skill" ? s.excerpt : null;
+  const quote = s.kind === "comment.post" || s.kind === "comment.skill" || s.kind === "post.mention" ? s.excerpt : null;
   const today = dayOf(n.createdAt, new Date()) === "today";
   const at = new Date(n.createdAt);
   const clock = at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });

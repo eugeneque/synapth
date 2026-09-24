@@ -14,7 +14,7 @@ import { enforceRateLimit, type RateLimitName } from "@/cortex/rate-limit";
 import { evaluateBadges } from "@/cortex/badges";
 import { hasPermission } from "@/cortex/roles";
 import { skillRepository } from "@/cortex/repository";
-import { addComment, createPost, deleteComment, deletePost, toggleImpulse, toggleReaction, toggleWatch, type ImpulseSummary, type WatchSummary } from "@/cortex/social";
+import { addComment, createPost, deleteComment, deletePost, discardPostImage, toggleImpulse, uploadPostImage, toggleReaction, toggleWatch, type ImpulseSummary, type WatchSummary } from "@/cortex/social";
 import { toggleFollow } from "@/cortex/friends";
 import type { Comment, FriendState, Post, ReactionCount } from "@/types/social";
 
@@ -63,13 +63,31 @@ export async function toggleFriend(toId: string, handle: string): Promise<Action
   });
 }
 
-export async function publishPost(body: string, handle: string): Promise<ActionResult<Post>> {
+/** `imageIds` — photos uploaded with `uploadPostPhoto`, in carousel order. */
+export async function publishPost(body: string, handle: string, imageIds: string[] = []): Promise<ActionResult<Post>> {
   return run(async () => {
     const user = await requireUserWithin();
-    const post = await createPost(user.id, body);
+    const post = await createPost(user.id, body, { imageIds });
     await evaluateBadges(user.id);
     revalidatePath(`/u/${handle}`);
     return post;
+  });
+}
+
+/** One photo per call (a full carousel would not fit the action body limit); returns the draft id to publish with. */
+export async function uploadPostPhoto(dataUrl: string): Promise<ActionResult<{ id: string }>> {
+  return run(async () => {
+    const user = await requireUserWithin("postImage");
+    return uploadPostImage(user.id, dataUrl);
+  });
+}
+
+/** Drops a draft photo removed from the composer before publishing. */
+export async function discardPostPhoto(id: string): Promise<ActionResult<null>> {
+  return run(async () => {
+    const user = await requireUserWithin();
+    await discardPostImage(user.id, String(id));
+    return null;
   });
 }
 
