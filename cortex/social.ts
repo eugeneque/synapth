@@ -260,6 +260,90 @@ export async function listPosts(authorId: string, { limit = 20, viewerId = null 
   return hydratePosts(rows.map((r) => ({ id: r.id, authorId: r.authorId, body: r.body, createdAt: r.createdAt.toISOString() })), viewerId);
 }
 
+/** Hydrated posts in the order of `ids`; unknown ids are skipped. */
+export async function postsByIds(ids: string[], viewerId?: string | null): Promise<Post[]> {
+  if (!ids.length) return [];
+  let rows: PostRow[];
+  if (!hasDatabase) rows = mem.posts.filter((p) => ids.includes(p.id));
+  else rows = (await prisma.post.findMany({ where: { id: { in: ids } } })).map((r) => ({ id: r.id, authorId: r.authorId, body: r.body, createdAt: r.createdAt.toISOString() }));
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return hydratePosts(ids.flatMap((id) => byId.get(id) ?? []), viewerId);
+}
+
+/** A recent post with who engaged with it — the raw input of the feed ranker (`cortex/feed.ts`). */
+export interface FeedCandidate {
+  id: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+  /** Distinct users who left at least one reaction. */
+  reactors: string[];
+  /** Distinct users who commented. */
+  commenters: string[];
+}
+
+/** Posts created in `[since, until]`, newest first, with their reactors and commenters. `authorIds` narrows to those authors. */
+export async function feedCandidates({ since, until, limit, authorIds }: { since: Date; until: Date; limit: number; authorIds?: string[] }): Promise<FeedCandidate[]> {
+  let rows: PostRow[];
+  let reactions: { postId: string; userId: string }[];
+  let comments: { targetId: string; authorId: string }[];
+  const [from, to] = [since.toISOString(), until.toISOString()];
+  if (!hasDatabase) {
+    rows = mem.posts
+      .filter((p) => p.createdAt >= from && p.createdAt <= to && (!authorIds || authorIds.includes(p.authorId)))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit);
+    const ids = new Set(rows.map((p) => p.id));
+    reactions = mem.reactions.filter((r) => ids.has(r.postId));
+    comments = mem.comments.filter((c) => c.targetKind === "post" && ids.has(c.targetId));
+  } else {
+    const found = await prisma.post.findMany({ where: { createdAt: { gte: since, lte: until }, ...(authorIds ? { authorId: { in: authorIds } } : {}) }, orderBy: { createdAt: "desc" }, take: limit, select: { id: true, authorId: true, body: true, createdAt: true } });
+    rows = found.map((r) => ({ id: r.id, authorId: r.authorId, body: r.body, createdAt: r.createdAt.toISOString() }));
+    const ids = rows.map((p) => p.id);
+    [reactions, comments] = ids.length
+      ? await Promise.all([prisma.postReaction.findMany({ where: { postId: { in: ids } }, select: { postId: true, userId: true } }), prisma.comment.findMany({ where: { targetKind: "post", targetId: { in: ids } }, select: { targetId: true, authorId: true } })])
+      : [[], []];
+  }
+  return rows.map((p) => ({
+    ...p,
+    reactors: [...new Set(reactions.filter((r) => r.postId === p.id).map((r) => r.userId))],
+    commenters: [...new Set(comments.filter((c) => c.targetId === p.id).map((c) => c.authorId))],
+  }));
+}
+
+/** How much the user engaged with each author's posts: reactions + comments per author, own posts excluded. */
+export async function engagementByAuthor(userId: string, limit = 500): Promise<Map<string, number>> {
+  let reactedPostIds: string[];
+  let commentedPostIds: string[];
+  if (!hasDatabase) {
+    reactedPostIds = mem.reactions.filter((r) => r.userId === userId).map((r) => r.postId);
+    commentedPostIds = mem.comments.filter((c) => c.authorId === userId && c.targetKind === "post").map((c) => c.targetId);
+  } else {
+    const [r, c] = await Promise.all([
+      prisma.postReaction.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: limit, select: { postId: true } }),
+      prisma.comment.findMany({ where: { authorId: userId, targetKind: "post" }, orderBy: { createdAt: "desc" }, take: limit, select: { targetId: true } }),
+    ]);
+    reactedPostIds = r.map((x) => x.postId);
+    commentedPostIds = c.map((x) => x.targetId);
+  }
+  const ids = [...new Set([...reactedPostIds, ...commentedPostIds])];
+  const authorOf = new Map<string, string>();
+  if (!hasDatabase) for (const p of mem.posts) authorOf.set(p.id, p.authorId);
+  else if (ids.length) for (const p of await prisma.post.findMany({ where: { id: { in: ids } }, select: { id: true, authorId: true } })) authorOf.set(p.id, p.authorId);
+  const out = new Map<string, number>();
+  for (const postId of [...reactedPostIds, ...commentedPostIds]) {
+    const author = authorOf.get(postId);
+    if (author && author !== userId) out.set(author, (out.get(author) ?? 0) + 1);
+  }
+  return out;
+}
+
+/** Everyone the user has an active impulse on. */
+export async function impulseTargets(userId: string): Promise<string[]> {
+  if (!hasDatabase) return mem.impulses.filter((i) => i.fromId === userId).map((i) => i.toId);
+  return (await prisma.impulse.findMany({ where: { fromId: userId }, select: { toId: true } })).map((r) => r.toId);
+}
+
 /** Authors delete their own posts (`moderator` = holder of `content.moderate`: anyone's); the post's comments go with it. */
 export async function deletePost(userId: string, postId: string, { moderator = false }: { moderator?: boolean } = {}): Promise<void> {
   if (!hasDatabase) {

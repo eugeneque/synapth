@@ -8,14 +8,17 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { ZodError } from "zod";
-import { requireUser } from "@/cortex/auth";
-import { enforceRateLimit, type RateLimitName } from "@/cortex/rate-limit";
+import { auth, requireUser } from "@/cortex/auth";
+import { clientIp, enforceRateLimit, type RateLimitName } from "@/cortex/rate-limit";
 import { evaluateBadges } from "@/cortex/badges";
 import { hasPermission } from "@/cortex/roles";
 import { skillRepository } from "@/cortex/repository";
 import { addComment, createPost, deleteComment, deletePost, discardPostImage, toggleImpulse, uploadPostImage, toggleReaction, toggleWatch, type ImpulseSummary, type WatchSummary } from "@/cortex/social";
 import { toggleFollow } from "@/cortex/friends";
+import { getFeed } from "@/cortex/feed";
+import { FEED_TABS, type FeedPage, type FeedTab } from "@/types/feed";
 import type { Comment, FriendState, Post, ReactionCount } from "@/types/social";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -70,6 +73,7 @@ export async function publishPost(body: string, handle: string, imageIds: string
     const post = await createPost(user.id, body, { imageIds });
     await evaluateBadges(user.id);
     revalidatePath(`/u/${handle}`);
+    revalidatePath("/feed");
     return post;
   });
 }
@@ -146,5 +150,17 @@ export async function watchSkill(skillId: string, slug: string): Promise<ActionR
     revalidatePath(`/skills/${slug}`);
     revalidatePath("/dashboard/notifications");
     return summary;
+  });
+}
+
+/** Next page of `/feed`. Ranking is a full pass over recent posts, so it is metered like any read endpoint (by IP when signed out). */
+export async function loadFeed(tab: FeedTab, offset: number, asOf: string): Promise<ActionResult<FeedPage>> {
+  return run(async () => {
+    const session = await auth();
+    const viewerId = session?.user?.id ?? null;
+    enforceRateLimit("read", viewerId ? `user:${viewerId}` : `ip:${clientIp(new Request("http://x", { headers: await headers() }))}`);
+    const safeTab: FeedTab = FEED_TABS.includes(tab) ? tab : "for-you";
+    const safeOffset = Number.isInteger(offset) && offset >= 0 && offset <= 10_000 ? offset : 0;
+    return getFeed(viewerId, { tab: safeTab, offset: safeOffset, asOf: typeof asOf === "string" ? asOf : undefined });
   });
 }
