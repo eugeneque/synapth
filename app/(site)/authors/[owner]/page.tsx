@@ -55,7 +55,7 @@ export default async function AuthorPage({ params }: Params) {
     <div className="container space-y-6 py-8">
       <p className="label-mono flex flex-wrap items-center gap-2">
         <span className="text-synapse">/</span>
-        <Link href="/explore" className="hover:text-foreground">{t("author.catalogue")}</Link>
+        <Link href="/search?tab=skills" className="hover:text-foreground">{t("author.catalogue")}</Link>
         <span className="text-border">/</span>
         <span>{t("author.publishers")}</span>
         <span className="text-border">/</span>
@@ -121,7 +121,7 @@ export default async function AuthorPage({ params }: Params) {
                 </Button>
               )}
               <Button asChild className="font-mono text-[11px] uppercase tracking-[0.14em]">
-                <Link href={`/explore?author=${encodeURIComponent(name)}`}>
+                <Link href={`/search?tab=skills&author=${encodeURIComponent(name)}`}>
                   <Search /> {t("author.searchPublisher")}
                 </Link>
               </Button>
@@ -178,7 +178,7 @@ export default async function AuthorPage({ params }: Params) {
       {repos.length > 1 && (
         <nav className="flex flex-wrap gap-2">
           {repos.map((r) => (
-            <Link key={r} href={`/explore?author=${encodeURIComponent(name)}&q=${encodeURIComponent(r.split("/")[1])}`} className="label-mono-sm inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 normal-case tracking-normal text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
+            <Link key={r} href={`/search?tab=skills&author=${encodeURIComponent(name)}&q=${encodeURIComponent(r.split("/")[1])}`} className="label-mono-sm inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 normal-case tracking-normal text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
               <Bolt className="h-3 w-3 text-synapse" /> {r}
             </Link>
           ))}

@@ -15,7 +15,7 @@
  * a few thousand documents index in tens of milliseconds.
  */
 
-import type { SecurityLevel, Skill, SkillCategory } from "@/types/skill";
+import { skillSource, type SecurityLevel, type Skill, type SkillCategory, type SkillSource } from "@/types/skill";
 import { trendingScore } from "@/cortex/ranking";
 
 // ---------------------------------------------------------------------------
@@ -305,6 +305,7 @@ export interface SearchOptions {
   securityLevel?: SecurityLevel;
   language?: string;
   author?: string;
+  source?: SkillSource;
   /** "relevance" (default when q is non-empty) or any catalogue sort. */
   sort?: "relevance" | "trending" | "recent" | "stars";
   /** Expand the last term as a prefix (type-ahead). Default true. */
@@ -360,6 +361,7 @@ function passesFilters(skill: Skill, f: ParsedQuery["filters"], o: SearchOptions
   if (f.price === "free" && skill.pricePerCall > 0) return false;
   if (f.price === "paid" && skill.pricePerCall === 0) return false;
   if (f.origin && skill.origin !== f.origin) return false;
+  if (o.source && skillSource(skill) !== o.source) return false;
   return true;
 }
 

@@ -58,7 +58,7 @@ export async function toggleFriend(toId: string, handle: string): Promise<Action
     const user = await requireUserWithin();
     const state = await toggleFollow(user.id, toId);
     revalidatePath(`/u/${handle}`);
-    revalidatePath("/people");
+    revalidatePath("/search");
     return state;
   });
 }

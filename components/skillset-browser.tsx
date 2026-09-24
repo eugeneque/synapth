@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BadgeCheck, Boxes, PlusCircle, Search } from "lucide-react";
+import { BadgeCheck, Boxes, PlusCircle } from "lucide-react";
 import { listSkillsets } from "@/cortex/skillsets";
 import { getI18n } from "@/cortex/locale";
 import { SkillsetCard } from "@/components/skillset-card";
@@ -9,7 +9,7 @@ import type { SkillsetSort } from "@/types/skillset";
 
 export const SKILLSET_SORTS: SkillsetSort[] = ["recent", "popular", "updated"];
 
-/** The "Skillsets" tab of the catalogue: search, verified toggle, sort — all plain links / a GET form. */
+/** The "Skillsets" tab of `/search`: verified toggle and sort as plain links; the query comes from the page's search line. */
 export async function SkillsetBrowser({ q, verifiedOnly, sort, createHref }: { q: string; verifiedOnly: boolean; sort: SkillsetSort; createHref: string }) {
   const [sets, { t }] = await Promise.all([listSkillsets({ q, verified: verifiedOnly || undefined, sort, limit: 120 }), getI18n()]);
 
@@ -17,20 +17,12 @@ export async function SkillsetBrowser({ q, verifiedOnly, sort, createHref }: { q
     const p = new URLSearchParams({ tab: "skillsets" });
     const next = { q: q || null, verified: verifiedOnly ? "1" : null, sort: sort === "recent" ? null : sort, ...patch };
     for (const [k, v] of Object.entries(next)) if (v) p.set(k, v);
-    return `/explore?${p.toString()}`;
+    return `/search?${p.toString()}`;
   };
   const pill = (active: boolean) => cn("inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition-colors", active ? "border-foreground/25 bg-surface-high/60 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground");
 
   return (
     <div className="space-y-6">
-      <form action="/explore" className="group flex h-14 w-full items-center gap-3 rounded-2xl border border-border bg-card px-5 transition-colors focus-within:border-synapse/60">
-        <input type="hidden" name="tab" value="skillsets" />
-        <Search className="h-5 w-5 shrink-0 text-muted-foreground group-focus-within:text-synapse" />
-        <input name="q" defaultValue={q} placeholder={t("skillsets.search")} aria-label={t("skillsets.search")} className="h-full w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/70" />
-        {verifiedOnly && <input type="hidden" name="verified" value="1" />}
-        {sort !== "recent" && <input type="hidden" name="sort" value={sort} />}
-      </form>
-
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1">
           {SKILLSET_SORTS.map((s) => (

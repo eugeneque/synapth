@@ -11,7 +11,7 @@ import { skillRepository, hydratePrompt } from "@/cortex/repository";
 import { buildAgentContext, isAgentRequest } from "@/cortex/agent-context";
 import { agentJson, json, withErrors } from "@/lib/api";
 import { enforceRequestLimit } from "@/cortex/rate-limit";
-import { SKILL_CATEGORIES, SECURITY_LEVELS } from "@/types/skill";
+import { SKILL_CATEGORIES, SECURITY_LEVELS, SKILL_SOURCES } from "@/types/skill";
 
 export const runtime = "nodejs";
 
@@ -21,6 +21,7 @@ const schema = z.object({
   securityLevel: z.enum(SECURITY_LEVELS).optional(),
   language: z.string().max(40).optional(),
   author: z.string().max(60).optional(),
+  source: z.enum(SKILL_SOURCES).optional(),
   sort: z.enum(["relevance", "trending", "recent", "stars"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),

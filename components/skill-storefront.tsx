@@ -14,7 +14,7 @@ import { axon, type SearchResponse } from "@/axon/client";
 import { useI18n } from "@/axon/i18n";
 import { rich } from "@/lib/i18n/rich";
 import { cn } from "@/lib/utils";
-import { SECURITY_LEVELS, type SecurityLevel, type SkillCategory, type SortMode } from "@/types/skill";
+import { SECURITY_LEVELS, type SecurityLevel, type SkillCategory, type SkillSource, type SortMode } from "@/types/skill";
 
 interface Props {
   initial: SearchResponse;
@@ -25,6 +25,10 @@ interface Props {
   initialAuthor: string | null;
   initialLevel: SecurityLevel | null;
   autoFocus?: boolean;
+  /** GitHub-only / Synapth-only entries; set by the search page's source filter. */
+  source?: SkillSource | null;
+  /** The search page owns the query line; the storefront then only reads `initialQuery`. */
+  hideSearch?: boolean;
   /** Shown above the results while nothing narrows the view (the catalogue puts community skillsets here). */
   spotlight?: ReactNode;
 }
@@ -43,7 +47,7 @@ const LEVEL_VARIANT: Record<SecurityLevel, "verified" | "community" | "sandbox">
  * change afterwards hits `/api/v1/search` through Axon and mirrors the state
  * into the URL so any view is shareable.
  */
-export function SkillStorefront({ initial, initialSort, initialCategory, initialQuery, initialLanguage, initialAuthor, initialLevel, autoFocus, spotlight }: Props) {
+export function SkillStorefront({ initial, initialSort, initialCategory, initialQuery, initialLanguage, initialAuthor, initialLevel, autoFocus, source = null, hideSearch = false, spotlight }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const { t, n } = useI18n();
@@ -74,7 +78,7 @@ export function SkillStorefront({ initial, initialSort, initialCategory, initial
 
   const hasQuery = q.trim().length > 0;
   const apiSort = sort === "hidden-gems" ? "relevance" : sort === "trending" && hasQuery ? "relevance" : sort === "relevance" && !hasQuery ? "trending" : sort;
-  const filters = { category: category ?? undefined, language: language ?? undefined, author: author ?? undefined, securityLevel: level ?? undefined };
+  const filters = { category: category ?? undefined, language: language ?? undefined, author: author ?? undefined, securityLevel: level ?? undefined, source: source ?? undefined };
 
   useEffect(() => {
     if (first.current) {
@@ -99,7 +103,8 @@ export function SkillStorefront({ initial, initialSort, initialCategory, initial
       set("level", level);
       set("sort", sort !== "trending" ? sort : null);
       next.delete("focus");
-      startTransition(() => router.replace(`/explore?${next.toString()}`, { scroll: false }));
+      // The page re-renders on every URL change; skip the round trip when nothing moved.
+      if (next.toString() !== params.toString()) startTransition(() => router.replace(`/search?${next.toString()}`, { scroll: false }));
     }, 220);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,15 +140,16 @@ export function SkillStorefront({ initial, initialSort, initialCategory, initial
     author && { key: "author", label: `@${author}`, clear: () => setAuthor(null) },
   ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
   const quiet = !hasQuery && activeFilters === 0 && sort === "trending";
+  const exportHref = `/api/v1/skills?limit=100${q ? `&q=${encodeURIComponent(q)}` : ""}${source ? `&source=${source}` : ""}`;
 
   return (
     <div className="space-y-6">
-      <SearchBar value={q} onChange={setQ} autoFocus={autoFocus} />
+      {!hideSearch && <SearchBar value={q} onChange={setQ} autoFocus={autoFocus} />}
 
       {/* Category segments · filters toggle · sort · view. */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <CategoryPills value={category} onChange={setCategory} counts={counts} total={result.total} />
-        <div className="flex items-center justify-between gap-2 lg:justify-end">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <button
             type="button"
             onClick={() => setFiltersOpen((o) => !o)}
@@ -239,7 +245,7 @@ export function SkillStorefront({ initial, initialSort, initialCategory, initial
             )}
             {sort === "hidden-gems" && <span className="text-xs">{t("sf.gemsNote")}</span>}
           </span>
-          <a href={`/api/v1/skills?limit=100${q ? `&q=${encodeURIComponent(q)}` : ""}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs transition-colors hover:text-foreground">
+          <a href={exportHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs transition-colors hover:text-foreground">
             <FileDown className="h-3.5 w-3.5" /> {t("explore.export")}
           </a>
         </div>

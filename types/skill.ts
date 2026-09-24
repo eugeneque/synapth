@@ -94,6 +94,11 @@ export interface SkillStats {
 /** Where a catalogue entry came from. */
 export type SkillOrigin = "seed" | "manual" | "github";
 
+/** Where an entry comes from, as the search filters see it: parsed by the GitHub crawler, or put on Synapth by hand. */
+export const SKILL_SOURCES = ["github", "synapth"] as const;
+export type SkillSource = (typeof SKILL_SOURCES)[number];
+export const skillSource = (skill: { origin: SkillOrigin }): SkillSource => (skill.origin === "github" ? "github" : "synapth");
+
 /** Snapshot of the GitHub repository a skill was imported from. */
 export interface GithubSource {
   owner: string;
@@ -166,6 +171,7 @@ export interface SkillQuery {
   language?: string;
   /** Filter by GitHub owner / author handle. */
   author?: string;
+  source?: SkillSource;
   sort?: SortMode;
   limit?: number;
   offset?: number;

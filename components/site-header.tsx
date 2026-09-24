@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { LogOut, Plus, User } from "lucide-react";
-import { auth, signOut } from "@/cortex/auth";
+import { auth } from "@/cortex/auth";
 import { getProfile } from "@/cortex/account";
 import { getI18n } from "@/cortex/locale";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { SignOutButton } from "@/components/sign-out-button";
 import { Logo } from "@/components/logo";
 import { NavLinks } from "@/components/nav-links";
 import { SearchTrigger } from "@/components/search-trigger";
@@ -24,16 +25,9 @@ export async function SiteHeader() {
           <Plus /> {t("header.publish")}
         </Link>
       </Button>
-      <form
-        action={async () => {
-          "use server";
-          await signOut({ redirectTo: "/" });
-        }}
-      >
-        <Button type="submit" variant="ghost" size="icon-sm" aria-label={t("header.signOut")}>
-          <LogOut />
-        </Button>
-      </form>
+      <SignOutButton label={t("header.signOut")} className={buttonVariants({ variant: "ghost", size: "icon-sm" })}>
+        <LogOut />
+      </SignOutButton>
     </>
   ) : (
     <>

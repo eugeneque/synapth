@@ -48,6 +48,8 @@ model User {
   verifiedById  String?
   /// "request" | "manual"
   verifiedVia   String?
+  /// Builds Synapth itself (types/auth.ts): admin-set flag, brings the `platform-developer` badge.
+  developer     Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

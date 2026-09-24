@@ -65,7 +65,7 @@ export default async function NotificationsPage() {
                 <Layers className="h-5 w-5 text-muted-foreground" />
                 <span className="text-sm font-semibold tracking-tight">{t("watch.listEmpty")}</span>
                 <span className="max-w-xs text-xs text-muted-foreground">{t("watch.listEmptyLead")}</span>
-                <Link href="/explore" className="label-mono-sm mt-1 text-synapse hover:underline">
+                <Link href="/search?tab=skills" className="label-mono-sm mt-1 text-synapse hover:underline">
                   {t("common.exploreRegistry")} →
                 </Link>
               </div>

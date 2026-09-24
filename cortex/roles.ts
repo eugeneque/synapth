@@ -7,6 +7,9 @@
  *
  * Role changes are admin-only and guarded against lock-out: nobody edits
  * their own role, and the last admin cannot be demoted.
+ *
+ * The platform-developer flag lives in `cortex/developers.ts` (it pulls in the
+ * badge engine, which this module — imported by `cortex/auth.ts` — must not).
  */
 
 import { prisma, hasDatabase } from "@/cortex/db";
@@ -60,14 +63,25 @@ export interface DirectoryUser {
   handle: string;
   email: string | null;
   role: UserRole;
+  developer: boolean;
   verified: boolean;
   createdAt: string | null;
 }
 
-/** Crawler pseudo-users (`gh:<owner>`) and the platform ledger account are not people; the directory hides them. */
-const isSystemAccount = (id: string) => id.startsWith("gh:") || id === "usr_platform";
+export const DIRECTORY_SELECT = { id: true, name: true, handle: true, email: true, role: true, developer: true, verifiedAt: true, createdAt: true } as const;
 
-export async function listUsers(options: { q?: string; role?: UserRole; limit?: number } = {}): Promise<DirectoryUser[]> {
+export function directoryRow(r: { id: string; name: string | null; handle: string | null; email: string | null; role: string; developer: boolean; verifiedAt: Date | null; createdAt: Date }): DirectoryUser {
+  return { id: r.id, name: r.name ?? "", handle: r.handle ?? "", email: r.email, role: toUserRole(r.role), developer: r.developer, verified: Boolean(r.verifiedAt), createdAt: r.createdAt.toISOString() };
+}
+
+export async function memoryDirectoryRow(u: (typeof memoryUsers)[number]): Promise<DirectoryUser> {
+  return { id: u.id, name: u.name, handle: u.handle, email: u.email, role: toUserRole(u.role), developer: Boolean(u.developer), verified: Boolean((await getAuthorRefs([u.id])).get(u.id)?.verified), createdAt: null };
+}
+
+/** Crawler pseudo-users (`gh:<owner>`) and the platform ledger account are not people; the directory hides them. */
+export const isSystemAccount = (id: string) => id.startsWith("gh:") || id === "usr_platform";
+
+export async function listUsers(options: { q?: string; role?: UserRole; developer?: boolean; limit?: number } = {}): Promise<DirectoryUser[]> {
   const q = options.q?.trim().toLowerCase() ?? "";
   const limit = Math.min(options.limit ?? 50, 200);
   if (!hasDatabase) {
@@ -75,14 +89,16 @@ export async function listUsers(options: { q?: string; role?: UserRole; limit?: 
     return memoryUsers
       .filter((u) => !isSystemAccount(u.id))
       .filter((u) => !options.role || u.role === options.role)
+      .filter((u) => !options.developer || u.developer)
       .filter((u) => !q || [u.name, u.handle, u.email].some((f) => f.toLowerCase().includes(q)))
       .slice(0, limit)
-      .map((u) => ({ id: u.id, name: u.name, handle: u.handle, email: u.email, role: toUserRole(u.role), verified: verifiedIds.has(u.id), createdAt: null }));
+      .map((u) => ({ id: u.id, name: u.name, handle: u.handle, email: u.email, role: toUserRole(u.role), developer: Boolean(u.developer), verified: verifiedIds.has(u.id), createdAt: null }));
   }
   const rows = await prisma.user.findMany({
     where: {
       NOT: [{ id: { startsWith: "gh:" } }, { id: "usr_platform" }],
       ...(options.role ? { role: options.role } : {}),
+      ...(options.developer ? { developer: true } : {}),
       ...(q
         ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { handle: { contains: q, mode: "insensitive" as const } }, { email: { contains: q, mode: "insensitive" as const } }] }
         : {}),
@@ -90,9 +106,9 @@ export async function listUsers(options: { q?: string; role?: UserRole; limit?: 
     // Staff first, then newest accounts.
     orderBy: [{ role: "desc" }, { createdAt: "desc" }],
     take: limit,
-    select: { id: true, name: true, handle: true, email: true, role: true, verifiedAt: true, createdAt: true },
+    select: DIRECTORY_SELECT,
   });
-  return rows.map((r) => ({ id: r.id, name: r.name ?? "", handle: r.handle ?? "", email: r.email, role: toUserRole(r.role), verified: Boolean(r.verifiedAt), createdAt: r.createdAt.toISOString() }));
+  return rows.map(directoryRow);
 }
 
 /** People per role, for the admin overview. */
@@ -136,8 +152,7 @@ export async function setUserRole(actorId: string, targetId: string, rawRole: st
   if (!hasDatabase) {
     const u = memoryUsers.find((m) => m.id === targetId)!;
     u.role = role;
-    return { id: u.id, name: u.name, handle: u.handle, email: u.email, role, verified: Boolean((await getAuthorRefs([u.id])).get(u.id)?.verified), createdAt: null };
+    return memoryDirectoryRow(u);
   }
-  const r = await prisma.user.update({ where: { id: targetId }, data: { role }, select: { id: true, name: true, handle: true, email: true, role: true, verifiedAt: true, createdAt: true } });
-  return { id: r.id, name: r.name ?? "", handle: r.handle ?? "", email: r.email, role: toUserRole(r.role), verified: Boolean(r.verifiedAt), createdAt: r.createdAt.toISOString() };
+  return directoryRow(await prisma.user.update({ where: { id: targetId }, data: { role }, select: DIRECTORY_SELECT }));
 }

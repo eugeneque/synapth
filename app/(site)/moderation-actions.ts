@@ -3,7 +3,8 @@
 /**
  * Server actions for the review flow: any user files a moderation request;
  * staff re-run the scanner, close requests with a verdict and toggle
- * `Verified` (moderators and admins); admins manage roles. Permission checks
+ * `Verified` (moderators and admins); admins manage roles and the
+ * platform-developer flag. Permission checks
  * live in `cortex/roles.ts` and read the stored role, so a stale JWT never
  * grants anything.
  */
@@ -13,6 +14,7 @@ import { requireUser } from "@/cortex/auth";
 import { enforceRateLimit } from "@/cortex/rate-limit";
 import { decideModeration, requestModeration, rescanForReview, setVerification } from "@/cortex/moderation";
 import { setUserRole, type DirectoryUser } from "@/cortex/roles";
+import { setDeveloper } from "@/cortex/developers";
 import type { ScanReport } from "@/lib/sandbox-scanner";
 import type { ModerationStatus, ModerationVerdict } from "@/types/moderation";
 import type { SecurityLevel } from "@/types/skill";
@@ -79,6 +81,17 @@ export async function changeUserRole(userId: string, role: string): Promise<Staf
     const user = await requireUser();
     enforceRateLimit("write", `user:${user.id}`);
     const updated = await setUserRole(user.id, userId, role);
+    revalidatePath("/dashboard/admin/users");
+    if (updated.handle) revalidatePath(`/u/${updated.handle}`);
+    return updated;
+  });
+}
+
+export async function changeDeveloper(userId: string, developer: boolean): Promise<StaffActionResult<DirectoryUser>> {
+  return run(async () => {
+    const user = await requireUser();
+    enforceRateLimit("write", `user:${user.id}`);
+    const updated = await setDeveloper(user.id, userId, Boolean(developer));
     revalidatePath("/dashboard/admin/users");
     if (updated.handle) revalidatePath(`/u/${updated.handle}`);
     return updated;

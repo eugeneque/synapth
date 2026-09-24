@@ -202,7 +202,7 @@ export function SkillsetEditor({ initial, seed = [], canDelete = false }: { init
             {saving ? <Loader2 className="animate-spin" /> : <Save />} {t(initial ? "skillset.editor.save" : "skillset.editor.create")}
           </Button>
           <Button asChild variant="ghost">
-            <Link href={initial ? `/skillsets/${initial.slug}` : "/explore?tab=skillsets"}>{t("skillset.editor.cancel")}</Link>
+            <Link href={initial ? `/skillsets/${initial.slug}` : "/search?tab=skillsets"}>{t("skillset.editor.cancel")}</Link>
           </Button>
           {initial && canDelete && (
             <Button type="button" variant="destructive" onClick={destroy} disabled={deleting} className="ml-auto">

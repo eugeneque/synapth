@@ -14,7 +14,7 @@ export default async function NotFound() {
         <p className="max-w-sm text-sm text-muted-foreground">{t("nf.body")}</p>
         <div className="flex gap-2">
           <Button asChild>
-            <Link href="/explore">{t("common.exploreRegistry")}</Link>
+            <Link href="/search?tab=skills">{t("common.exploreRegistry")}</Link>
           </Button>
           <Button asChild variant="mono">
             <Link href="/">{t("common.overview")}</Link>

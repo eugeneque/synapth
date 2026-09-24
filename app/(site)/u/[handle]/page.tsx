@@ -12,6 +12,7 @@ import { friendState, listFriends, listRequests } from "@/cortex/friends";
 import { getI18n } from "@/cortex/locale";
 import { ActivityHeatmap, HeatmapLegend, bucketActivity } from "@/components/activity-heatmap";
 import { BadgeList } from "@/components/badge-list";
+import { publicRole } from "@/types/auth";
 import { ImpulseButton } from "@/components/impulse-button";
 import { FriendButton } from "@/components/friend-button";
 import { FriendTile } from "@/components/person-card";
@@ -82,13 +83,16 @@ export default async function UserProfilePage({ params }: Params) {
   const languages = [...new Set(skills.map((s) => s.source?.language).filter(Boolean))] as string[];
   const activity = bucketActivity(skills.flatMap((s) => [s.createdAt, s.updatedAt, ...(s.source?.pushedAt ? [s.source.pushedAt] : [])]));
   const avatar = profile.image ?? skills.find((s) => s.source?.avatarUrl)?.source?.avatarUrl ?? null;
+  // Admins pass as plain users here; the developer flag is shown next to (or instead of) "user".
+  const shownRole = publicRole(profile.role);
+  const roleLabel = [shownRole !== "user" || !profile.developer ? t(`settings.role.${shownRole}`) : null, profile.developer ? t("settings.role.developer") : null].filter(Boolean).join(" · ");
   const joined = new Intl.DateTimeFormat(locale, { month: "short", year: "numeric" }).format(new Date(profile.createdAt));
 
   return (
     <div className="container space-y-6 py-8">
       <p className="label-mono flex flex-wrap items-center gap-2">
         <span className="text-synapse">/</span>
-        <Link href="/explore" className="hover:text-foreground">{t("profile.crumb.community")}</Link>
+        <Link href="/search?tab=skills" className="hover:text-foreground">{t("profile.crumb.community")}</Link>
         <span className="text-border">/</span>
         <span>{t("profile.crumb.members")}</span>
         <span className="text-border">/</span>
@@ -168,7 +172,7 @@ export default async function UserProfilePage({ params }: Params) {
               )}
               {skills.length > 0 && (
                 <Button asChild className="font-mono text-[11px] uppercase tracking-[0.14em]">
-                  <Link href={`/explore?author=${encodeURIComponent(searchAuthor)}`}>
+                  <Link href={`/search?tab=skills&author=${encodeURIComponent(searchAuthor)}`}>
                     <Search /> {t("author.searchPublisher")}
                   </Link>
                 </Button>
@@ -186,7 +190,7 @@ export default async function UserProfilePage({ params }: Params) {
                   content: (
                     <dl className="stagger grid gap-x-6 gap-y-2.5 font-mono text-xs sm:grid-cols-2 lg:grid-cols-3">
                       <Fact icon={<Briefcase />} k={t("profile.about.occupation")} v={profile.occupation ? t(`occupation.${profile.occupation}`) : "—"} />
-                      <Fact icon={<ShieldCheck />} k={t("profile.about.role")} v={t(`settings.role.${profile.role}`)} />
+                      <Fact icon={<ShieldCheck />} k={t("profile.about.role")} v={roleLabel} />
                       {profile.organization && <Fact icon={<Building2 />} k={t("profile.about.organization")} v={profile.organization} />}
                       {profile.location && <Fact icon={<MapPin />} k={t("profile.about.location")} v={profile.location} />}
                       {website && <Fact icon={<Globe />} k={t("profile.about.website")} v={website.replace(/^https?:\/\//, "").replace(/\/$/, "")} href={website} />}
@@ -242,7 +246,7 @@ export default async function UserProfilePage({ params }: Params) {
                         <p className="text-xs text-muted-foreground">
                           {isOwner ? t("profile.friends.emptyOwner") : t("profile.friends.empty", { name })}{" "}
                           {isOwner && (
-                            <Link href="/people" className="text-synapse hover:underline">
+                            <Link href="/search?tab=people" className="text-synapse hover:underline">
                               {t("profile.friends.find")}
                             </Link>
                           )}
@@ -304,7 +308,7 @@ export default async function UserProfilePage({ params }: Params) {
             <Badge variant="chip">{n("author.skillsCount", skills.length)}</Badge>
           </div>
           {skills.length > 0 && (
-            <Link href={`/explore?author=${encodeURIComponent(searchAuthor)}`} className="label-mono-sm text-synapse hover:underline">
+            <Link href={`/search?tab=skills&author=${encodeURIComponent(searchAuthor)}`} className="label-mono-sm text-synapse hover:underline">
               {t("profile.skills.all")}
             </Link>
           )}

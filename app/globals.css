@@ -294,3 +294,13 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Featured slider: the active dot fills over the slide's lifetime (components/featured-slider.tsx). */
+@keyframes slider-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

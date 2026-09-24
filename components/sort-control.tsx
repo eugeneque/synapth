@@ -20,7 +20,7 @@ export function SortControl({ value, onChange, className, showRelevance }: Props
   const modes: SortMode[] = showRelevance ? ["relevance", ...SORT_MODES.map((m) => m.value)] : SORT_MODES.map((m) => m.value);
   return (
     <label className={cn("inline-flex items-center gap-2", className)}>
-      <span className="label-mono-sm">{t("sort.label")}</span>
+      <span className="label-mono-sm hidden sm:inline">{t("sort.label")}</span>
       <span className="relative">
         <select
           aria-label={t("sort.aria")}

@@ -27,7 +27,7 @@ export default async function NewSkillsetPage({ searchParams }: { searchParams: 
       <header className="space-y-2 border-b border-border pb-6">
         <p className="label-mono flex items-center gap-2">
           <span className="text-synapse">/</span>
-          <Link href="/explore?tab=skillsets" className="hover:text-foreground">
+          <Link href="/search?tab=skillsets" className="hover:text-foreground">
             {t("skillsets.crumb")}
           </Link>
           <span className="text-border">/</span>

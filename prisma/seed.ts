@@ -17,7 +17,7 @@ async function main() {
   for (const u of memoryUsers) {
     await prisma.user.upsert({
       where: { id: u.id },
-      create: { id: u.id, name: u.name, email: u.email, handle: u.handle, role: u.role, passwordHash: u.id === "usr_demo" ? demoHash : null, wallet: { create: { balanceMicros: u.id === "usr_demo" ? BigInt(usdToMicros(5)) : 0n } } },
+      create: { id: u.id, name: u.name, email: u.email, handle: u.handle, role: u.role, developer: Boolean(u.developer), passwordHash: u.id === "usr_demo" ? demoHash : null, wallet: { create: { balanceMicros: u.id === "usr_demo" ? BigInt(usdToMicros(5)) : 0n } } },
       update: {},
     });
   }
