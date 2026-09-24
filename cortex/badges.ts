@@ -15,8 +15,10 @@ import { getProfile } from "@/cortex/account";
 import { notify } from "@/cortex/notifications";
 import { skillRepository } from "@/cortex/repository";
 import { socialSignals } from "@/cortex/social";
+import { friendCounts } from "@/cortex/friends";
+import { listSkillsets } from "@/cortex/skillsets";
 import { hasPermission } from "@/cortex/roles";
-import { BADGES, BADGE_CRITERIA, badgeById, isBadgeId, type BadgeDefinition, type BadgeId, type BadgeSignals, type UserBadge } from "@/types/badges";
+import { BADGES, BADGE_CRITERIA, BADGE_THRESHOLDS, badgeById, isBadgeId, type BadgeDefinition, type BadgeId, type BadgeSignals, type UserBadge } from "@/types/badges";
 
 const g = globalThis as unknown as { __synapthBadges_v2?: Map<string, UserBadge[]> };
 const mem = g.__synapthBadges_v2 ?? (g.__synapthBadges_v2 = new Map<string, UserBadge[]>());
@@ -61,19 +63,29 @@ async function revoke(userId: string, badgeId: BadgeId): Promise<void> {
   await prisma.userBadge.deleteMany({ where: { userId, badgeId } });
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /** Gathers the numbers the auto criteria read. */
 export async function badgeSignals(userId: string): Promise<BadgeSignals> {
-  const [profile, all, social] = await Promise.all([getProfile(userId), skillRepository.all(), socialSignals(userId)]);
+  const [profile, all, social, friends, verifiedSets] = await Promise.all([
+    getProfile(userId),
+    skillRepository.all(),
+    socialSignals(userId),
+    friendCounts(userId),
+    listSkillsets({ authorId: userId, verified: true, limit: BADGE_THRESHOLDS.five }),
+  ]);
   const skills = all.filter((s) => s.authorId === userId);
+  const verified = skills.filter((s) => s.securityLevel === "Verified");
+  const verifiedIn = (category: string) => verified.filter((s) => s.category === category).length;
   return {
     skills: skills.length,
-    verifiedSkills: skills.filter((s) => s.securityLevel === "Verified").length,
-    mcpSkills: skills.filter((s) => s.category === "MCP").length,
-    promptSkills: skills.filter((s) => s.category === "Prompt").length,
-    toolSkills: skills.filter((s) => s.category === "Tool").length,
-    githubSkills: skills.filter((s) => s.origin === "github").length,
+    topInstalls: skills.reduce((max, s) => Math.max(max, s.downloadsCount), 0),
+    verified: { skillset: verifiedSets.length, Prompt: verifiedIn("Prompt"), MCP: verifiedIn("MCP"), Plugin: verifiedIn("Plugin") },
+    posts: social.posts,
+    impulsesReceived: social.impulsesReceived,
+    friends: friends.friends,
+    accountAgeDays: profile ? Math.floor((Date.now() - Date.parse(profile.createdAt)) / DAY_MS) : 0,
     isDeveloper: Boolean(profile?.developer),
-    ...social,
   };
 }
 
@@ -84,7 +96,7 @@ export async function evaluateBadges(userId: string): Promise<UserBadge[]> {
   const fresh: UserBadge[] = [];
   for (const def of BADGES as readonly BadgeDefinition[]) {
     if (def.award !== "auto") continue;
-    const met = BADGE_CRITERIA[def.id as keyof typeof BADGE_CRITERIA]?.(signals) ?? false;
+    const met = BADGE_CRITERIA[def.id as BadgeId](signals);
     const id = def.id as BadgeId;
     if (have.has(id)) {
       if (def.unique && !met) await revoke(userId, id);

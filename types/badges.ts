@@ -16,29 +16,31 @@ export type BadgeTier = (typeof BADGE_TIERS)[number];
 export interface BadgeDefinition {
   id: string;
   tier: BadgeTier;
-  /** Lucide icon name rendered by `<BadgeIcon />`. */
-  icon: "layers" | "shield-check" | "bolt" | "sparkles" | "wrench" | "github" | "message-square" | "messages-square" | "zap" | "radio" | "eye" | "award" | "flag" | "rocket";
+  /** Lucide fallback rendered by `<BadgeMedal />` until the badge has its own artwork. */
+  icon: "rocket" | "message-square" | "layers" | "heart" | "sprout" | "crown" | "hourglass" | "users" | "hexagon" | "zap" | "activity" | "cloud-lightning";
+  /** Artwork under `public/badges/`; takes precedence over `icon`. */
+  image?: string;
   award: "auto" | "manual";
   /** Bound to an account flag: revoked with it, never granted by hand, left out of the hover-card meter unless held. */
   unique?: boolean;
-  /** Render the body under the title as a motto instead of only as a tooltip. */
+  /** Render the body under the title as a motto instead of the criteria text. */
   motto?: boolean;
 }
 
+/** Catalogue order is display order. */
 export const BADGES = [
-  { id: "first-skill", tier: "bronze", icon: "layers", award: "auto" },
-  { id: "verified-publisher", tier: "gold", icon: "shield-check", award: "auto" },
-  { id: "mcp-author", tier: "silver", icon: "bolt", award: "auto" },
-  { id: "prompt-author", tier: "silver", icon: "sparkles", award: "auto" },
-  { id: "tool-author", tier: "silver", icon: "wrench", award: "auto" },
-  { id: "github-importer", tier: "bronze", icon: "github", award: "auto" },
-  { id: "first-post", tier: "bronze", icon: "message-square", award: "auto" },
-  { id: "conversationalist", tier: "silver", icon: "messages-square", award: "auto" },
-  { id: "resonance", tier: "silver", icon: "zap", award: "auto" },
-  { id: "magnet", tier: "gold", icon: "radio", award: "auto" },
-  { id: "curator", tier: "bronze", icon: "eye", award: "auto" },
-  { id: "early-adopter", tier: "signal", icon: "flag", award: "manual" },
   { id: "platform-developer", tier: "astra", icon: "rocket", award: "auto", unique: true, motto: true },
+  { id: "first-skill", tier: "bronze", icon: "sprout", award: "auto" },
+  { id: "first-post", tier: "bronze", icon: "message-square", award: "auto" },
+  { id: "resonance", tier: "bronze", icon: "zap", award: "auto" },
+  { id: "impulse", tier: "silver", icon: "activity", award: "auto" },
+  { id: "skillmaster", tier: "gold", icon: "layers", award: "auto" },
+  { id: "goat", tier: "gold", icon: "crown", award: "auto" },
+  { id: "community-favorite", tier: "gold", icon: "users", award: "auto" },
+  { id: "veteran", tier: "gold", icon: "hourglass", award: "auto" },
+  { id: "community-pride", tier: "signal", icon: "heart", award: "auto" },
+  { id: "thunderstorm", tier: "signal", icon: "cloud-lightning", award: "auto" },
+  { id: "five", tier: "signal", icon: "hexagon", award: "auto" },
 ] as const satisfies readonly BadgeDefinition[];
 
 export type BadgeId = (typeof BADGES)[number]["id"];
@@ -56,36 +58,54 @@ export function badgeById(id: BadgeId): BadgeDefinition {
   return BADGES.find((b) => b.id === id)!;
 }
 
+/** How many of each kind the "five" badge wants, all verified. `Plugin` has no catalogue category yet, so it stays unreachable until one exists. */
+export const FIVE_KINDS = ["skillset", "Prompt", "MCP", "Plugin"] as const;
+export type FiveKind = (typeof FIVE_KINDS)[number];
+
 /** Numbers the auto criteria are computed from; `cortex/badges.ts` assembles them per user. */
 export interface BadgeSignals {
   skills: number;
-  verifiedSkills: number;
-  mcpSkills: number;
-  promptSkills: number;
-  toolSkills: number;
-  githubSkills: number;
+  /** Largest `downloadsCount` among the user's own catalogue entries. */
+  topInstalls: number;
+  /** Verified entries per kind (skills by category, skillsets by `verified`). */
+  verified: Record<FiveKind, number>;
   posts: number;
-  comments: number;
   impulsesReceived: number;
-  watching: number;
+  friends: number;
+  /** Whole days since the account was created. */
+  accountAgeDays: number;
   /** `User.developer` — builds the platform itself. */
   isDeveloper: boolean;
 }
 
+export const BADGE_THRESHOLDS = {
+  skillmaster: 25,
+  goat: 500,
+  communityPride: 1000,
+  veteranDays: 5 * 365,
+  communityFavorite: 500,
+  five: 5,
+  resonance: 5,
+  impulse: 100,
+  thunderstorm: 1000,
+} as const;
+
+const T = BADGE_THRESHOLDS;
+
 /** Thresholds live next to the ids so the profile page can show "3 / 10" progress later. */
-export const BADGE_CRITERIA: Record<Exclude<BadgeId, "early-adopter">, (s: BadgeSignals) => boolean> = {
-  "first-skill": (s) => s.skills >= 1,
-  "verified-publisher": (s) => s.verifiedSkills >= 1,
-  "mcp-author": (s) => s.mcpSkills >= 1,
-  "prompt-author": (s) => s.promptSkills >= 1,
-  "tool-author": (s) => s.toolSkills >= 1,
-  "github-importer": (s) => s.githubSkills >= 1,
-  "first-post": (s) => s.posts >= 1,
-  conversationalist: (s) => s.comments >= 10,
-  resonance: (s) => s.impulsesReceived >= 5,
-  magnet: (s) => s.impulsesReceived >= 50,
-  curator: (s) => s.watching >= 5,
+export const BADGE_CRITERIA: Record<BadgeId, (s: BadgeSignals) => boolean> = {
   "platform-developer": (s) => s.isDeveloper,
+  "first-skill": (s) => s.skills >= 1,
+  "first-post": (s) => s.posts >= 1,
+  resonance: (s) => s.impulsesReceived >= T.resonance,
+  impulse: (s) => s.impulsesReceived >= T.impulse,
+  skillmaster: (s) => s.skills >= T.skillmaster,
+  goat: (s) => s.topInstalls >= T.goat,
+  "community-favorite": (s) => s.friends > T.communityFavorite,
+  veteran: (s) => s.accountAgeDays >= T.veteranDays,
+  "community-pride": (s) => s.topInstalls >= T.communityPride,
+  thunderstorm: (s) => s.impulsesReceived >= T.thunderstorm,
+  five: (s) => FIVE_KINDS.every((k) => s.verified[k] >= T.five),
 };
 
 export interface UserBadge {

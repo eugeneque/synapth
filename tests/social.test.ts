@@ -153,20 +153,21 @@ test("badges: auto criteria award once, notify, and manual grants need an admin"
   const fresh = (await evaluateBadges(KITE)).map((b) => b.badgeId);
   assert.ok(fresh.includes("first-post"));
   assert.ok(fresh.includes("first-skill"), "kite owns seeded skills");
-  assert.ok(!fresh.includes("conversationalist"));
+  assert.ok(!fresh.includes("skillmaster"));
   assert.deepEqual(await evaluateBadges(KITE), []);
   const system = await listNotifications(KITE, { channel: "system" });
   assert.equal(system.items.length, fresh.length);
   assert.ok(system.items.every((n) => n.kind === "badge"));
 
-  // Acme owns seeded skills (MCP + Prompt + Tool, one Verified) → publisher badges.
+  // Acme's seeded Postgres MCP has 48k installs → both install badges; nobody has 25 skills or a verified "five" set.
   const acme = (await evaluateBadges(ACME)).map((b) => b.badgeId);
-  assert.ok(acme.includes("first-skill") && acme.includes("verified-publisher") && acme.includes("mcp-author"));
+  assert.ok(acme.includes("first-skill") && acme.includes("goat") && acme.includes("community-pride"));
+  assert.ok(!acme.includes("skillmaster") && !acme.includes("five") && !acme.includes("veteran"));
 
   for (let i = 0; i < 5; i++) await toggleImpulse(`usr_fan_${i}`, DEMO);
   assert.equal((await socialSignals(DEMO)).impulsesReceived, 5);
   assert.ok((await evaluateBadges(DEMO)).some((b) => b.badgeId === "resonance"));
 
   // KITE has role "user"; the seeded demo operator is the only admin.
-  await assert.rejects(grantBadge(KITE, DEMO, "early-adopter"), BadgeGrantError);
+  await assert.rejects(grantBadge(KITE, DEMO, "veteran"), BadgeGrantError);
 });

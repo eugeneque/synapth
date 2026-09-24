@@ -93,7 +93,7 @@ test("content moderation and badge grants are admin-only", async () => {
   await assert.rejects(deletePost(mod, post.id, { moderator: can(await getRole(mod), "content.moderate") }), ForbiddenError);
   await deletePost("usr_demo", post.id, { moderator: true });
 
-  await assert.rejects(grantBadge(mod, author, "early-adopter"), BadgeGrantError);
+  await assert.rejects(grantBadge(mod, author, "veteran"), BadgeGrantError);
   // Unique badges follow the developer flag and cannot be handed out, not even by an admin.
   await assert.rejects(grantBadge("usr_demo", author, "platform-developer"), BadgeGrantError);
 });
