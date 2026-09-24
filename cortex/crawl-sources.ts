@@ -15,7 +15,6 @@
  *                 the marketplace repo itself + every plugin `source` on GitHub;
  *                 known marketplaces are seeded, more come from code search
  *                 (token only)
- *   awesome       curated "awesome" lists: every github.com repo link in the README
  *
  * Hosts are fixed (no user input in the URL): registry APIs, api.github.com and
  * raw.githubusercontent.com with `owner/repo` validated by `githubFullName()`.
@@ -24,7 +23,7 @@
 import type { RepoCandidate } from "@/cortex/crawler";
 import { githubApiFetch, githubErrorMessage, type GithubAuth } from "@/lib/github-parser";
 
-export const EXTERNAL_SOURCES = ["mcp-registry", "npm", "docker-mcp", "marketplaces", "awesome"] as const;
+export const EXTERNAL_SOURCES = ["mcp-registry", "npm", "docker-mcp", "marketplaces"] as const;
 export type ExternalSource = (typeof EXTERNAL_SOURCES)[number];
 
 export interface SourceOptions {
@@ -45,27 +44,13 @@ export const NPM_KEYWORDS = ["mcp-server", "modelcontextprotocol", "claude-skill
 const MAX_PAGES = 30;
 /** Parallel raw.githubusercontent.com reads (Docker `server.yaml`s, marketplace manifests). */
 const RAW_CONCURRENCY = 12;
+const USER_AGENT = "synapth-crawler/0.3";
 
 /** Docker's MCP catalog: one directory per server with a `server.yaml`. */
 const DOCKER_REGISTRY = "docker/mcp-registry";
 
 /** Marketplaces read on every pass, even without a token for code search. */
 export const KNOWN_MARKETPLACES = ["anthropics/claude-plugins-official", "anthropics/claude-code", "anthropics/skills"];
-
-/** Curated lists whose README links the repos (MCP servers first: they are the longest). */
-export const AWESOME_LISTS = [
-  "punkpeye/awesome-mcp-servers",
-  "wong2/awesome-mcp-servers",
-  "appcypher/awesome-mcp-servers",
-  "hesreallyhim/awesome-claude-code",
-  "VoltAgent/awesome-agent-skills",
-  "ComposioHQ/awesome-claude-skills",
-  "travisvn/awesome-claude-skills",
-];
-
-/** github.com paths that are not repositories. */
-const NOT_REPO_OWNERS = new Set(["topics", "sponsors", "orgs", "features", "marketplace", "apps", "settings", "login", "about", "pricing", "collections", "trending", "site", "security", "enterprise", "readme", "customer-stories", "users", "user-attachments", "notifications", "explore", "search", "github-copilot", "codespaces", "issues", "pulls"]);
-const USER_AGENT = "synapth-crawler/0.3";
 
 /** `owner/repo` from any github.com URL form npm and the registry use (git+https, .git, /tree/…, ssh). */
 export function githubFullName(url: string | null | undefined): string | null {
@@ -261,37 +246,6 @@ export async function marketplaceCandidates(o: SourceOptions): Promise<RepoCandi
   return c.result();
 }
 
-/** Every repository linked from a Markdown document, in order, minus the list itself. */
-export function linkedRepos(markdown: string, self?: string): string[] {
-  const out: string[] = [];
-  for (const m of markdown.matchAll(/github\.com\/([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100})/g)) {
-    const owner = m[1];
-    const repo = m[2].replace(/\.git$/i, "").replace(/\.+$/, "");
-    if (!repo || NOT_REPO_OWNERS.has(owner.toLowerCase())) continue;
-    const fullName = `${owner}/${repo}`;
-    if (self && fullName.toLowerCase() === self.toLowerCase()) continue;
-    out.push(fullName);
-  }
-  return out;
-}
-
-export async function awesomeCandidates(o: SourceOptions, lists = AWESOME_LISTS): Promise<RepoCandidate[]> {
-  const c = collector("awesome", o);
-  for (const list of lists) {
-    if (c.done()) break;
-    const readme = await rawFile(list, "README.md", o);
-    if (!readme) continue;
-    const before = c.fresh;
-    const repos = linkedRepos(readme, list);
-    for (const repo of repos) {
-      if (c.done()) break;
-      c.add(repo);
-    }
-    o.log(`awesome ${list}: ${repos.length} links, ${c.fresh - before} new repos`);
-  }
-  return c.result();
-}
-
 export function externalCandidates(source: ExternalSource, o: SourceOptions): Promise<RepoCandidate[]> {
   switch (source) {
     case "mcp-registry":
@@ -302,7 +256,5 @@ export function externalCandidates(source: ExternalSource, o: SourceOptions): Pr
       return dockerMcpCandidates(o);
     case "marketplaces":
       return marketplaceCandidates(o);
-    case "awesome":
-      return awesomeCandidates(o);
   }
 }

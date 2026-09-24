@@ -180,7 +180,7 @@ function scheduledQueries(now = new Date()): string[] {
 }
 
 /**
- * GitHub search every pass, plus one external source in turn (all five come round within 10 hours); the search order
+ * GitHub search every pass, plus one external source in turn (all of them come round within a few passes); the search order
  * alternates so recently pushed repos surface, not only the top-starred ones
  * the catalogue already holds.
  */
