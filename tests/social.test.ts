@@ -35,25 +35,26 @@ test("impulses: one per pair, toggled, never to yourself, and the receiver is no
   assert.equal((await listNotifications(DEMO)).total, 1);
 });
 
-test("reactions: toggled per (user, emoji), only the allowed set, tallied in palette order, gone with the post", async () => {
+test("reactions: one per (user, post) — another emoji replaces it, the same one withdraws it; only the allowed set, gone with the post", async () => {
   const post = await createPost(DEMO, "Reactions please");
   await assert.rejects(toggleReaction(KITE, post.id, "💩"));
   await assert.rejects(toggleReaction(KITE, "post_missing", "👍"), NotFoundError);
 
   await toggleReaction(KITE, post.id, "🔥");
   await toggleReaction(ACME, post.id, "🔥");
+  // Picking a different emoji moves KITE's single reaction instead of adding a second one.
   const mine = await toggleReaction(KITE, post.id, "👍");
   assert.deepEqual(mine, [
     { emoji: "👍", count: 1, mine: true },
-    { emoji: "🔥", count: 2, mine: true },
+    { emoji: "🔥", count: 1, mine: false },
   ]);
   assert.deepEqual((await listPosts(DEMO, { viewerId: ACME }))[0].reactions, [
     { emoji: "👍", count: 1, mine: false },
-    { emoji: "🔥", count: 2, mine: true },
+    { emoji: "🔥", count: 1, mine: true },
   ]);
 
-  // Toggling again withdraws; a zero tally disappears from the list.
-  assert.deepEqual(await toggleReaction(KITE, post.id, "👍"), [{ emoji: "🔥", count: 2, mine: true }]);
+  // The same emoji again withdraws; a zero tally disappears from the list.
+  assert.deepEqual(await toggleReaction(KITE, post.id, "👍"), [{ emoji: "🔥", count: 1, mine: false }]);
   // Reactions are not worth a notification.
   assert.equal((await listNotifications(DEMO)).total, 0);
 

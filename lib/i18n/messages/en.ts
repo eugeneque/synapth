@@ -1284,6 +1284,8 @@ export const ui = {
   "reactions.add": "Add reaction",
   "reactions.toggle": "{emoji} · {n}",
   "reactions.failed": "Reaction not saved",
+  "reactions.group": "Reactions",
+  "reactions.pick": "React with {emoji}",
   "notif.friendRequest.title": "{name} wants to be your friend",
   "notif.friendRequest.body": "Accept to get each other's new posts; until then only they hear about yours.",
   "notif.friendAccepted.title": "{name} accepted your friend request",

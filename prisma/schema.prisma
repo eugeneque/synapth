@@ -381,8 +381,8 @@ model PostImage {
   @@index([ownerId, postId])
 }
 
-/// Emoji reaction on a post: one row per (post, user, emoji), toggled. A user may leave several
-/// different emojis on one post; the allowed set is `POST_REACTIONS` in `types/social.ts`.
+/// Emoji reaction on a post: at most one per (post, user) — picking another emoji replaces it,
+/// the same one withdraws it. The allowed set is `POST_REACTIONS` in `types/social.ts`.
 model PostReaction {
   postId    String
   userId    String
@@ -392,7 +392,7 @@ model PostReaction {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([postId, userId, emoji])
+  @@id([postId, userId])
   @@index([postId])
 }
 

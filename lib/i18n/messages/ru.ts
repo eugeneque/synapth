@@ -1267,6 +1267,8 @@ export const ui: UiMessages = {
   "reactions.add": "Добавить реакцию",
   "reactions.toggle": "{emoji} · {n}",
   "reactions.failed": "Реакция не сохранилась",
+  "reactions.group": "Реакции",
+  "reactions.pick": "Реакция {emoji}",
   "notif.friendRequest.title": "{name} хочет добавить вас в друзья",
   "notif.friendRequest.body": "Примите заявку, чтобы получать посты друг друга; пока что только отправитель получает ваши.",
   "notif.friendAccepted.title": "{name} принял(а) вашу заявку в друзья",
