@@ -45,7 +45,7 @@ function prisma(args, input) {
  * permission, so its holders become plain users and the enum value is renamed
  * in place to `moderator` — a removal would need --accept-data-loss.
  * Idempotent; a fresh database has no "UserRole" type yet and skips it.
- * Also drops award rows and notifications of the retired `platform-admin` badge.
+ * Also drops award rows and notifications of retired badges (anything not in `BADGES`, types/badges.ts).
  */
 const PRE_PUSH_SQL = `
 DO $$
@@ -57,14 +57,17 @@ BEGIN
   END IF;
 END $$;
 
--- The public "platform-admin" badge was retired (admins are not revealed on profiles).
+-- Retired badges: "platform-admin" (admins are not revealed on profiles) and the pre-2026-09
+-- catalogue that the current achievement set replaced.
 DO $$
+DECLARE retired text[] := ARRAY['platform-admin', 'verified-publisher', 'mcp-author', 'prompt-author', 'tool-author',
+  'github-importer', 'conversationalist', 'magnet', 'curator', 'early-adopter'];
 BEGIN
   IF to_regclass('"UserBadge"') IS NOT NULL THEN
-    DELETE FROM "UserBadge" WHERE "badgeId" = 'platform-admin';
+    DELETE FROM "UserBadge" WHERE "badgeId" = ANY(retired);
   END IF;
   IF to_regclass('"Notification"') IS NOT NULL THEN
-    DELETE FROM "Notification" WHERE "kind" = 'badge' AND "subject"->>'badgeId' = 'platform-admin';
+    DELETE FROM "Notification" WHERE "kind" = 'badge' AND "subject"->>'badgeId' = ANY(retired);
   END IF;
 END $$;
 

@@ -313,7 +313,7 @@ export default async function UserProfilePage({ params }: Params) {
                 label: t("profile.badges.title"),
                 icon: <Award className="h-3.5 w-3.5 text-synapse" />,
                 count: badges.length,
-                content: badges.length > 0 ? <BadgeList badges={badges} t={t} className="stagger" /> : <p className="text-xs leading-relaxed text-muted-foreground">{t("profile.badge.none")}</p>,
+                content: badges.length > 0 ? <BadgeList badges={badges} t={t} locale={locale} className="stagger" /> : <p className="text-xs leading-relaxed text-muted-foreground">{t("profile.badge.none")}</p>,
               },
             ]}
           />
