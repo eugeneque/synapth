@@ -29,18 +29,18 @@ export interface BadgeDefinition {
 
 /** Catalogue order is display order. */
 export const BADGES = [
-  { id: "platform-developer", tier: "astra", icon: "rocket", award: "auto", unique: true, motto: true },
-  { id: "first-skill", tier: "bronze", icon: "sprout", award: "auto" },
-  { id: "first-post", tier: "bronze", icon: "message-square", award: "auto" },
-  { id: "resonance", tier: "bronze", icon: "zap", award: "auto" },
-  { id: "impulse", tier: "silver", icon: "activity", award: "auto" },
-  { id: "skillmaster", tier: "gold", icon: "layers", award: "auto" },
-  { id: "goat", tier: "gold", icon: "crown", award: "auto" },
-  { id: "community-favorite", tier: "gold", icon: "users", award: "auto" },
-  { id: "veteran", tier: "gold", icon: "hourglass", award: "auto" },
-  { id: "community-pride", tier: "signal", icon: "heart", award: "auto" },
-  { id: "thunderstorm", tier: "signal", icon: "cloud-lightning", award: "auto" },
-  { id: "five", tier: "signal", icon: "hexagon", award: "auto" },
+  { id: "platform-developer", tier: "astra", icon: "rocket", image: "/badges/platform-developer.png", award: "auto", unique: true, motto: true },
+  { id: "first-skill", tier: "bronze", icon: "sprout", image: "/badges/first-skill.png", award: "auto" },
+  { id: "first-post", tier: "bronze", icon: "message-square", image: "/badges/first-post.png", award: "auto" },
+  { id: "resonance", tier: "bronze", icon: "zap", image: "/badges/resonance.png", award: "auto" },
+  { id: "impulse", tier: "silver", icon: "activity", image: "/badges/impulse.png", award: "auto" },
+  { id: "skillmaster", tier: "gold", icon: "layers", image: "/badges/skillmaster.png", award: "auto" },
+  { id: "goat", tier: "gold", icon: "crown", image: "/badges/goat.png", award: "auto" },
+  { id: "community-favorite", tier: "gold", icon: "users", image: "/badges/community-favorite.png", award: "auto" },
+  { id: "veteran", tier: "gold", icon: "hourglass", image: "/badges/veteran.png", award: "auto" },
+  { id: "community-pride", tier: "signal", icon: "heart", image: "/badges/community-pride.png", award: "auto" },
+  { id: "thunderstorm", tier: "signal", icon: "cloud-lightning", image: "/badges/thunderstorm.png", award: "auto" },
+  { id: "five", tier: "signal", icon: "hexagon", image: "/badges/five.png", award: "auto" },
 ] as const satisfies readonly BadgeDefinition[];
 
 export type BadgeId = (typeof BADGES)[number]["id"];
