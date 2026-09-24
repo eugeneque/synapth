@@ -55,12 +55,13 @@ npm run role -- you@example.com admin # первый администратор
 npm run crawl -- --max 300 --min-stars 3      # discovery + импорт, пишет data/catalog.json
 npm run crawl -- --repo anthropics/skills     # конкретные репозитории
 npm run crawl -- --query "topic:mcp-server"   # свой запрос к Search API
+npm run crawl -- --source mcp-registry --source npm   # только внешние реестры
 npm run rescan                                # пересчитать бейджи после смены правил сканера
 ```
 
 Токен берётся из `GITHUB_TOKEN`, а если пусто — из `gh auth token`. Без токена лимиты GitHub делают обход бессмысленным (10 поисков/мин, 60 вызовов/ч).
 
-Discovery: поиск репозиториев по темам и словам (`topic:claude-skills`, `topic:mcp-server`, …) плюс code search `filename:SKILL.md`. Внутри репозитория парсер находит `synapth.json`, `mcp-server.json`, `server.json` (формат MCP registry), `.mcp.json`, `tool.json`, все `SKILL.md` (коллекции: `skills/*/`, `.claude/skills/*/`) и, если ничего нет, README с явными признаками навыка. Состояние обхода — `data/crawl-state.json`; повторный запуск трогает только новые репозитории (`--refresh` — все).
+Discovery: поиск репозиториев по темам и словам (`topic:claude-skills`, `topic:mcp-server`, …) плюс code search `filename:SKILL.md` (только с токеном), а также внешние реестры, которые ссылаются на GitHub: официальный MCP Registry (`registry.modelcontextprotocol.io`) и npm по ключевым словам (`mcp-server`, `claude-skill`, `agent-skill`, `claude-code-plugin`, …) — `cortex/crawl-sources.ts`. Отклонённый GitHub токен (401) не валит обход: краулер продолжает анонимно и пишет об этом в лог. Внутри репозитория парсер находит `synapth.json`, `mcp-server.json`, `server.json` (формат MCP registry), `.mcp.json`, `tool.json`, все `SKILL.md` (коллекции: `skills/*/`, `.claude/skills/*/`) и, если ничего нет, README с явными признаками навыка. Состояние обхода — `data/crawl-state.json`; повторный запуск трогает только новые репозитории (`--refresh` — все).
 
 Тот же обход запускается из дашборда (`/dashboard#crawl`) или через `POST /api/v1/crawl`.
 

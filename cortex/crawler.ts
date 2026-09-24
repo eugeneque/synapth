@@ -13,11 +13,12 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { createGithubFetcher, importAllFromGithub, toRepoMeta, GithubParseError, type GithubRepoJson, type RepoFetcher, type RepoMeta } from "@/lib/github-parser";
+import { createGithubFetcher, importAllFromGithub, toRepoMeta, githubApiFetch, githubErrorMessage, rateLimitReset, GithubParseError, type GithubAuth, type GithubRepoJson, type RepoFetcher, type RepoMeta } from "@/lib/github-parser";
 import { scanManifest, type ScanReport } from "@/lib/sandbox-scanner";
 import { skillRepository } from "@/cortex/repository";
 import { resolveGithubToken } from "@/cortex/github-token";
 import { isServerless } from "@/cortex/db";
+import { externalCandidates, type ExternalSource } from "@/cortex/crawl-sources";
 import type { SkillCreateInput } from "@/types/skill";
 
 export const DEFAULT_QUERIES = [
@@ -57,7 +58,19 @@ export interface CrawlOptions {
   deadline?: number;
   /** Lower-cased `owner/repo` names to treat as already seen (the catalogue, when the state file is ephemeral). */
   knownRepos?: ReadonlySet<string>;
+  /** Search order; the scheduled pass alternates so fresh repos surface, not only the top-starred ones. */
+  sort?: "stars" | "updated";
+  /**
+   * Where candidates come from: GitHub search (`queries` + code search) and
+   * public registries that link GitHub repos. Default: all of them.
+   */
+  sources?: CrawlSource[];
+  /** Set by `crawl()`: whether a repo is already in the state file / catalogue. */
+  isKnown?: (key: string) => boolean;
 }
+
+export const CRAWL_SOURCES = ["github", "mcp-registry", "npm"] as const;
+export type CrawlSource = "github" | ExternalSource;
 
 export interface RepoCandidate {
   fullName: string;
@@ -125,23 +138,39 @@ class RateGate {
     this.limits[info.resource] = { remaining: info.remaining, resetAt: info.resetAt };
   }
 
-  /** Waits until the resource has budget again (with 1 request of headroom). */
-  async wait(resource: string, signal?: AbortSignal) {
+  /**
+   * Waits until the resource has budget again (with 1 request of headroom).
+   * Returns false instead of sleeping past `deadline`: a serverless pass must
+   * end in time rather than be killed mid-wait with its run left "running".
+   */
+  async wait(resource: string, signal?: AbortSignal, deadline?: number): Promise<boolean> {
     const l = this.limits[resource];
-    if (!l || l.remaining > 1) return;
-    const ms = Math.max(0, l.resetAt - Date.now()) + 1_000;
-    await sleep(ms, signal);
-    l.remaining = 999;
+    if (!l || l.remaining > 1) return true;
+    return this.until(l.resetAt, signal, deadline, () => (l.remaining = 999));
+  }
+
+  /** Sleeps until `at` (+1 s), or returns false when that is past the deadline. */
+  async until(at: number, signal?: AbortSignal, deadline?: number, then?: () => void): Promise<boolean> {
+    const wakeAt = Math.max(Date.now(), at) + 1_000;
+    if (deadline !== undefined && wakeAt >= deadline) return false;
+    await sleep(wakeAt - Date.now(), signal);
+    then?.();
+    return true;
   }
 }
 
 function sleep(ms: number, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => {
+    if (signal?.aborted) return reject(new Error("aborted"));
+    const onAbort = () => {
       clearTimeout(t);
       reject(new Error("aborted"));
-    });
+    };
+    const t = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 
@@ -159,29 +188,43 @@ interface SearchCodeResponse {
   items: Array<{ path: string; repository: GithubRepoJson & { fork: boolean } }>;
 }
 
-async function githubSearch<T>(path: string, token: string | null, gate: RateGate, resource: "search" | "code_search", signal?: AbortSignal): Promise<T | null> {
-  await gate.wait(resource, signal);
-  const headers: Record<string, string> = { "User-Agent": "synapth-crawler/0.2", Accept: "application/vnd.github+json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`https://api.github.com${path}`, { headers, signal, cache: "no-store" });
-  const remaining = Number(res.headers.get("x-ratelimit-remaining"));
-  if (!Number.isNaN(remaining)) gate.update({ resource: res.headers.get("x-ratelimit-resource") ?? resource, remaining, resetAt: Number(res.headers.get("x-ratelimit-reset")) * 1000 });
-  if (res.status === 403 || res.status === 429) {
-    // Secondary rate limit: back off and let the caller retry the next page.
-    const retry = Number(res.headers.get("retry-after") ?? 30);
-    await sleep(retry * 1000, signal);
-    return null;
+type SearchOutcome<T> = { ok: true; data: T } | { ok: false; stop: "query" | "all"; reason: string };
+
+/**
+ * One Search API page. Never throws on an HTTP error: a failed query is
+ * logged and skipped so the other queries (and the import phase) still run.
+ * `stop: "all"` means no further search of this kind can succeed in this run.
+ */
+async function githubSearch<T>(path: string, auth: GithubAuth, gate: RateGate, resource: "search" | "code_search", opts: CrawlOptions, log: (m: string) => void): Promise<SearchOutcome<T>> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (!(await gate.wait(resource, opts.signal, opts.deadline))) return { ok: false, stop: "all", reason: `${resource} budget spent until after the deadline` };
+    const res = await githubApiFetch(path, auth, { signal: opts.signal, onRateLimit: (i) => gate.update(i), onWarning: log });
+    if (res.ok) return { ok: true, data: (await res.json()) as T };
+    const body = await res.text();
+    const resetAt = rateLimitReset(res, body);
+    if (resetAt !== null) {
+      // Secondary limit or an exhausted window: wait once (if the budget allows) and retry the same page.
+      log(`${resource} rate limited; retry at ${new Date(resetAt).toISOString().slice(11, 19)}`);
+      if (!(await gate.until(resetAt, opts.signal, opts.deadline))) return { ok: false, stop: "all", reason: "rate limited until after the deadline" };
+      continue;
+    }
+    // 422: beyond the 1000-result window or a query GitHub cannot parse.
+    if (res.status === 422) return { ok: false, stop: "query", reason: githubErrorMessage(body) };
+    // Code search needs a valid token; without one no code query can succeed.
+    if (res.status === 401 && resource === "code_search") return { ok: false, stop: "all", reason: "code search requires a GitHub token" };
+    return { ok: false, stop: res.status === 401 || res.status === 403 ? "all" : "query", reason: `${res.status} ${githubErrorMessage(body)}` };
   }
-  if (res.status === 422) return null; // beyond the 1000-result window
-  if (!res.ok) throw new Error(`GitHub search ${res.status}: ${await res.text()}`);
-  return (await res.json()) as T;
+  return { ok: false, stop: "query", reason: "still rate limited after a retry" };
 }
 
-export async function discover(opts: CrawlOptions, gate: RateGate, log: (m: string) => void): Promise<RepoCandidate[]> {
-  const token = opts.token ?? resolveGithubToken();
+export async function discover(opts: CrawlOptions, gate: RateGate, log: (m: string) => void, auth: GithubAuth = { token: opts.token ?? resolveGithubToken() }): Promise<RepoCandidate[]> {
   const want = opts.maxRepos ?? 200;
   const minStars = opts.minStars ?? 0;
   const seen = new Map<string, RepoCandidate>();
+  // Only repos this run would actually process count towards the target, so a
+  // catalogue that already holds the top results pages deeper instead of stalling.
+  let fresh = 0;
+  const isKnown = (key: string) => !opts.refresh && Boolean(opts.isKnown?.(key));
   const add = (c: RepoCandidate) => {
     const key = c.fullName.toLowerCase();
     const cur = seen.get(key);
@@ -190,40 +233,61 @@ export async function discover(opts: CrawlOptions, gate: RateGate, log: (m: stri
       return;
     }
     seen.set(key, c);
+    if (!isKnown(key)) fresh += 1;
   };
+  const enough = () => fresh >= want || pastDeadline(opts) || Boolean(opts.signal?.aborted);
 
-  const queries = opts.queries ?? DEFAULT_QUERIES;
-  for (const q of queries) {
-    if (seen.size >= want * 2 || pastDeadline(opts)) break;
+  const sources = new Set(opts.sources ?? CRAWL_SOURCES);
+  const queries = sources.has("github") ? (opts.queries ?? DEFAULT_QUERIES) : [];
+  searches: for (const q of queries) {
+    if (enough()) break;
     for (let page = 1; page <= 10; page++) {
-      if (seen.size >= want * 2 || pastDeadline(opts)) break;
-      const qs = new URLSearchParams({ q: minStars ? `${q} stars:>=${minStars}` : q, sort: "stars", order: "desc", per_page: "100", page: String(page) });
-      const res = await githubSearch<SearchRepoResponse>(`/search/repositories?${qs}`, token, gate, "search", opts.signal);
-      if (!res) break;
-      for (const item of res.items) if (!item.fork && !item.archived) add({ fullName: item.full_name, json: item, foundBy: q });
-      log(`search "${q}" p${page}: +${res.items.length} (total ${seen.size})`);
-      if (res.items.length < 100) break;
+      if (enough()) break;
+      const qs = new URLSearchParams({ q: minStars ? `${q} stars:>=${minStars}` : q, sort: opts.sort ?? "stars", order: "desc", per_page: "100", page: String(page) });
+      const res = await githubSearch<SearchRepoResponse>(`/search/repositories?${qs}`, auth, gate, "search", opts, log);
+      if (!res.ok) {
+        log(`search "${q}" p${page} skipped: ${res.reason}`);
+        if (res.stop === "all") break searches;
+        break;
+      }
+      const before = fresh;
+      for (const item of res.data.items) if (!item.fork && !item.archived) add({ fullName: item.full_name, json: item, foundBy: q });
+      log(`search "${q}" p${page}: ${res.data.items.length} repos, ${fresh - before} new (${fresh} to process)`);
+      if (res.data.items.length < 100) break;
     }
   }
 
-  if (opts.codeSearch ?? true) {
-    const variants = ["filename:SKILL.md description", "filename:SKILL.md claude", "filename:SKILL.md agent", "filename:SKILL.md tools"];
-    for (const q of variants) {
-      if (seen.size >= want * 2 || pastDeadline(opts)) break;
-      for (let page = 1; page <= 10; page++) {
-        if (seen.size >= want * 2 || pastDeadline(opts)) break;
-        const qs = new URLSearchParams({ q, per_page: "100", page: String(page) });
-        const res = await githubSearch<SearchCodeResponse>(`/search/code?${qs}`, token, gate, "code_search", opts.signal);
-        if (!res) break;
-        for (const item of res.items) {
-          if (item.repository.fork) continue;
-          if (!/(^|\/)SKILL\.md$/.test(item.path)) continue;
-          add({ fullName: item.repository.full_name, paths: [item.path], foundBy: q });
+  if (sources.has("github") && (opts.codeSearch ?? true) && !enough()) {
+    if (!auth.token) log("code search skipped: it requires a GitHub token");
+    else {
+      const variants = ["filename:SKILL.md description", "filename:SKILL.md claude", "filename:SKILL.md agent", "filename:SKILL.md tools"];
+      codeSearches: for (const q of variants) {
+        if (enough()) break;
+        for (let page = 1; page <= 10; page++) {
+          if (enough()) break;
+          const qs = new URLSearchParams({ q, per_page: "100", page: String(page) });
+          const res = await githubSearch<SearchCodeResponse>(`/search/code?${qs}`, auth, gate, "code_search", opts, log);
+          if (!res.ok) {
+            log(`code "${q}" p${page} skipped: ${res.reason}`);
+            if (res.stop === "all") break codeSearches;
+            break;
+          }
+          for (const item of res.data.items) {
+            if (item.repository.fork) continue;
+            if (!/(^|\/)SKILL\.md$/i.test(item.path)) continue;
+            add({ fullName: item.repository.full_name, paths: [item.path], foundBy: q });
+          }
+          log(`code "${q}" p${page}: +${res.data.items.length} (${fresh} to process)`);
+          if (res.data.items.length < 100) break;
         }
-        log(`code "${q}" p${page}: +${res.items.length} (total ${seen.size})`);
-        if (res.items.length < 100) break;
       }
     }
+  }
+
+  for (const source of CRAWL_SOURCES) {
+    if (source === "github" || !sources.has(source) || enough()) continue;
+    const found = await externalCandidates(source, { want: want - fresh, isKnown: (key) => seen.has(key) || isKnown(key), signal: opts.signal, deadline: opts.deadline, log });
+    for (const c of found) add(c);
   }
 
   return [...seen.values()];
@@ -246,6 +310,12 @@ export const githubAuthorId = (owner: string) => `gh:${owner.toLowerCase()}`;
 
 export async function processRepo(candidate: RepoCandidate, fetcher: RepoFetcher, opts: CrawlOptions): Promise<ProcessedRepo> {
   try {
+    // Registry candidates arrive without search JSON: the star floor is checked on the fetched metadata.
+    if (opts.minStars && !candidate.json) {
+      const [owner, repo] = candidate.fullName.split("/");
+      const meta = await fetcher.meta({ owner, repo, ref: "HEAD", path: "" });
+      if (meta.stars < opts.minStars) return { fullName: candidate.fullName, status: "rejected", skills: 0, reason: `below ${opts.minStars} stars`, items: [] };
+    }
     const results = await importAllFromGithub(candidate.fullName, fetcher, { maxPerRepo: opts.maxPerRepo ?? 40, requireManifest: opts.requireManifest ?? false });
     const items: ProcessedRepo["items"] = [];
     for (const r of results) {
@@ -259,14 +329,19 @@ export async function processRepo(candidate: RepoCandidate, fetcher: RepoFetcher
   } catch (err) {
     if (err instanceof GithubParseError) {
       if (err.code === "rate_limited") throw err;
+      // A refusal (blocked repo, SSO, proxy policy) may lift; only content problems are final rejections.
+      if (err.code === "forbidden") return { fullName: candidate.fullName, status: "error", skills: 0, reason: err.message.slice(0, 200), items: [] };
       return { fullName: candidate.fullName, status: "rejected", skills: 0, reason: `${err.code}: ${err.message.slice(0, 160)}`, items: [] };
     }
     return { fullName: candidate.fullName, status: "error", skills: 0, reason: (err as Error).message.slice(0, 200), items: [] };
   }
 }
 
+/** A repo hit by a rate limit is retried this many times before it is left for the next run. */
+const MAX_RATE_LIMIT_RETRIES = 2;
+
 export async function crawl(opts: CrawlOptions = {}): Promise<CrawlProgress> {
-  const token = opts.token === undefined ? resolveGithubToken() : opts.token;
+  const auth: GithubAuth = { token: opts.token === undefined ? resolveGithubToken() : opts.token };
   const gate = new RateGate();
   const state = loadState(opts.statePath);
   const progress: CrawlProgress = {
@@ -288,9 +363,10 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlProgress> {
     if (progress.log.length > 200) progress.log.shift();
     opts.onProgress?.(progress);
   };
-  if (!token) log("no GitHub token: unauthenticated limits (10 searches/min, 60 API calls/h)");
+  if (!auth.token) log("no GitHub token: unauthenticated limits (10 searches/min, 60 API calls/h, no code search)");
 
-  const fetcher = opts.fetcher ?? createGithubFetcher({ token: token ?? undefined, onRateLimit: (i) => gate.update(i) });
+  const isKnown = (key: string) => Boolean(state.repos[key] || opts.knownRepos?.has(key));
+  const fetcher = opts.fetcher ?? createGithubFetcher({ auth, onRateLimit: (i) => gate.update(i), onWarning: log });
   const primed = new Map<string, RepoMeta>();
   const primingFetcher: RepoFetcher = {
     meta: async (ref) => primed.get(`${ref.owner}/${ref.repo}`.toLowerCase()) ?? fetcher.meta(ref),
@@ -298,9 +374,16 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlProgress> {
     tree: (ref) => fetcher.tree(ref),
   };
 
-  const candidates = (opts.candidates ?? (await discover({ ...opts, token }, gate, log))).filter((c) => {
-    const key = c.fullName.toLowerCase();
-    if ((state.repos[key] || opts.knownRepos?.has(key)) && !opts.refresh) return false;
+  let discovered: RepoCandidate[];
+  try {
+    discovered = opts.candidates ?? (await discover({ ...opts, isKnown }, gate, log, auth));
+  } catch (err) {
+    // Only an abort gets here (search errors are logged per query); keep what the import phase needs to finish cleanly.
+    if (!opts.signal?.aborted) throw err;
+    discovered = [];
+  }
+  const candidates = discovered.filter((c) => {
+    if (isKnown(c.fullName.toLowerCase()) && !opts.refresh) return false;
     if (opts.minStars && c.json && c.json.stargazers_count < opts.minStars) return false;
     return true;
   });
@@ -310,42 +393,73 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlProgress> {
   progress.phase = "import";
   log(`discovered ${candidates.length} new repos, processing ${queue.length}`);
 
+  const retries = new Map<string, number>();
+  const record = (candidate: RepoCandidate, result: Omit<ProcessedRepo, "items">) => {
+    progress.processed += 1;
+    progress[result.status === "imported" ? "imported" : result.status === "rejected" ? "rejected" : "errors"] += 1;
+    state.repos[candidate.fullName.toLowerCase()] = { status: result.status, skills: result.skills, at: new Date().toISOString(), reason: result.reason, stars: candidate.json?.stargazers_count };
+    if (progress.processed % 5 === 0) saveState(state, opts.statePath);
+    log(`${result.status.padEnd(8)} ${candidate.fullName} → ${result.skills} skill(s)${result.reason ? ` (${result.reason})` : ""}`);
+  };
+
   const concurrency = Math.max(1, Math.min(opts.concurrency ?? 4, 8));
-  let cursor = 0;
+  let stopped = false;
   const worker = async () => {
-    while (cursor < queue.length && !opts.signal?.aborted && !pastDeadline(opts)) {
-      const candidate = queue[cursor++];
+    while (!stopped && !opts.signal?.aborted && !pastDeadline(opts)) {
+      const candidate = queue.shift();
+      if (!candidate) return;
       progress.current = candidate.fullName;
-      await gate.wait("core", opts.signal);
+      const core = gate.limits.core;
+      if (core && core.remaining <= 1) log(`GitHub API budget spent; waiting until ${new Date(core.resetAt).toISOString().slice(11, 19)} UTC`);
+      if (!(await gate.wait("core", opts.signal, opts.deadline).catch(() => false))) {
+        queue.unshift(candidate);
+        stopped = true;
+        return;
+      }
       let result: ProcessedRepo;
       try {
         result = await processRepo(candidate, primingFetcher, opts);
       } catch (err) {
+        if (opts.signal?.aborted) return;
         if (err instanceof GithubParseError && err.code === "rate_limited") {
-          log(`rate limited on ${candidate.fullName}; waiting`);
-          await sleep(60_000, opts.signal);
-          cursor -= 1; // retry later
+          const tries = (retries.get(candidate.fullName) ?? 0) + 1;
+          retries.set(candidate.fullName, tries);
+          const resetAt = err.resetAt ?? Date.now() + 60_000;
+          // Not recorded in the state file: the repo stays "new" and is picked up by a later run.
+          if (tries > MAX_RATE_LIMIT_RETRIES) {
+            log(`rate limited on ${candidate.fullName} ${tries} times; left for the next run`);
+            continue;
+          }
+          log(`rate limited on ${candidate.fullName}; retrying after ${new Date(resetAt).toISOString().slice(11, 19)} UTC`);
+          queue.push(candidate);
+          if (!(await gate.until(resetAt, opts.signal, opts.deadline).catch(() => false))) {
+            stopped = true;
+            return;
+          }
           continue;
         }
-        result = { fullName: candidate.fullName, status: "error", skills: 0, reason: (err as Error).message, items: [] };
+        result = { fullName: candidate.fullName, status: "error", skills: 0, reason: (err as Error).message.slice(0, 200), items: [] };
       }
 
       if (result.items.length) {
         const owner = candidate.fullName.split("/")[0];
-        const counts = await skillRepository.upsertMany(result.items.map((i) => ({ input: i.input, authorId: githubAuthorId(owner), authorName: owner, securityLevel: i.scan.level })));
-        progress.skillsCreated += counts.created;
-        progress.skillsUpdated += counts.updated;
+        try {
+          const counts = await skillRepository.upsertMany(result.items.map((i) => ({ input: i.input, authorId: githubAuthorId(owner), authorName: owner, securityLevel: i.scan.level })));
+          progress.skillsCreated += counts.created;
+          progress.skillsUpdated += counts.updated;
+          if (counts.skipped) result = { ...result, reason: `${counts.skipped} slug(s) owned by another author skipped` };
+        } catch (err) {
+          // A write failure (constraint, oversized row, DB hiccup) costs this repo, not the whole run.
+          result = { ...result, status: "error", skills: 0, reason: `save failed: ${(err as Error).message.replace(/\s+/g, " ").slice(0, 180)}` };
+        }
       }
-      progress.processed += 1;
-      progress[result.status === "imported" ? "imported" : result.status === "rejected" ? "rejected" : "errors"] += 1;
-      state.repos[candidate.fullName.toLowerCase()] = { status: result.status, skills: result.skills, at: new Date().toISOString(), reason: result.reason, stars: candidate.json?.stargazers_count };
-      if (progress.processed % 5 === 0) saveState(state, opts.statePath);
-      log(`${result.status.padEnd(8)} ${candidate.fullName} → ${result.skills} skill(s)${result.reason ? ` (${result.reason})` : ""}`);
+      record(candidate, result);
     }
   };
   await Promise.all(Array.from({ length: concurrency }, worker));
 
-  if (pastDeadline(opts) && progress.processed < queue.length) log(`time budget spent: ${queue.length - progress.processed} repo(s) left for the next run`);
+  const left = queue.length;
+  if (left && !opts.signal?.aborted) log(`${stopped ? "rate limit outlasts the time budget" : "time budget spent"}: ${left} repo(s) left for the next run`);
   progress.phase = opts.signal?.aborted ? "aborted" : "done";
   progress.current = null;
   state.runs.push({ startedAt: progress.startedAt, finishedAt: new Date().toISOString(), discovered: progress.discovered, processed: progress.processed, created: progress.skillsCreated, updated: progress.skillsUpdated });
