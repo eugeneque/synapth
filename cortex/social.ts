@@ -17,6 +17,7 @@ import { prisma, hasDatabase } from "@/cortex/db";
 import { getAuthorRefs } from "@/cortex/account";
 import { seedComments, seedImpulses, seedPosts, seedWatches } from "@/cortex/seed";
 import { hasRecent, notify, notifyMany } from "@/cortex/notifications";
+import { followerIds } from "@/cortex/friends";
 import { COMMENT_MAX_LENGTH, POST_MAX_LENGTH, type AuthorRef, type Comment, type CommentTargetKind, type Impulse, type Post, type SkillWatch } from "@/types/social";
 
 export const postBodySchema = z.string().trim().min(1).max(POST_MAX_LENGTH);
@@ -76,6 +77,8 @@ const mem: MemoryStore = g.__synapthSocial_v1 ?? (g.__synapthSocial_v1 = { impul
 
 const newId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 const now = () => new Date().toISOString();
+
+const excerpt = (body: string) => (body.length > 140 ? `${body.slice(0, 137).trimEnd()}…` : body);
 
 const unknownAuthor = (id: string): AuthorRef => ({ id, name: "Unknown", handle: id, image: null, occupation: null });
 
@@ -142,15 +145,24 @@ async function hydratePosts(list: PostRow[]): Promise<Post[]> {
   return list.map((p) => ({ id: p.id, author: authors.get(p.authorId) ?? unknownAuthor(p.authorId), body: p.body, commentCount: counts.get(p.id) ?? 0, createdAt: p.createdAt }));
 }
 
+/**
+ * Publishes a post and tells everyone following the author: friends both ways,
+ * plus people whose friend request the author has not answered yet. The
+ * author's own unanswered requests do not subscribe the receiver.
+ */
 export async function createPost(authorId: string, rawBody: string): Promise<Post> {
   const body = postBodySchema.parse(rawBody);
+  let row: PostRow;
   if (!hasDatabase) {
-    const row: PostRow = { id: newId("post"), authorId, body, createdAt: now() };
+    row = { id: newId("post"), authorId, body, createdAt: now() };
     mem.posts.unshift(row);
-    return (await hydratePosts([row]))[0];
+  } else {
+    const r = await prisma.post.create({ data: { authorId, body } });
+    row = { id: r.id, authorId: r.authorId, body: r.body, createdAt: r.createdAt.toISOString() };
   }
-  const row = await prisma.post.create({ data: { authorId, body } });
-  return (await hydratePosts([{ id: row.id, authorId: row.authorId, body: row.body, createdAt: row.createdAt.toISOString() }]))[0];
+  const followers = await followerIds(authorId);
+  if (followers.length) await notifyMany(followers, { kind: "post.new", actorId: authorId, subject: { kind: "post.new", postId: row.id, excerpt: excerpt(body) } });
+  return (await hydratePosts([row]))[0];
 }
 
 export async function getPost(id: string): Promise<Post | null> {
@@ -198,8 +210,6 @@ async function hydrateComments(list: CommentRow[]): Promise<Comment[]> {
   const authors = await attachAuthors(list);
   return list.map((c) => ({ id: c.id, author: authors.get(c.authorId) ?? unknownAuthor(c.authorId), targetKind: c.targetKind, targetId: c.targetId, body: c.body, createdAt: c.createdAt }));
 }
-
-const excerpt = (body: string) => (body.length > 140 ? `${body.slice(0, 137).trimEnd()}…` : body);
 
 export async function addComment(authorId: string, target: CommentTargetRef, rawBody: string): Promise<Comment> {
   const body = commentBodySchema.parse(rawBody);

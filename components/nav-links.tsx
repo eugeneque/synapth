@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 
 export const NAV = [
   { key: "nav.overview", href: "/", match: (p: string) => p === "/" },
-  { key: "nav.explore", href: "/explore", match: (p: string) => p.startsWith("/explore") || p.startsWith("/skills/") || p.startsWith("/authors") },
-  { key: "nav.skillsets", href: "/skillsets", match: (p: string) => p.startsWith("/skillsets") },
+  { key: "nav.explore", href: "/explore", match: (p: string) => p.startsWith("/explore") || p.startsWith("/skills/") || p.startsWith("/skillsets") || p.startsWith("/authors") },
+  { key: "nav.people", href: "/people", match: (p: string) => p.startsWith("/people") || p.startsWith("/u/") },
   { key: "nav.docs", href: "/faq", match: (p: string) => p.startsWith("/faq") },
 ] as const;
 

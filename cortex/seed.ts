@@ -439,10 +439,20 @@ export const seedWatches = [
   { userId: "usr_demo", skillId: "skl_browser", createdAt: hoursAgo(59) },
 ];
 
+/** demo ↔ acme are friends, kite asked demo (pending), demo follows nimbus one-way. */
+export const seedFollows = [
+  { fromId: "usr_demo", toId: "usr_acme", createdAt: hoursAgo(80) },
+  { fromId: "usr_acme", toId: "usr_demo", createdAt: hoursAgo(79) },
+  { fromId: "usr_kite", toId: "usr_demo", createdAt: hoursAgo(12) },
+  { fromId: "usr_demo", toId: "usr_nimbus", createdAt: hoursAgo(40) },
+];
+
 export const seedNotifications = [
   { id: "ntf_seed_1", userId: "usr_demo", kind: "impulse" as const, actorId: "usr_acme", subject: { kind: "impulse" as const, total: 2 }, readAt: null, createdAt: hoursAgo(2) },
   { id: "ntf_seed_2", userId: "usr_demo", kind: "skill.updated" as const, actorId: null, subject: { kind: "skill.updated" as const, skillId: "skl_postgres", slug: "acme-postgres-mcp", skillName: "Postgres MCP", version: "1.4.2", previousVersion: "1.4.1", verified: true }, readAt: null, createdAt: hoursAgo(6) },
   { id: "ntf_seed_3", userId: "usr_demo", kind: "impulse" as const, actorId: "usr_kite", subject: { kind: "impulse" as const, total: 1 }, readAt: hoursAgo(40), createdAt: hoursAgo(47) },
+  { id: "ntf_seed_5", userId: "usr_demo", kind: "friend.request" as const, actorId: "usr_kite", subject: { kind: "friend.request" as const }, readAt: null, createdAt: hoursAgo(12) },
+  { id: "ntf_seed_6", userId: "usr_demo", kind: "post.new" as const, actorId: "usr_acme", subject: { kind: "post.new" as const, postId: "post_acme_1", excerpt: "Postgres MCP v1.4.2 is out: EXPLAIN is now allowed in read-only mode and the row cap is enforced server-side." }, readAt: null, createdAt: hoursAgo(5) },
   { id: "ntf_seed_4", userId: "usr_demo", kind: "comment.post" as const, actorId: "usr_kite", subject: { kind: "comment.post" as const, postId: "post_demo_1", commentId: "cmt_1", excerpt: "Looks great — the cover upload works on mobile too." }, readAt: hoursAgo(40), createdAt: hoursAgo(48) },
 ];
 

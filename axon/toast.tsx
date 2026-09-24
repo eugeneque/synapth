@@ -3,10 +3,9 @@
 /**
  * Axon · HUD toasts
  *
- * Transient cards stacked top-right under the header, after the Stitch
- * "Notification Design & Toast System" spec: a synapse stripe on top for
- * success, a warn / danger stripe on the left, an avatar for social pings,
- * a compact undo bar, and a progress rule that drains while the toast lives.
+ * Transient one-row cards stacked top-right under the header: the tone tints
+ * the glass and picks the glyph (an avatar for social pings), the right-hand
+ * button is the action or "Got it", and its backdrop drains while the toast lives.
  * `useToast()` is the only API; the stack renders itself inside the provider.
  */
 

@@ -28,7 +28,7 @@ export default async function EditSkillsetPage({ params }: { params: Promise<{ s
       <header className="space-y-2 border-b border-border pb-6">
         <p className="label-mono flex flex-wrap items-center gap-2">
           <span className="text-synapse">/</span>
-          <Link href="/skillsets" className="hover:text-foreground">
+          <Link href="/explore?tab=skillsets" className="hover:text-foreground">
             {t("skillsets.crumb")}
           </Link>
           <span className="text-border">/</span>

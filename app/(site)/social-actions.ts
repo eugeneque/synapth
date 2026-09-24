@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Server actions for the social layer: impulses, posts, comments, watches.
+ * Server actions for the social layer: impulses, friends, posts, comments, watches.
  * Thin orchestration only — the stores live in `cortex/social.ts`; after any
  * event that could unlock an achievement the badge engine re-evaluates the
  * user(s) involved.
@@ -15,7 +15,8 @@ import { evaluateBadges } from "@/cortex/badges";
 import { hasPermission } from "@/cortex/roles";
 import { skillRepository } from "@/cortex/repository";
 import { addComment, createPost, deleteComment, deletePost, toggleImpulse, toggleWatch, type ImpulseSummary, type WatchSummary } from "@/cortex/social";
-import type { Comment, Post } from "@/types/social";
+import { toggleFollow } from "@/cortex/friends";
+import type { Comment, FriendState, Post } from "@/types/social";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -48,6 +49,17 @@ export async function sendImpulse(toId: string, handle: string): Promise<ActionR
     if (summary.active) await evaluateBadges(toId);
     revalidatePath(`/u/${handle}`);
     return summary;
+  });
+}
+
+/** Send / accept / withdraw a friend request, or unfriend — whichever the current state implies. */
+export async function toggleFriend(toId: string, handle: string): Promise<ActionResult<FriendState>> {
+  return run(async () => {
+    const user = await requireUserWithin();
+    const state = await toggleFollow(user.id, toId);
+    revalidatePath(`/u/${handle}`);
+    revalidatePath("/people");
+    return state;
   });
 }
 

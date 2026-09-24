@@ -28,6 +28,38 @@ export interface Impulse {
   createdAt: string;
 }
 
+/**
+ * Friends are mutual follows. A one-way follow is a pending friend request:
+ * the sender already hears about the receiver's posts, not the other way round.
+ */
+export interface Follow {
+  fromId: string;
+  toId: string;
+  createdAt: string;
+}
+
+/**
+ * How the viewer relates to a profile: `requested` — the viewer sent a request
+ * that is not answered yet; `incoming` — the profile owner asked the viewer.
+ */
+export type FriendState = "anonymous" | "self" | "none" | "requested" | "incoming" | "friends";
+
+export interface FriendCounts {
+  friends: number;
+  /** One-way followers of this user (friend requests waiting for an answer). */
+  incoming: number;
+  /** One-way follows this user sent. */
+  outgoing: number;
+}
+
+/** A row of the people search / friend lists. */
+export interface PersonSummary extends AuthorRef {
+  bio: string;
+  friends: number;
+  /** Viewer relation, so each row can render its own friend control. */
+  state: FriendState;
+}
+
 export interface Post {
   id: string;
   author: AuthorRef;
@@ -62,13 +94,16 @@ export const COMMENT_MAX_LENGTH = 1000;
 // Notifications
 // ---------------------------------------------------------------------------
 
-export const NOTIFICATION_KINDS = ["impulse", "comment.post", "comment.skill", "skill.updated", "moderation.requested", "moderation.decided", "skillset.updated", "skillset.verified", "verification.requested", "verification.updated", "badge", "system"] as const;
+export const NOTIFICATION_KINDS = ["impulse", "friend.request", "friend.accepted", "post.new", "comment.post", "comment.skill", "skill.updated", "moderation.requested", "moderation.decided", "skillset.updated", "skillset.verified", "verification.requested", "verification.updated", "badge", "system"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /** Drawer filter tabs; each kind belongs to exactly one channel. */
 export type NotificationChannel = "social" | "skills" | "system";
 export const NOTIFICATION_CHANNEL: Record<NotificationKind, NotificationChannel> = {
   impulse: "social",
+  "friend.request": "social",
+  "friend.accepted": "social",
+  "post.new": "social",
   "comment.post": "social",
   "comment.skill": "skills",
   "skill.updated": "skills",
@@ -85,6 +120,12 @@ export const NOTIFICATION_CHANNEL: Record<NotificationKind, NotificationChannel>
 /** Everything the notification card needs to render without extra lookups. */
 export type NotificationSubject =
   | { kind: "impulse"; total: number }
+  /** To the receiver of a friend request (a one-way follow). */
+  | { kind: "friend.request" }
+  /** To the original sender: the request was returned, they are friends now. */
+  | { kind: "friend.accepted" }
+  /** To everyone following the author (friends and pending senders alike). */
+  | { kind: "post.new"; postId: string; excerpt: string }
   | { kind: "comment.post"; postId: string; commentId: string; excerpt: string }
   | { kind: "comment.skill"; skillId: string; slug: string; skillName: string; commentId: string; excerpt: string }
   | { kind: "skill.updated"; skillId: string; slug: string; skillName: string; version: string; previousVersion: string | null; verified: boolean }
