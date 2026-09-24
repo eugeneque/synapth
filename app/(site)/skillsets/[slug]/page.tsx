@@ -56,7 +56,7 @@ export default async function SkillsetPage({ params }: Params) {
     <div className="container space-y-6 py-8">
       <p className="label-mono flex flex-wrap items-center gap-2">
         <span className="text-synapse">/</span>
-        <Link href="/skillsets" className="hover:text-foreground">
+        <Link href="/explore?tab=skillsets" className="hover:text-foreground">
           {t("skillsets.crumb")}
         </Link>
         <span className="text-border">/</span>

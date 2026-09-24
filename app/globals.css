@@ -130,6 +130,14 @@
     @apply text-foreground after:scale-x-100 after:bg-synapse;
   }
 
+  /* HUD toast: tinted glass with broad diagonal sheen bands; the tone sets --toast-tint / --toast-alpha. */
+  .toast-surface {
+    background-color: hsl(var(--card) / 0.96);
+    background-image:
+      repeating-linear-gradient(125deg, transparent 0 22px, hsl(var(--foreground) / 0.022) 22px 44px),
+      linear-gradient(hsl(var(--toast-tint, var(--foreground)) / var(--toast-alpha, 0.035)), hsl(var(--toast-tint, var(--foreground)) / var(--toast-alpha, 0.035)));
+  }
+
   /* Hover lift for cards and tiles. */
   .lift {
     @apply transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-12px_hsl(var(--synapse)/0.25)];

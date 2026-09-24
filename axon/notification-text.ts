@@ -24,6 +24,12 @@ export function describeNotification(n: Notification, { t, n: plural }: Pick<Tra
   switch (s.kind) {
     case "impulse":
       return { ...withActor("notif.impulse.title"), body: plural("notif.impulse.body", s.total), cta: t("notif.cta.profile"), href: n.actor ? `/u/${n.actor.handle}` : null };
+    case "friend.request":
+      return { ...withActor("notif.friendRequest.title"), body: t("notif.friendRequest.body"), cta: t("notif.cta.answer"), href: n.actor ? `/u/${n.actor.handle}` : null };
+    case "friend.accepted":
+      return { ...withActor("notif.friendAccepted.title"), body: t("notif.friendAccepted.body"), cta: t("notif.cta.profile"), href: n.actor ? `/u/${n.actor.handle}` : null };
+    case "post.new":
+      return { ...withActor("notif.postNew.title"), body: s.excerpt, cta: t("notif.cta.post"), href: n.actor ? `/u/${n.actor.handle}#post-${s.postId}` : null };
     case "comment.post":
       return { ...withActor("notif.commentPost.title"), body: s.excerpt, cta: t("notif.cta.post"), href: viewerHandle ? `/u/${viewerHandle}#post-${s.postId}` : null };
     case "comment.skill":

@@ -1,36 +1,66 @@
 "use client";
 
 /**
- * NotificationFeed — filter tabs + inbox cards, shared by the header drawer
- * and /dashboard/notifications. Fetches `GET /api/v1/notifications` on open
- * and again whenever the provider's `version` bumps (fresh rows, reads).
+ * NotificationFeed — segmented filter + inbox cards grouped by day, shared by
+ * the header drawer and /dashboard/notifications. Fetches
+ * `GET /api/v1/notifications` on open and again whenever the provider's
+ * `version` bumps (fresh rows, reads).
  *
- * Card anatomy follows the Stitch spec: avatar (or tool icon) with a kind
- * badge overlay, headline, relative time, unread pip + dismiss ✕, and an
- * action sub-bar with a context chip and the primary CTA.
+ * In the drawer (`compact`) each day collapses into a stack: the newest card
+ * on top with the rest peeking out behind it, "View all" fans the group out.
+ * Card anatomy: round avatar with a kind badge, one sentence (name bold, verb
+ * muted), time line, optional quote bubble, chips and the CTA button.
  */
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Award, BadgeCheck, Boxes, CheckCheck, Gavel, Inbox, Info, Layers, MessageSquare, ShieldCheck, X, Zap } from "lucide-react";
+import { ArrowUpRight, Award, BadgeCheck, Boxes, CheckCheck, Gavel, Inbox, Info, Layers, MessageSquare, Newspaper, ShieldCheck, UserPlus, Users, X, Zap } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useNotifications } from "@/axon/notifications";
 import { describeNotification } from "@/axon/notification-text";
 import { Avatar } from "@/components/avatar";
+import { VerifiedMark } from "@/components/verified-mark";
 import { cn, timeAgo } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
-import { NOTIFICATION_CHANNEL, type Notification, type NotificationChannel, type NotificationFeed as Feed } from "@/types/social";
+import type { Notification, NotificationChannel, NotificationFeed as Feed } from "@/types/social";
 
 type Tab = "all" | "unread" | NotificationChannel;
-const TABS: Array<{ id: Tab; key: UiKey }> = [
+/** `short` replaces the label in the drawer, where the segmented control has to fit one row. */
+const TABS: Array<{ id: Tab; key: UiKey; short?: UiKey }> = [
   { id: "all", key: "notif.tab.all" },
   { id: "unread", key: "notif.tab.unread" },
   { id: "social", key: "notif.tab.social" },
-  { id: "skills", key: "notif.tab.skills" },
+  { id: "skills", key: "notif.tab.skills", short: "notif.tab.skillsShort" },
   { id: "system", key: "notif.tab.system" },
 ];
 
-const KIND_ICON: Record<Notification["kind"], typeof Zap> = { impulse: Zap, "comment.post": MessageSquare, "comment.skill": MessageSquare, "skill.updated": Layers, "moderation.requested": ShieldCheck, "moderation.decided": Gavel, "skillset.updated": Boxes, "skillset.verified": ShieldCheck, "verification.requested": BadgeCheck, "verification.updated": BadgeCheck, badge: Award, system: Info };
+const KIND_ICON: Record<Notification["kind"], typeof Zap> = { impulse: Zap, "friend.request": UserPlus, "friend.accepted": Users, "post.new": Newspaper, "comment.post": MessageSquare, "comment.skill": MessageSquare, "skill.updated": Layers, "moderation.requested": ShieldCheck, "moderation.decided": Gavel, "skillset.updated": Boxes, "skillset.verified": ShieldCheck, "verification.requested": BadgeCheck, "verification.updated": BadgeCheck, badge: Award, system: Info };
+
+/** Kinds that ask the viewer to act — their CTA gets the filled synapse button. */
+const ACTIONABLE = new Set<Notification["kind"]>(["moderation.requested", "verification.requested"]);
+
+type Day = "today" | "yesterday" | "earlier";
+const DAY_KEY: Record<Day, UiKey> = { today: "notif.group.today", yesterday: "notif.group.yesterday", earlier: "notif.group.earlier" };
+
+function dayOf(iso: string, now: Date): Day {
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const at = new Date(iso).getTime();
+  if (at >= midnight) return "today";
+  if (at >= midnight - 86_400_000) return "yesterday";
+  return "earlier";
+}
+
+function groupByDay(items: Notification[]): Array<{ day: Day; items: Notification[] }> {
+  const now = new Date();
+  const groups: Array<{ day: Day; items: Notification[] }> = [];
+  for (const n of items) {
+    const day = dayOf(n.createdAt, now);
+    const last = groups[groups.length - 1];
+    if (last?.day === day) last.items.push(n);
+    else groups.push({ day, items: [n] });
+  }
+  return groups;
+}
 
 export function NotificationFeed({ compact = false, limit = 50 }: { compact?: boolean; limit?: number }) {
   const { t } = useI18n();
@@ -38,6 +68,7 @@ export function NotificationFeed({ compact = false, limit = 50 }: { compact?: bo
   const [tab, setTab] = useState<Tab>("all");
   const [feed, setFeed] = useState<Feed | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Set<Day>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -55,12 +86,21 @@ export function NotificationFeed({ compact = false, limit = 50 }: { compact?: bo
     };
   }, [tab, limit, version]);
 
-  // Tab chips count from the loaded "all" view when we have it; otherwise fall back to the feed totals.
-  const counts = useMemo(() => {
-    const c: Record<Tab, number> = { all: feed?.total ?? 0, unread: feed?.unread ?? 0, social: 0, skills: 0, system: 0 };
-    if (tab === "all" && feed) for (const n of feed.items) c[NOTIFICATION_CHANNEL[n.kind]] += 1;
-    return c;
-  }, [feed, tab]);
+  const groups = useMemo(() => groupByDay(feed?.items ?? []), [feed]);
+
+  function selectTab(next: Tab) {
+    setTab(next);
+    setExpanded(new Set());
+  }
+
+  function toggleGroup(day: Day) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
+  }
 
   async function onRead(n: Notification) {
     if (n.readAt) return;
@@ -73,123 +113,198 @@ export function NotificationFeed({ compact = false, limit = 50 }: { compact?: bo
     await dismiss(n.id);
   }
 
+  const unread = feed?.unread ?? 0;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className={cn("flex flex-wrap items-center justify-between gap-x-3 border-b border-border", compact ? "px-4" : "px-1")}>
-        <nav className="flex flex-wrap items-center gap-x-4">
+      <div className={cn("flex flex-wrap items-center justify-between gap-3", compact ? "px-5 pb-1" : "px-1")}>
+        <div role="tablist" aria-label={t("notif.title")} className={cn("no-scrollbar flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface-lowest p-1", compact ? "w-full" : "w-full sm:w-auto")}>
           {TABS.map((item) => {
-            const n = counts[item.id];
+            const active = tab === item.id;
             return (
-              <button key={item.id} type="button" onClick={() => setTab(item.id)} className={cn("tab-line h-9 shrink-0 gap-1.5", tab === item.id && "text-foreground after:bg-synapse")} data-active={tab === item.id}>
-                {t(item.key)}
-                {(item.id === "all" || item.id === "unread" || tab === "all") && (
-                  <span className={cn("rounded px-1.5 py-px font-mono text-[10px] normal-case tracking-normal", item.id === "unread" && n > 0 ? "bg-synapse/20 text-synapse" : "bg-surface-high text-muted-foreground")}>{n}</span>
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => selectTab(item.id)}
+                className={cn(
+                  "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border py-1.5 text-[13px] font-medium transition-[color,background-color,border-color,box-shadow] duration-200",
+                  compact ? "px-2" : "px-3",
+                  active ? "border-border bg-surface-high text-foreground shadow-[inset_0_1px_0_hsl(var(--foreground)/0.06),0_2px_6px_-2px_rgb(0_0_0/0.6)]" : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
+              >
+                {t(compact && item.short ? item.short : item.key)}
+                {/* The drawer header already shows the unread count. */}
+                {!compact && item.id === "unread" && unread > 0 && <span className="rounded-md bg-synapse/15 px-1.5 font-mono text-[10px] leading-4 text-synapse">{unread}</span>}
               </button>
             );
           })}
-        </nav>
-        {(feed?.unread ?? 0) > 0 && (
-          <button type="button" onClick={() => void markRead()} className="label-mono-sm hidden shrink-0 items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground sm:inline-flex">
-            <CheckCheck className="h-3.5 w-3.5" /> {t("notif.markAll")}
+        </div>
+        {!compact && unread > 0 && (
+          <button type="button" onClick={() => void markRead()} className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+            <CheckCheck className="h-4 w-4" /> {t("notif.markAll")}
           </button>
         )}
       </div>
 
-      <div className={cn("flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto", compact ? "p-4" : "py-4")}>
+      <div className={cn("flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto", compact ? "px-5 py-5" : "py-5")}>
         {feed && feed.items.length === 0 && !loading ? (
-          <div className="hatch flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border p-10 text-center">
-            <Inbox className="h-6 w-6 text-muted-foreground" />
-            <span className="text-sm font-semibold tracking-tight">{t("notif.empty")}</span>
+          <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface-lowest/60 p-10 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-low">
+              <Inbox className="h-5 w-5 text-muted-foreground" />
+            </span>
+            <span className="mt-1 text-sm font-semibold tracking-tight">{t("notif.empty")}</span>
             <span className="max-w-xs text-xs text-muted-foreground">{t("notif.emptyLead")}</span>
           </div>
         ) : (
-          feed?.items.map((n) => <NotificationCard key={n.id} n={n} viewerHandle={viewerHandle} onRead={() => void onRead(n)} onDismiss={() => void onDismiss(n)} />)
+          groups.map((g) => {
+            const stacked = compact && g.items.length > 1 && !expanded.has(g.day);
+            const shown = stacked ? g.items.slice(0, 1) : g.items;
+            return (
+              <section key={g.day} className="flex flex-col gap-3">
+                <header className="flex items-center justify-between gap-3">
+                  <h3 className="flex items-center gap-2 text-[15px] font-medium text-muted-foreground">
+                    {t(DAY_KEY[g.day])}
+                    <span className="rounded-md border border-border bg-surface-low px-1.5 font-mono text-[11px] leading-5 text-foreground/80">{g.items.length}</span>
+                  </h3>
+                  {compact && g.items.length > 1 && (
+                    <button type="button" onClick={() => toggleGroup(g.day)} aria-expanded={!stacked} className="text-[13px] font-medium text-foreground transition-colors hover:text-synapse">
+                      {t(stacked ? "notif.group.showAll" : "notif.group.collapse")}
+                    </button>
+                  )}
+                </header>
+                <div className={cn("relative flex flex-col gap-3", stacked && "pt-4")}>
+                  {stacked && (
+                    <>
+                      {/* Cards waiting behind the newest one; clicking the edges fans the group out. */}
+                      {g.items.length > 2 && <button type="button" tabIndex={-1} aria-hidden onClick={() => toggleGroup(g.day)} className="absolute inset-x-8 top-0 h-8 rounded-t-xl border border-b-0 border-border/70 bg-surface-high/20" />}
+                      <button type="button" tabIndex={-1} aria-hidden onClick={() => toggleGroup(g.day)} className="absolute inset-x-4 top-2 h-8 rounded-t-xl border border-b-0 border-border bg-surface-high/45" />
+                    </>
+                  )}
+                  {shown.map((n, i) => (
+                    <NotificationCard key={n.id} n={n} viewerHandle={viewerHandle} onRead={() => void onRead(n)} onDismiss={() => void onDismiss(n)} style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }} />
+                  ))}
+                </div>
+              </section>
+            );
+          })
         )}
-        {loading && !feed && <div className="label-mono-sm animate-pulse-dot px-1">{t("notif.loading")}</div>}
+        {loading && !feed && (
+          <div className="flex flex-col gap-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="skeleton h-24 rounded-xl" />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function NotificationCard({ n, viewerHandle, onRead, onDismiss }: { n: Notification; viewerHandle: string | null; onRead: () => void; onDismiss: () => void }) {
+function NotificationCard({ n, viewerHandle, onRead, onDismiss, style }: { n: Notification; viewerHandle: string | null; onRead: () => void; onDismiss: () => void; style?: React.CSSProperties }) {
   const i18n = useI18n();
-  const { t } = i18n;
+  const { t, locale } = i18n;
   const text = describeNotification(n, i18n, viewerHandle);
   const Icon = KIND_ICON[n.kind];
   const unread = n.readAt === null;
   const s = n.subject;
   const quote = s.kind === "comment.post" || s.kind === "comment.skill" ? s.excerpt : null;
+  const today = dayOf(n.createdAt, new Date()) === "today";
+  const at = new Date(n.createdAt);
+  const clock = at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  const when = today ? timeAgo(n.createdAt, i18n) : at.toLocaleDateString(locale, { day: "numeric", month: "long" });
+
+  const chips: Array<{ label: string; tone?: "synapse" | "danger" }> = [];
+  if (s.kind === "skill.updated") {
+    chips.push({ label: `v${s.version}` });
+    if (s.verified) chips.push({ label: "Verified", tone: "synapse" });
+  }
+  if (s.kind === "moderation.decided") chips.push({ label: t(`moderation.status.${s.verdict}`), tone: s.verdict === "approved" ? "synapse" : "danger" });
+  if (s.kind === "badge") chips.push({ label: t("notif.badgeChip"), tone: "synapse" });
 
   return (
-    <article onClick={onRead} className={cn("group relative rounded-xl border p-4 transition-colors", unread ? "border-border bg-surface-low hover:bg-surface" : "border-border/60 bg-card/60 hover:bg-card")}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          {n.actor ? (
-            <span className="relative shrink-0">
-              <Avatar author={n.actor} size="md" link />
-              <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-lowest">
-                <Icon className={cn("h-3 w-3", n.kind === "impulse" ? "text-synapse" : "text-info")} />
-              </span>
+    <article
+      onClick={onRead}
+      style={style}
+      className={cn(
+        "group relative animate-fade-in rounded-xl border p-4 transition-colors duration-200",
+        unread ? "border-border bg-surface-low shadow-[inset_0_1px_0_hsl(var(--foreground)/0.05),0_12px_24px_-16px_rgb(0_0_0/0.8)] hover:bg-surface" : "border-border/60 bg-card/70 hover:bg-surface-low",
+      )}
+    >
+      <div className="flex items-start gap-3.5">
+        {n.actor ? (
+          <span className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+            <Avatar author={n.actor} size="md" link className="h-11 w-11 rounded-full" />
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-card bg-surface-high">
+              <Icon className={cn("h-2.5 w-2.5", n.kind === "impulse" ? "text-synapse" : "text-foreground/80")} />
             </span>
-          ) : (
-            <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border", n.kind === "badge" ? "bg-synapse/15 text-synapse" : "bg-surface-high text-foreground")}>
-              <Icon className="h-5 w-5" />
-            </span>
-          )}
-          <div className="min-w-0">
-            <p className="text-sm leading-snug text-foreground">
-              {n.actor && (
-                <Link href={`/u/${n.actor.handle}`} className="font-semibold hover:underline" onClick={(e) => e.stopPropagation()}>
+          </span>
+        ) : (
+          <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full border", n.kind === "badge" ? "border-synapse/30 bg-synapse/10 text-synapse" : "border-border bg-surface-high text-foreground")}>
+            <Icon className="h-5 w-5" />
+          </span>
+        )}
+
+        <div className="min-w-0 flex-1 pr-5">
+          <p className={cn("text-[15px] leading-snug", !unread && "opacity-80")}>
+            {n.actor ? (
+              <>
+                <Link href={`/u/${n.actor.handle}`} className="font-semibold text-foreground hover:underline" onClick={(e) => e.stopPropagation()}>
                   {n.actor.name || n.actor.handle}
                 </Link>
+                {n.actor.verified && <VerifiedMark size="sm" className="ml-1 align-[-2px]" />} <span className="text-muted-foreground">{text.verb}</span>
+              </>
+            ) : (
+              <span className="font-semibold text-foreground">{text.title}</span>
+            )}
+          </p>
+          <p className="mt-1 text-[13px] text-muted-foreground/80">
+            {when} <span className="mx-1 text-border">•</span> {clock}
+          </p>
+
+          {quote ? (
+            <blockquote className="mt-3 rounded-xl bg-surface-high/70 px-4 py-3 text-sm leading-relaxed text-foreground/90">{quote}</blockquote>
+          ) : (
+            text.body && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{text.body}</p>
+          )}
+
+          {(chips.length > 0 || text.href) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {text.href && (
+                <Link
+                  href={text.href}
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors",
+                    ACTIONABLE.has(n.kind) ? "border-synapse/60 bg-synapse text-synapse-foreground hover:bg-synapse-dim" : "border-border bg-surface-high/40 text-foreground hover:border-foreground/30 hover:bg-surface-high",
+                  )}
+                >
+                  {text.cta} <ArrowUpRight className="h-3.5 w-3.5 opacity-70" />
+                </Link>
               )}
-              {n.actor && <span className="label-mono-sm ml-1.5 normal-case tracking-normal">@{n.actor.handle}</span>}
-              <span className={cn("block", n.actor && "text-muted-foreground")}>{n.actor ? text.verb : text.title}</span>
-            </p>
-            <span className="label-mono-sm mt-0.5 block normal-case tracking-normal">{timeAgo(n.createdAt, i18n)}</span>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {unread && <span className="h-2 w-2 rounded-full bg-synapse" title={t("notif.unreadDot")} />}
-          <button
-            type="button"
-            aria-label={t("toast.dismiss")}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDismiss();
-            }}
-            className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover:opacity-100"
-          >
-            <X className="h-4 w-4" />
-          </button>
+              {chips.map((c) => (
+                <span key={c.label} className={cn("rounded-md border px-2 py-0.5 text-[12px]", c.tone === "synapse" ? "border-synapse/25 bg-synapse/10 text-synapse" : c.tone === "danger" ? "border-danger/25 bg-danger/10 text-danger" : "border-border bg-surface-high/50 text-muted-foreground")}>
+                  {c.label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {quote && <blockquote className="mt-3 rounded-lg border border-border bg-surface-lowest p-3 text-xs italic leading-relaxed text-muted-foreground sm:ml-[52px]">“{quote}”</blockquote>}
-      {!quote && text.body && n.kind !== "impulse" && <p className="mt-2 text-xs leading-relaxed text-muted-foreground sm:ml-[52px]">{text.body}</p>}
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 sm:ml-[52px]">
-        <div className="flex flex-wrap items-center gap-2">
-          {s.kind === "impulse" && <span className="label-mono-sm rounded bg-muted px-2 py-0.5 normal-case tracking-normal">{text.body}</span>}
-          {s.kind === "skill.updated" && (
-            <>
-              <span className="label-mono-sm rounded bg-muted px-2 py-0.5">v{s.version}</span>
-              {s.verified && <span className="label-mono-sm rounded bg-synapse/10 px-2 py-0.5 text-synapse">Verified</span>}
-            </>
-          )}
-          {s.kind === "moderation.decided" && (
-            <span className={cn("label-mono-sm rounded px-2 py-0.5", s.verdict === "approved" ? "bg-synapse/10 text-synapse" : "bg-danger/10 text-danger")}>{t(`moderation.status.${s.verdict}`)}</span>
-          )}
-          {s.kind === "badge" && <span className="label-mono-sm rounded bg-synapse/10 px-2 py-0.5 text-synapse">{t("notif.badgeChip")}</span>}
-          {n.actor?.occupation && <span className="label-mono-sm rounded bg-muted px-2 py-0.5">{t(`occupation.${n.actor.occupation}`)}</span>}
-        </div>
-        {text.href && (
-          <Link href={text.href} onClick={(e) => e.stopPropagation()} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-foreground transition-colors hover:border-foreground/40">
-            {text.cta} <ArrowRight className="h-3 w-3" />
-          </Link>
-        )}
-      </div>
+      {unread && <span className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-synapse shadow-glow transition-opacity group-hover:opacity-0" title={t("notif.unreadDot")} />}
+      <button
+        type="button"
+        aria-label={t("toast.dismiss")}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDismiss();
+        }}
+        className="absolute right-2.5 top-2.5 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-surface-high hover:text-foreground focus:opacity-100 group-hover:opacity-100"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </article>
   );
 }

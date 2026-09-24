@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Activity, Award, Bolt, Briefcase, Building2, Calendar, Code2, Github, Globe, Layers, MapPin, MessageSquare, Pencil, Plus, Search, ShieldCheck } from "lucide-react";
+import { Activity, Award, Bolt, Briefcase, Building2, Calendar, Code2, Github, Globe, Layers, MapPin, MessageSquare, Pencil, Plus, Search, ShieldCheck, UserPlus, Users } from "lucide-react";
 import { skillRepository } from "@/cortex/repository";
 import { auth } from "@/cortex/auth";
 import { hasPermission } from "@/cortex/roles";
 import { getAuthorRef, getProfileByHandle } from "@/cortex/account";
 import { evaluateBadges, listBadges } from "@/cortex/badges";
 import { impulseSummary, listComments, listPosts } from "@/cortex/social";
+import { friendState, listFriends, listRequests } from "@/cortex/friends";
 import { getI18n } from "@/cortex/locale";
 import { ActivityHeatmap, HeatmapLegend, bucketActivity } from "@/components/activity-heatmap";
 import { BadgeList } from "@/components/badge-list";
 import { ImpulseButton } from "@/components/impulse-button";
+import { FriendButton } from "@/components/friend-button";
+import { FriendTile } from "@/components/person-card";
 import { CountUp } from "@/components/count-up";
 import { VerifiedMark } from "@/components/verified-mark";
 import { ProfileDetails } from "@/components/profile-details";
@@ -49,7 +52,17 @@ export default async function UserProfilePage({ params }: Params) {
 
   // Social layer: impulses, posts with their threads, achievements (evaluated lazily so seeded data catches up).
   await evaluateBadges(profile.id);
-  const [impulses, posts, badges, viewer, canModerate] = await Promise.all([impulseSummary(profile.id, viewerId), listPosts(profile.id), listBadges(profile.id), viewerId ? getAuthorRef(viewerId) : Promise.resolve(null), hasPermission(viewerId, "content.moderate")]);
+  const [impulses, posts, badges, viewer, canModerate, friends, relation, requests] = await Promise.all([
+    impulseSummary(profile.id, viewerId),
+    listPosts(profile.id),
+    listBadges(profile.id),
+    viewerId ? getAuthorRef(viewerId) : Promise.resolve(null),
+    hasPermission(viewerId, "content.moderate"),
+    listFriends(profile.id),
+    friendState(profile.id, viewerId),
+    // Pending requests are the owner's business only; the friend list itself is public.
+    isOwner ? listRequests(profile.id) : Promise.resolve(null),
+  ]);
   const threads: Record<string, Comment[]> = Object.fromEntries(await Promise.all(posts.map(async (p) => [p.id, await listComments("post", p.id)] as const)));
 
   // A registered developer may also be a crawled GitHub owner under the same handle: merge both.
@@ -130,11 +143,15 @@ export default async function UserProfilePage({ params }: Params) {
                     </Badge>
                   )}
                   <span className="font-mono text-sm text-muted-foreground">@{profile.handle}</span>
+                  <a href="#friends" className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-lowest/70 px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
+                    <Users className="h-3.5 w-3.5" /> {n("friend.count", friends.length)}
+                  </a>
                 </div>
                 <p className={cn("max-w-2xl text-base leading-relaxed", profile.bio ? "text-foreground/90" : "text-muted-foreground")}>{profile.bio || t("profile.bioEmpty")}</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
+              <FriendButton toId={profile.id} handle={profile.handle} name={name} initial={relation} />
               {isOwner && (
                 <Button asChild variant="mono">
                   <Link href="/dashboard/settings">
@@ -200,6 +217,46 @@ export default async function UserProfilePage({ params }: Params) {
                     ) : (
                       <p className="text-xs text-muted-foreground">{t("profile.skills.empty")}</p>
                     ),
+                },
+                {
+                  id: "friends",
+                  label: t("profile.friends.title"),
+                  icon: <Users className="h-3.5 w-3.5 text-synapse" />,
+                  count: friends.length,
+                  content: (
+                    <div className="space-y-5">
+                      {requests && requests.incoming.length > 0 && (
+                        <FriendGroup title={t("profile.friends.incoming")} icon={<UserPlus className="h-3.5 w-3.5 text-synapse" />}>
+                          {requests.incoming.map((p) => (
+                            <FriendTile key={p.id} person={p} state="incoming" />
+                          ))}
+                        </FriendGroup>
+                      )}
+                      {friends.length > 0 ? (
+                        <FriendGroup title={requests?.incoming.length ? t("profile.friends.title") : null}>
+                          {friends.map((p) => (
+                            <FriendTile key={p.id} person={p} />
+                          ))}
+                        </FriendGroup>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {isOwner ? t("profile.friends.emptyOwner") : t("profile.friends.empty", { name })}{" "}
+                          {isOwner && (
+                            <Link href="/people" className="text-synapse hover:underline">
+                              {t("profile.friends.find")}
+                            </Link>
+                          )}
+                        </p>
+                      )}
+                      {requests && requests.outgoing.length > 0 && (
+                        <FriendGroup title={t("profile.friends.outgoing")}>
+                          {requests.outgoing.map((p) => (
+                            <FriendTile key={p.id} person={p} state="requested" />
+                          ))}
+                        </FriendGroup>
+                      )}
+                    </div>
+                  ),
                 },
                 {
                   id: "badges",
@@ -311,6 +368,19 @@ export default async function UserProfilePage({ params }: Params) {
           <ActivityHeatmap cells={activity.cells} months={activity.months} />
         </Panel>
       </div>
+    </div>
+  );
+}
+
+function FriendGroup({ title, icon, children }: { title: string | null; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2.5">
+      {title && (
+        <p className="label-mono-sm flex items-center gap-1.5">
+          {icon} {title}
+        </p>
+      )}
+      <div className="stagger grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
     </div>
   );
 }

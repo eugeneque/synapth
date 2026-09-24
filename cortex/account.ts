@@ -251,3 +251,36 @@ export async function getAuthorRefs(ids: Iterable<string>): Promise<Map<string, 
 export async function getAuthorRef(id: string): Promise<AuthorRef | null> {
   return (await getAuthorRefs([id])).get(id) ?? null;
 }
+
+/** A people-search hit: the attribution card plus the one-line bio. */
+export type ProfileHit = AuthorRef & { bio: string };
+
+/**
+ * People search by name, handle, bio or organization (case-insensitive
+ * substring). An empty query lists the newest members. Crawler placeholders
+ * (`gh-…` handles) are not people and never show up.
+ */
+export async function searchProfiles(rawQuery: string, limit = 40): Promise<ProfileHit[]> {
+  const q = rawQuery.trim().replace(/^@/, "").toLowerCase().slice(0, 80);
+  const take = Math.min(Math.max(limit, 1), 100);
+  if (!hasDatabase) {
+    const hits = memoryUsers
+      .filter((u) => !u.handle.startsWith("gh-"))
+      .map((u) => ({ u, x: extras.get(u.id) }))
+      .filter(({ u, x }) => !q || [u.name, u.handle, x?.bio ?? "", x?.organization ?? ""].some((f) => f.toLowerCase().includes(q)))
+      // Handle prefix matches first, then name order.
+      .sort((a, b) => Number(b.u.handle.toLowerCase().startsWith(q)) - Number(a.u.handle.toLowerCase().startsWith(q)) || a.u.name.localeCompare(b.u.name))
+      .slice(0, take);
+    return hits.map(({ u, x }) => ({ id: u.id, name: u.name, handle: u.handle, image: u.image, occupation: x?.occupation ?? null, verified: memoryVerified.has(u.id), bio: x?.bio ?? "" }));
+  }
+  const contains = { contains: q, mode: "insensitive" as const };
+  const rows = await prisma.user.findMany({
+    where: { handle: { not: null }, NOT: { handle: { startsWith: "gh-" } }, ...(q ? { OR: [{ name: contains }, { handle: contains }, { bio: contains }, { organization: contains }] } : {}) },
+    orderBy: q ? { name: "asc" } : { createdAt: "desc" },
+    take,
+    select: { id: true, name: true, handle: true, image: true, occupation: true, verifiedAt: true, bio: true },
+  });
+  return rows
+    .map((r) => ({ id: r.id, name: r.name ?? "", handle: r.handle ?? "", image: r.image, occupation: isOccupation(r.occupation) ? r.occupation : null, verified: Boolean(r.verifiedAt), bio: r.bio ?? "" }))
+    .sort((a, b) => (q ? Number(b.handle.toLowerCase().startsWith(q)) - Number(a.handle.toLowerCase().startsWith(q)) : 0));
+}

@@ -61,6 +61,8 @@ model User {
   usageAsCreator UsageEvent[] @relation("UsageCreator")
   impulsesSent     Impulse[]      @relation("ImpulseFrom")
   impulsesReceived Impulse[]      @relation("ImpulseTo")
+  followsSent      Follow[]       @relation("FollowFrom")
+  followsReceived  Follow[]       @relation("FollowTo")
   posts            Post[]
   comments         Comment[]
   watches          SkillWatch[]
@@ -322,6 +324,20 @@ model Impulse {
 
   from User @relation("ImpulseFrom", fields: [fromId], references: [id], onDelete: Cascade)
   to   User @relation("ImpulseTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@id([fromId, toId])
+  @@index([toId, createdAt])
+}
+
+/// Friend request / follow: one row per (from, to). Two rows in both directions = friends.
+/// Followers (one-way or mutual) hear about the followed user's new posts.
+model Follow {
+  fromId    String
+  toId      String
+  createdAt DateTime @default(now())
+
+  from User @relation("FollowFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("FollowTo", fields: [toId], references: [id], onDelete: Cascade)
 
   @@id([fromId, toId])
   @@index([toId, createdAt])

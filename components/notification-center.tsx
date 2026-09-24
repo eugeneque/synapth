@@ -3,13 +3,13 @@
 /**
  * NotificationCenter — the header bell and the right-hand drawer ("шторка").
  * The bell shows the unread count from `useNotifications()`; the drawer
- * hosts the shared `NotificationFeed`, a mute toggle and a link to the
- * full inbox page.
+ * is a floating panel hosting the shared `NotificationFeed`, a mute toggle,
+ * "mark all as read" and a link to the full inbox page.
  */
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Bell, BellOff, ExternalLink, Volume2, VolumeX, X } from "lucide-react";
+import { Bell, CheckCheck, Volume2, VolumeX, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useNotifications } from "@/axon/notifications";
 import { NotificationFeed } from "@/components/notification-feed";
@@ -43,7 +43,7 @@ const DRAWER_EXIT_MS = 220;
 
 export function NotificationDrawer() {
   const { t } = useI18n();
-  const { userId, open, setOpen, muted, setMuted, unread, chime } = useNotifications();
+  const { userId, open, setOpen, muted, setMuted, unread, markRead } = useNotifications();
 
   useEffect(() => {
     if (!open) return;
@@ -70,33 +70,35 @@ export function NotificationDrawer() {
   return (
     <div className={cn("fixed inset-0 z-50 flex justify-end", leaving && "pointer-events-none")}>
       <button type="button" aria-label={t("notif.close")} onClick={() => setOpen(false)} className={cn("absolute inset-0 bg-background/60 backdrop-blur-[2px]", leaving ? "animate-fade-out" : "animate-fade-in")} />
-      <aside role="dialog" aria-label={t("notif.title")} className={cn("relative flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-2xl", leaving ? "animate-drawer-out" : "animate-drawer-in")}>
-        <header className="flex items-center justify-between gap-3 border-b border-border bg-surface-lowest px-4 py-3">
-          <div className="min-w-0">
-            <p className="label-mono-sm flex items-center gap-2 tracking-[0.2em] text-synapse">
-              <span className="dot-live animate-pulse-dot" /> {t("notif.stream")}
-            </p>
-            <h2 className="mt-0.5 text-base font-semibold tracking-tight">
-              {t("notif.title")} {unread > 0 && <span className="font-mono text-xs text-synapse">· {unread}</span>}
-            </h2>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => setMuted(!muted)} aria-pressed={muted} title={muted ? t("notif.unmute") : t("notif.mute")} className={cn("flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground", muted && "text-warn")}>
-              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+      <aside
+        role="dialog"
+        aria-label={t("notif.title")}
+        className={cn(
+          "relative m-2 flex h-[calc(100%-1rem)] w-full max-w-[30rem] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_60px_-20px_rgb(0_0_0/0.9),inset_0_1px_0_hsl(var(--foreground)/0.05)] sm:m-3 sm:h-[calc(100%-1.5rem)]",
+          leaving ? "animate-drawer-out" : "animate-drawer-in",
+        )}
+      >
+        <header className="flex items-center justify-between gap-3 px-5 pb-4 pt-5">
+          <h2 className="flex items-baseline gap-2 font-display text-2xl font-medium tracking-tight">
+            {t("notif.title")}
+            {unread > 0 && <span className="font-mono text-sm text-synapse">{unread}</span>}
+          </h2>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => setMuted(!muted)} aria-pressed={muted} title={muted ? t("notif.unmute") : t("notif.mute")} className={cn("flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-high hover:text-foreground", muted && "text-warn")}>
+              {muted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}
             </button>
-            <button type="button" onClick={chime} title={t("notif.testSound")} className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground">
-              {muted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-            </button>
-            <button type="button" onClick={() => setOpen(false)} aria-label={t("notif.close")} className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground">
-              <X className="h-4 w-4" />
+            <button type="button" onClick={() => setOpen(false)} aria-label={t("notif.close")} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-high hover:text-foreground">
+              <X className="h-5 w-5" />
             </button>
           </div>
         </header>
         <NotificationFeed compact limit={30} />
-        <footer className="flex items-center justify-between gap-3 border-t border-border bg-surface-lowest px-4 py-2.5">
-          <span className="label-mono-sm">{t("notif.pollHint")}</span>
-          <Link href="/dashboard/notifications" onClick={() => setOpen(false)} className="label-mono-sm inline-flex items-center gap-1.5 text-synapse hover:underline">
-            {t("notif.openPage")} <ExternalLink className="h-3 w-3" />
+        <footer className="flex items-center justify-between gap-3 border-t border-border/70 px-5 py-4">
+          <button type="button" onClick={() => void markRead()} disabled={unread === 0} className="inline-flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-synapse disabled:pointer-events-none disabled:text-muted-foreground/60">
+            <CheckCheck className="h-4 w-4" /> {t("notif.markAll")}
+          </button>
+          <Link href="/dashboard/notifications" onClick={() => setOpen(false)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-synapse/60 bg-synapse px-3.5 text-sm font-medium text-synapse-foreground shadow-[0_0_20px_-6px_hsl(var(--synapse)/0.6)] transition-colors hover:bg-synapse-dim">
+            {t("notif.openPage")}
           </Link>
         </footer>
       </aside>
