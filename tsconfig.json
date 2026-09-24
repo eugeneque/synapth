@@ -34,10 +34,11 @@
     ".next-build-check/types/**/*.ts",
     ".next-isolated/types/**/*.ts",
     ".next-profile/types/**/*.ts",
+    ".next-verify-build/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-verify-build/types/**/*.ts"
+    ".next-build/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

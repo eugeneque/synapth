@@ -66,6 +66,7 @@ model User {
   followsSent      Follow[]       @relation("FollowFrom")
   followsReceived  Follow[]       @relation("FollowTo")
   posts            Post[]
+  postReactions    PostReaction[]
   comments         Comment[]
   watches          SkillWatch[]
   notifications    Notification[] @relation("NotificationUser")
@@ -75,6 +76,7 @@ model User {
   skillsetFavorites  SkillsetFavorite[]
   skillsetImages     SkillsetImage[]
   verificationRequests VerificationRequest[] @relation("VerificationApplicant")
+  emailCode            EmailCode?
 }
 
 model Account {
@@ -352,9 +354,25 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reactions PostReaction[]
 
   @@index([authorId, createdAt])
+}
+
+/// Emoji reaction on a post: one row per (post, user, emoji), toggled. A user may leave several
+/// different emojis on one post; the allowed set is `POST_REACTIONS` in `types/social.ts`.
+model PostReaction {
+  postId    String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId, emoji])
+  @@index([postId])
 }
 
 enum CommentTargetKind {
@@ -588,4 +606,20 @@ model VerificationRequest {
 
   @@index([status, createdAt])
   @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Email confirmation (cortex/email-verification.ts)
+// ---------------------------------------------------------------------------
+
+/// The one live sign-up code of an unconfirmed password account. Only the hash is stored.
+model EmailCode {
+  userId    String   @id
+  codeHash  String
+  /// Wrong guesses; the code is burned at EMAIL_CODE_MAX_ATTEMPTS.
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  sentAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

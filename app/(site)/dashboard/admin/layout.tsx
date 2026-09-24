@@ -5,7 +5,7 @@ import { getI18n } from "@/cortex/locale";
 import { AdminTabs } from "@/components/admin-tabs";
 
 /**
- * Admin panel shell: opened from /dashboard/settings ("Open admin panel"),
+ * Admin panel shell: its own item in the console rail (ConsoleNav),
  * admins only. Checked against the stored role; 404 rather than 403 so the
  * panel is not advertised. Every page and action below re-checks its own permission.
  */

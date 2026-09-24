@@ -1,4 +1,4 @@
-import NextAuth, { type NextAuthConfig, type User } from "next-auth";
+import NextAuth, { CredentialsSignin, type NextAuthConfig, type User } from "next-auth";
 import type { Adapter } from "next-auth/adapters";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
@@ -9,6 +9,7 @@ import { z } from "zod";
 import { prisma, hasDatabase } from "@/cortex/db";
 import { memoryUsers } from "@/cortex/seed";
 import { createOAuthUser } from "@/cortex/registration";
+import { mustConfirmEmail } from "@/cortex/email-verification";
 import { requirePermission } from "@/cortex/roles";
 import { clientIp, enforceRateLimit } from "@/cortex/rate-limit";
 import type { Permission, UserRole } from "@/types/auth";
@@ -30,6 +31,15 @@ async function findUserByEmail(email: string) {
  * wrong password: without it, response latency enumerates registered users.
  */
 const DUMMY_HASH = "$2a$12$WfnUn5XzBGA2UJylDU20Je4ljsT6e8dTn3goWlFrXT76iikImUa1W";
+
+/**
+ * Right password, unconfirmed address. `code` reaches the client as `signIn()`'s
+ * `result.code`; it is only thrown after the password matched, so it reveals
+ * nothing to someone guessing emails.
+ */
+class EmailUnverifiedError extends CredentialsSignin {
+  code = "email_unverified";
+}
 
 /**
  * Prisma adapter with Synapth's own `createUser`: a first OAuth sign-in gets a
@@ -80,6 +90,7 @@ export const authConfig: NextAuthConfig = {
         // `|| ` and not `?? `: OAuth-only rows carry an empty hash, which bcrypt would reject instantly.
         const ok = await compare(parsed.data.password, user?.passwordHash || DUMMY_HASH);
         if (!user?.passwordHash || !ok) return null;
+        if (mustConfirmEmail(user)) throw new EmailUnverifiedError();
 
         return {
           id: user.id,

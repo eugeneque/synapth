@@ -6,6 +6,8 @@
  * half-created user never exists.
  *
  *   - `registerWithPassword()` — the email + password form (`/api/auth/register`);
+ *     the address starts unconfirmed and a code is mailed right away
+ *     (`cortex/email-verification.ts`);
  *   - `createOAuthUser()` — wired into the Auth.js adapter, runs on the first
  *     GitHub / Google sign-in and derives a handle from the provider profile.
  *
@@ -22,6 +24,8 @@ import { memoryUsers } from "@/cortex/seed";
 import { billing } from "@/cortex/billing";
 import { usdToMicros } from "@/types/economy";
 import { toUserRole, type UserRole } from "@/types/auth";
+import { emailVerificationRequired, issueEmailCode } from "@/cortex/email-verification";
+import type { Locale } from "@/lib/i18n";
 
 /** Credited to every new account so a first paid call works without a payment provider. */
 export const WELCOME_CREDIT_USD = 1;
@@ -87,6 +91,8 @@ export interface RegisteredUser {
   id: string;
   email: string;
   handle: string;
+  /** "pending": sign-in waits for the mailed code; "not_required": the account is usable right away. */
+  emailVerification: "pending" | "not_required";
 }
 
 function assertPersistentStore() {
@@ -106,35 +112,68 @@ function uniqueViolation(err: unknown): RegistrationErrorCode | null {
   return target.includes("handle") ? "handle_taken" : "email_taken";
 }
 
-export async function registerWithPassword(raw: unknown): Promise<RegisteredUser> {
+/**
+ * An unconfirmed password account never signed in, so it owns nothing: a new
+ * signup with the same address takes it over (new name, handle and password,
+ * new code). Otherwise anyone could squat a stranger's email by registering it first.
+ */
+function reclaimable(u: { passwordHash: string | null; emailVerified?: Date | string | null }): boolean {
+  return Boolean(u.passwordHash) && u.emailVerified === null;
+}
+
+export async function registerWithPassword(raw: unknown, { locale }: { locale?: Locale } = {}): Promise<RegisteredUser> {
   assertPersistentStore();
   const input = registerSchema.parse(raw);
   if (isReservedHandle(input.handle)) throw new RegistrationError("handle_reserved");
+  const required = emailVerificationRequired();
+  const emailVerification = required ? "pending" : "not_required";
 
+  let user: { id: string; email: string; handle: string };
   if (!hasDatabase) {
-    if (memoryUsers.some((u) => u.email.toLowerCase() === input.email)) throw new RegistrationError("email_taken");
-    if (memoryUsers.some((u) => u.handle.toLowerCase() === input.handle)) throw new RegistrationError("handle_taken");
+    const existing = memoryUsers.find((u) => u.email.toLowerCase() === input.email);
+    if (existing && !reclaimable(existing)) throw new RegistrationError("email_taken");
+    if (memoryUsers.some((u) => u !== existing && u.handle.toLowerCase() === input.handle)) throw new RegistrationError("handle_taken");
     const passwordHash = await hash(input.password, BCRYPT_ROUNDS);
-    const id = `usr_${Math.random().toString(36).slice(2, 10)}`;
-    memoryUsers.push({ id, name: input.name, email: input.email, handle: input.handle, image: null, role: "user", passwordHash });
-    await billing.topUp(id, WELCOME_CREDIT_USD, WELCOME_CREDIT_MEMO);
-    return { id, email: input.email, handle: input.handle };
+    const emailVerified = required ? null : new Date().toISOString();
+    if (existing) {
+      Object.assign(existing, { name: input.name, handle: input.handle, passwordHash, emailVerified });
+      user = { id: existing.id, email: input.email, handle: input.handle };
+    } else {
+      const id = `usr_${Math.random().toString(36).slice(2, 10)}`;
+      memoryUsers.push({ id, name: input.name, email: input.email, handle: input.handle, image: null, role: "user", passwordHash, emailVerified });
+      await billing.topUp(id, WELCOME_CREDIT_USD, WELCOME_CREDIT_MEMO);
+      user = { id, email: input.email, handle: input.handle };
+    }
+  } else {
+    user = await persistPasswordUser(input, required);
   }
 
+  if (required) {
+    // The account exists either way; a failed send is retried from the code screen.
+    await issueEmailCode(user.email, locale).catch((err) => console.error("[registration] confirmation email not sent:", err));
+  }
+  return { ...user, emailVerification };
+}
+
+async function persistPasswordUser(input: z.output<typeof registerSchema>, required: boolean) {
   // Cheap pre-check first so a taken email does not cost a bcrypt round; the unique
   // indexes below remain the real guarantee.
-  const clash = await prisma.user.findFirst({
+  const clashes = await prisma.user.findMany({
     where: { OR: [{ email: { equals: input.email, mode: "insensitive" } }, { handle: { equals: input.handle, mode: "insensitive" } }] },
-    select: { email: true },
+    select: { id: true, email: true, passwordHash: true, emailVerified: true, _count: { select: { accounts: true } } },
   });
-  if (clash) throw new RegistrationError(clash.email?.toLowerCase() === input.email ? "email_taken" : "handle_taken");
+  const sameEmail = clashes.find((c) => c.email?.toLowerCase() === input.email);
+  const reclaim = sameEmail && reclaimable(sameEmail) && sameEmail._count.accounts === 0 ? sameEmail : null;
+  if (sameEmail && !reclaim) throw new RegistrationError("email_taken");
+  if (clashes.some((c) => c !== sameEmail)) throw new RegistrationError("handle_taken");
 
   const passwordHash = await hash(input.password, BCRYPT_ROUNDS);
+  const emailVerified = required ? null : new Date();
+  const select = { id: true, email: true, handle: true } as const;
   try {
-    const user = await prisma.user.create({
-      data: { name: input.name, handle: input.handle, email: input.email, passwordHash, wallet: welcomeWallet() },
-      select: { id: true, email: true, handle: true },
-    });
+    const user = reclaim
+      ? await prisma.user.update({ where: { id: reclaim.id }, data: { name: input.name, handle: input.handle, passwordHash, emailVerified }, select })
+      : await prisma.user.create({ data: { name: input.name, handle: input.handle, email: input.email, passwordHash, emailVerified, wallet: welcomeWallet() }, select });
     return { id: user.id, email: user.email ?? input.email, handle: user.handle ?? input.handle };
   } catch (err) {
     const code = uniqueViolation(err);

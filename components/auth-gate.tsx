@@ -5,18 +5,21 @@
  *
  * Left half: fluted glass over a drifting light gradient (`AuthGlass`).
  * Right half: the credential form with a DEVELOPER / MACHINE TOKEN switcher,
- * OAuth row, entropy meter and the primary signal button.
+ * OAuth row, entropy meter and the primary signal button. A password account
+ * with an unconfirmed address continues on `EmailCodeStep` (right after signup,
+ * or when sign-in answers `email_unverified`).
  */
 
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { ArrowRight, AtSign, Check, Eye, EyeOff, Github, KeyRound, Loader2, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, AtSign, Check, Eye, EyeOff, Github, KeyRound, Loader2, MailCheck, ShieldCheck, X } from "lucide-react";
 import { AuthGlass } from "@/components/auth-glass";
 import { CopyButton } from "@/components/copy-button";
 import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
+import { rich } from "@/lib/i18n/rich";
 import { safeCallbackPath } from "@/lib/url-safety";
 
 export interface AuthGateProps {
@@ -30,6 +33,12 @@ export interface AuthGateProps {
 const DEMO = { email: "demo@synapth.dev", password: "synapth-demo" };
 /** `code` values of `RegistrationError` (cortex/registration.ts), each with an `auth.err.<code>` string. */
 const REGISTRATION_CODES = ["email_taken", "handle_taken", "handle_reserved", "unavailable"] as const;
+/** `code` values of the email-confirmation endpoints, each with an `auth.err.<code>` string. */
+const CONFIRMATION_CODES = ["invalid_code", "expired_code", "delivery_failed"] as const;
+/** Mirrors `cortex/email-verification.ts` (a client bundle must not import it). */
+const CODE_LENGTH = 6;
+const CODE_TTL_MINUTES = 15;
+const RESEND_COOLDOWN_S = 60;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 const CLI_AUTH = `curl -s ${APP_URL}/api/v1/account/me \\\n  -H 'X-Synapth-Key: syn_live_…'`;
 
@@ -82,6 +91,8 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
   const [showPwd, setShowPwd] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  /** Set when the account waits for its email code; `resend` = ask for a fresh one on entry. */
+  const [confirming, setConfirming] = useState<{ resend: boolean } | null>(null);
 
   const [token, setToken] = useState("");
   const [tokenState, setTokenState] = useState<{
@@ -120,21 +131,38 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
           else setError(body.issues?.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") ?? body.error ?? t("auth.err.registration"));
           return;
         }
+        const created = (await res.json()) as { emailVerification?: "pending" | "not_required" };
+        if (created.emailVerification === "pending") {
+          // The code is already in the mail; sign-in happens after it is confirmed.
+          setConfirming({ resend: false });
+          return;
+        }
       }
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
-      if (result?.error) {
-        setError(t("auth.err.invalid"));
-        return;
-      }
-      router.push(callbackUrl);
-      router.refresh();
+      await finishSignIn();
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Credentials sign-in with the form's email + password; routes an unconfirmed address to the code step. */
+  async function finishSignIn(): Promise<boolean> {
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+    if (result?.code === "email_unverified") {
+      // The earlier code may be long expired: ask for a fresh one.
+      setConfirming({ resend: true });
+      return false;
+    }
+    if (result?.error) {
+      setError(t("auth.err.invalid"));
+      return false;
+    }
+    router.push(callbackUrl);
+    router.refresh();
+    return true;
   }
 
   async function verifyToken() {
@@ -203,7 +231,17 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
             </div>
           </div>
 
-          {tab === "dev" ? (
+          {tab === "dev" && confirming ? (
+            <EmailCodeStep
+              email={email}
+              resendOnMount={confirming.resend}
+              onConfirmed={finishSignIn}
+              onBack={() => {
+                setConfirming(null);
+                setError(null);
+              }}
+            />
+          ) : tab === "dev" ? (
             <>
               <div className="mb-6 grid grid-cols-2 gap-3">
                 {oauth("github", t("auth.oauth.github"), <Github className="h-4 w-4 text-foreground/80 transition-colors group-hover:text-foreground" />)}
@@ -363,8 +401,8 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
                 <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-synapse" />
                 <span>
                   {t("auth.machine.issue")}{" "}
-                  <Link href="/dashboard" className="text-foreground underline-offset-2 hover:text-synapse hover:underline">
-                    {t("nav.console")} →
+                  <Link href="/dashboard/developer#keys" className="text-foreground underline-offset-2 hover:text-synapse hover:underline">
+                    {t("console.nav.publish")} →
                   </Link>
                 </span>
               </p>
@@ -385,5 +423,130 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The code screen: 6 digits from the confirmation email, a resend button with
+ * a cooldown, and a way back to the form. After the code is accepted the
+ * parent signs in with the password it still holds.
+ */
+function EmailCodeStep({ email, resendOnMount, onConfirmed, onBack }: { email: string; resendOnMount: boolean; onConfirmed: () => Promise<boolean>; onBack: () => void }) {
+  const { t } = useI18n();
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(resendOnMount ? 0 : RESEND_COOLDOWN_S);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [cooldown]);
+
+  async function explain(res: Response) {
+    const body = (await res.json().catch(() => ({}))) as { code?: (typeof CONFIRMATION_CODES)[number] };
+    if (body.code && CONFIRMATION_CODES.includes(body.code)) setError(t(`auth.err.${body.code}`));
+    else if (res.status === 429) setError(t("auth.err.rateLimited"));
+    else setError(t("auth.err.registration"));
+  }
+
+  async function resend(silent = false) {
+    setError(null);
+    setNotice(null);
+    setCooldown(RESEND_COOLDOWN_S);
+    const res = await fetch("/api/auth/verify-email/resend", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+    if (!res.ok) return explain(res);
+    if (!silent) setNotice(t("auth.verify.resent"));
+  }
+
+  // Once per entry into the step (the ref also absorbs StrictMode's double effect).
+  const resentOnMount = useRef(false);
+  useEffect(() => {
+    if (!resendOnMount || resentOnMount.current) return;
+    resentOnMount.current = true;
+    void resend(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch("/api/auth/verify-email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, code }) });
+      if (!res.ok) {
+        await explain(res);
+        return;
+      }
+      await onConfirmed();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-5">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-synapse/30 bg-synapse/10">
+          <MailCheck className="h-[18px] w-[18px] text-synapse" />
+        </span>
+        <div>
+          <h2 className="font-display text-lg font-semibold tracking-tight text-foreground">{t("auth.verify.title")}</h2>
+          <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [&_strong]:font-medium [&_strong]:text-foreground">{rich(t("auth.verify.lead", { email, length: CODE_LENGTH }))}</p>
+        </div>
+      </div>
+
+      <Field id="code" label={t("auth.verify.field")}>
+        <input
+          id="code"
+          name="code"
+          required
+          autoFocus
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern={`\\d{${CODE_LENGTH}}`}
+          maxLength={CODE_LENGTH}
+          placeholder={"0".repeat(CODE_LENGTH)}
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, CODE_LENGTH))}
+          className={cn(inputClass, "h-12 text-center text-xl tracking-[0.5em]")}
+        />
+      </Field>
+
+      {error && (
+        <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 font-mono text-xs text-danger">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="flex items-center gap-2 rounded-lg border border-synapse/30 bg-synapse/10 px-3 py-2 font-mono text-xs text-synapse">
+          <Check className="h-3.5 w-3.5" /> {notice}
+        </p>
+      )}
+
+      <p className="text-[11px] leading-relaxed text-muted-foreground">{t("auth.verify.hint", { minutes: CODE_TTL_MINUTES })}</p>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <div className="flex flex-col items-start gap-1.5">
+          <button type="button" onClick={() => resend()} disabled={cooldown > 0 || busy} className="label-mono-sm text-synapse hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline">
+            {cooldown > 0 ? t("auth.verify.resendIn", { s: cooldown }) : t("auth.verify.resend")}
+          </button>
+          <button type="button" onClick={onBack} className="label-mono-sm flex items-center gap-1 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-3 w-3" /> {t("auth.verify.back")}
+          </button>
+        </div>
+        <button
+          type="submit"
+          disabled={busy || code.length !== CODE_LENGTH}
+          className="flex h-11 items-center justify-center gap-3 rounded-lg bg-synapse px-7 text-base font-semibold tracking-tight text-synapse-foreground shadow-[0_0_20px_rgba(198,255,51,0.25)] transition-all hover:shadow-[0_0_28px_rgba(198,255,51,0.45)] active:scale-[0.99] disabled:opacity-60"
+        >
+          <span>{busy ? t("auth.submitting") : t("auth.verify.submit")}</span>
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+        </button>
+      </div>
+    </form>
   );
 }

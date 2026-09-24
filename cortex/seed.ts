@@ -17,6 +17,8 @@ export interface MemoryUser {
   developer?: boolean;
   /** bcrypt hash of "synapth-demo" */
   passwordHash: string;
+  /** ISO time the address was confirmed; null = waiting for the code, absent = seed row (confirmed). */
+  emailVerified?: string | null;
 }
 
 const seedUsers: MemoryUser[] = [
@@ -435,6 +437,14 @@ export const seedImpulses = [
   { fromId: "usr_acme", toId: "usr_demo", createdAt: hoursAgo(2) },
   { fromId: "usr_kite", toId: "usr_demo", createdAt: hoursAgo(47) },
   { fromId: "usr_nimbus", toId: "usr_acme", createdAt: hoursAgo(20) },
+];
+
+export const seedReactions = [
+  { postId: "post_acme_1", userId: "usr_demo", emoji: "🔥" as const, createdAt: hoursAgo(4) },
+  { postId: "post_acme_1", userId: "usr_kite", emoji: "🔥" as const, createdAt: hoursAgo(3) },
+  { postId: "post_acme_1", userId: "usr_nimbus", emoji: "🚀" as const, createdAt: hoursAgo(3) },
+  { postId: "post_demo_1", userId: "usr_acme", emoji: "👍" as const, createdAt: hoursAgo(45) },
+  { postId: "post_demo_1", userId: "usr_kite", emoji: "❤️" as const, createdAt: hoursAgo(44) },
 ];
 
 export const seedWatches = [

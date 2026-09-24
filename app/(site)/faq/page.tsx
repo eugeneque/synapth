@@ -370,7 +370,7 @@ export default async function FaqPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             {[
               { href: "/search?tab=skills", tag: t("faq.next.explore.tag"), title: t("faq.next.explore.title"), body: t("faq.next.explore.body") },
-              { href: "/dashboard#publish", tag: t("faq.next.publish.tag"), title: t("faq.next.publish.title"), body: t("faq.next.publish.body") },
+              { href: "/dashboard/developer#publish", tag: t("faq.next.publish.tag"), title: t("faq.next.publish.title"), body: t("faq.next.publish.body") },
             ].map((card) => (
               <Link key={card.href} href={card.href} className="group rounded-xl border border-border bg-card p-5 transition-colors hover:border-synapse/50">
                 <div className="mb-3 flex items-center justify-between">

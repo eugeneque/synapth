@@ -25,8 +25,8 @@ async function run<T>(fn: () => Promise<T>): Promise<VerificationActionResult<T>
 
 function refresh(requestId?: string) {
   revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard/admin/verification");
-  if (requestId) revalidatePath(`/dashboard/admin/verification/${requestId}`);
+  revalidatePath("/dashboard/verification");
+  if (requestId) revalidatePath(`/dashboard/verification/${requestId}`);
 }
 
 export async function applyForVerification(phone: string): Promise<VerificationActionResult<VerificationRequest>> {

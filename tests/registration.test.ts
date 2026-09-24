@@ -6,6 +6,8 @@ import { getProfile, updateProfile, HandleTakenError } from "@/cortex/account";
 import { billing } from "@/cortex/billing";
 import { memoryUsers } from "@/cortex/seed";
 import { usdToMicros } from "@/types/economy";
+import { confirmEmailCode } from "@/cortex/email-verification";
+import { consoleOutbox } from "@/cortex/mailer";
 
 const input = { name: "Ada Lovelace", handle: "ada", email: "Ada@Example.com", password: "correct horse battery" };
 
@@ -31,6 +33,10 @@ test("password signup stores a normalized user with a hashed password and the we
 });
 
 test("duplicate email and handle are reported with distinct codes, case-insensitively", async () => {
+  // An unconfirmed address can be reclaimed (tests/email-verification.test.ts); a confirmed one is taken.
+  const mail = consoleOutbox.findLast((m) => m.to === "ada@example.com");
+  assert.ok(mail);
+  await confirmEmailCode("ada@example.com", mail.text.match(/\b(\d{6})\b/)![1]);
   await assert.rejects(registerWithPassword({ ...input, handle: "ada-two", email: "ADA@example.com" }), (e: unknown) => e instanceof RegistrationError && e.code === "email_taken" && e.status === 409);
   await assert.rejects(registerWithPassword({ ...input, handle: "ADA", email: "other@example.com" }), (e: unknown) => e instanceof RegistrationError && e.code === "handle_taken");
 });

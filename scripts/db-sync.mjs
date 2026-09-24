@@ -67,13 +67,29 @@ BEGIN
     DELETE FROM "Notification" WHERE "kind" = 'badge' AND "subject"->>'badgeId' = 'platform-admin';
   END IF;
 END $$;
+
+-- Email confirmation (cortex/email-verification.ts) arrived on 2026-09-25: password accounts
+-- created before it never received a code, so they are treated as confirmed. The cut-off date
+-- keeps this idempotent: later signups stay unconfirmed until they enter their code.
+DO $$
+BEGIN
+  IF to_regclass('"User"') IS NOT NULL THEN
+    UPDATE "User" SET "emailVerified" = "createdAt"
+    WHERE "emailVerified" IS NULL AND "passwordHash" IS NOT NULL AND "createdAt" < '2026-09-25';
+  END IF;
+END $$;
 `;
 
-/** Fee recipient in cortex/billing.ts (PLATFORM_USER_ID); wallets reference users, so the row must exist. */
+/**
+ * Fee recipient in cortex/billing.ts (PLATFORM_USER_ID); wallets reference users, so the row must exist.
+ * It has no email or password and cannot sign in; the "synapth" handle is left for a real, loginable account.
+ */
 const POST_PUSH_SQL = `
 INSERT INTO "User" ("id", "name", "handle", "role", "createdAt", "updatedAt")
-VALUES ('usr_platform', 'Synapth', 'synapth', 'user', now(), now())
+VALUES ('usr_platform', 'Synapth Platform', 'platform', 'user', now(), now())
 ON CONFLICT DO NOTHING;
+-- The fee account used to hold the "synapth" handle; free it for the official posting account.
+UPDATE "User" SET "handle" = 'platform', "name" = 'Synapth Platform' WHERE "id" = 'usr_platform' AND "handle" = 'synapth';
 INSERT INTO "Wallet" ("id", "userId", "updatedAt")
 VALUES ('wal_platform', 'usr_platform', now())
 ON CONFLICT DO NOTHING;

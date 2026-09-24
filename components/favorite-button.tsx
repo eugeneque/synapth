@@ -1,6 +1,6 @@
 "use client";
 
-/** FavoriteButton — adds a skillset to the viewer's favorites (listed in /dashboard/skillsets). */
+/** FavoriteButton — adds a skillset to the viewer's favorites (listed in /favorites). */
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
@@ -43,7 +43,7 @@ export function FavoriteButton({ skillsetId, slug, name, initial, signedIn, clas
         return;
       }
       setState(res.data);
-      toast(res.data.favorited ? { tone: "success", title: t("skillset.favoritedTitle"), body: name, action: { label: t("skillset.openFavorites"), href: "/dashboard/skillsets" } } : { tone: "undo", title: t("skillset.unfavorited", { name }), action: { label: t("watch.undo"), onClick: () => toggle() } });
+      toast(res.data.favorited ? { tone: "success", title: t("skillset.favoritedTitle"), body: name, action: { label: t("skillset.openFavorites"), href: "/favorites" } } : { tone: "undo", title: t("skillset.unfavorited", { name }), action: { label: t("watch.undo"), onClick: () => toggle() } });
     });
   }
 

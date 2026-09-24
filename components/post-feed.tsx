@@ -15,6 +15,7 @@ import { commentOnPost, publishPost, removePost } from "@/app/(site)/social-acti
 import { Avatar } from "@/components/avatar";
 import { VerifiedMark } from "@/components/verified-mark";
 import { CommentThread } from "@/components/comment-thread";
+import { PostReactions } from "@/components/post-reactions";
 import { cn, timeAgo } from "@/lib/utils";
 import { POST_MAX_LENGTH, type AuthorRef, type Comment, type Post } from "@/types/social";
 
@@ -170,7 +171,8 @@ function PostCard({ post, viewer, canModerate, initialComments, onDelete }: { po
 
       <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{post.body}</p>
 
-      <div className="mt-3 flex items-center gap-4 border-t border-border pt-3">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+        <PostReactions postId={post.id} initial={post.reactions} signInHref={viewer ? null : `/signin?callbackUrl=/u/${post.author.handle}`} />
         <button type="button" onClick={() => setOpen((o) => !o)} className={cn("inline-flex items-center gap-1.5 font-mono text-xs transition-colors hover:text-foreground", open ? "text-synapse" : "text-muted-foreground")}>
           <MessageSquare className="h-4 w-4" /> {n("posts.comments", count)}
         </button>

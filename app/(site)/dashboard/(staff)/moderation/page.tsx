@@ -35,15 +35,10 @@ export default async function ModerationPage() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2 border-b border-border pb-6">
-        <p className="label-mono-sm flex items-center gap-2 tracking-[0.2em]">
-          <span className="text-synapse">{t("moderation.crumb")}</span>
-          <span className="text-border">/</span>
-          <span>{t("moderation.sandboxed", { n: queue.sandboxed })}</span>
-        </p>
-        <h1 className="font-display text-3xl font-medium tracking-tight sm:text-4xl">{t("moderation.title")}</h1>
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <p className="max-w-2xl text-sm text-muted-foreground">{t("moderation.lead")}</p>
-      </header>
+        <span className="pill h-8 shrink-0 self-start">{t("moderation.sandboxed", { n: queue.sandboxed })}</span>
+      </div>
 
       <Panel title={t("moderation.requests")} meta={String(pending.length)} icon={<Hourglass className="h-4 w-4 shrink-0 text-warn" />} corners>
         <RequestList requests={pending} empty={t("moderation.emptyRequests")} i18n={i18n} />

@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowUpRight, Eye, ShieldEllipsis } from "lucide-react";
+import { Eye } from "lucide-react";
 import { auth } from "@/cortex/auth";
 import { getProfile } from "@/cortex/account";
 import { hasDatabase } from "@/cortex/db";
 import { skillRepository } from "@/cortex/repository";
 import { getI18n } from "@/cortex/locale";
-import { hasPermission } from "@/cortex/roles";
 import { SettingsForm } from "@/components/settings-form";
 import { VerificationPanel } from "@/components/verification-panel";
 import { verificationState } from "@/cortex/verification";
@@ -23,7 +22,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/dashboard/settings");
-  const [profile, all, { t }, isAdmin, verification] = await Promise.all([getProfile(session.user.id), skillRepository.all(), getI18n(), hasPermission(session.user.id, "admin.access"), verificationState(session.user.id)]);
+  const [profile, all, { t }, verification] = await Promise.all([getProfile(session.user.id), skillRepository.all(), getI18n(), verificationState(session.user.id)]);
   if (!profile) redirect("/signin");
   const published = all.filter((s) => s.authorId === profile.id);
   const verified = published.filter((s) => s.securityLevel === "Verified").length;
@@ -49,30 +48,8 @@ export default async function SettingsPage() {
               <Eye className="text-synapse" /> {t("settings.viewProfile")}
             </Link>
           </Button>
-          <Button asChild variant="mono" size="sm" className="h-8">
-            <Link href="/dashboard">
-              {t("settings.openConsole")} <ArrowUpRight />
-            </Link>
-          </Button>
         </div>
       </header>
-
-      {isAdmin && (
-        <section className="flex flex-col gap-4 rounded-xl border border-synapse/30 bg-synapse/5 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <ShieldEllipsis className="mt-0.5 h-5 w-5 shrink-0 text-synapse" />
-            <div className="space-y-1">
-              <p className="label-mono text-foreground">{t("settings.admin.title")}</p>
-              <p className="text-sm text-muted-foreground">{t("settings.admin.lead")}</p>
-            </div>
-          </div>
-          <Button asChild size="sm" className="shrink-0 self-start sm:self-center">
-            <Link href="/dashboard/admin">
-              {t("settings.admin.open")} <ArrowUpRight />
-            </Link>
-          </Button>
-        </section>
-      )}
 
       <SettingsForm
         profile={profile}

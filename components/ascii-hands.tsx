@@ -14,8 +14,9 @@
  * brighten; the hands drift a few pixels toward the cursor, and when it nears
  * the gap a pixel "synapse" arcs between the fingertips.
  *
- * Without the image a vector silhouette is halftoned instead, so the hero
- * never renders empty.
+ * Nothing is drawn until the artwork has loaded; the canvas then fades in.
+ * The hands span the full viewport width (slightly bleeding off the edges)
+ * and sit on the hero's bottom edge.
  */
 
 import { useEffect, useRef } from "react";
@@ -28,6 +29,8 @@ const ACCENT = [198, 255, 51] as const;
 const DIM = [92, 106, 78] as const;
 const MID = [168, 196, 120] as const;
 const ART_SRC = "/hero-hands.png";
+/** Space between the hands and the hero's bottom edge (the "move the cursor" hint lives there). */
+const BOTTOM_GAP = 56;
 
 interface Geometry {
   cols: number;
@@ -45,53 +48,6 @@ function hash(x: number, y: number) {
   let h = (x * 374761393 + y * 668265263) | 0;
   h = (h ^ (h >>> 13)) * 1274126177;
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
-}
-
-// ---------------------------------------------------------------------------
-// Vector fallback (used only when the artwork is missing)
-// ---------------------------------------------------------------------------
-
-function drawVectorHand(g: CanvasRenderingContext2D, x: number, y: number, scale: number, dir: 1 | -1) {
-  g.save();
-  g.translate(x, y);
-  g.scale(dir * scale, scale);
-  g.rotate(-0.05 * dir);
-  g.lineCap = "round";
-  g.lineJoin = "round";
-  // Vertical shading: top edge lit, underside dark — like the row-screen of the reference.
-  const grad = g.createLinearGradient(0, -110, 0, 110);
-  grad.addColorStop(0, "rgba(255,255,255,1)");
-  grad.addColorStop(0.55, "rgba(255,255,255,0.6)");
-  grad.addColorStop(1, "rgba(255,255,255,0.12)");
-  g.fillStyle = grad;
-  g.strokeStyle = grad;
-  g.beginPath();
-  g.moveTo(-1400, -60);
-  g.lineTo(-10, -46);
-  g.lineTo(-10, 50);
-  g.lineTo(-1400, 68);
-  g.closePath();
-  g.fill();
-  g.beginPath();
-  g.ellipse(80, 4, 86, 58, 0.05, 0, Math.PI * 2);
-  g.fill();
-  g.beginPath();
-  g.ellipse(140, 4, 36, 54, 0.1, 0, Math.PI * 2);
-  g.fill();
-  const finger = (x1: number, y1: number, x2: number, y2: number, w: number) => {
-    g.lineWidth = w;
-    g.beginPath();
-    g.moveTo(x1, y1);
-    g.lineTo(x2, y2);
-    g.stroke();
-  };
-  finger(150, -34, 340, -58, 24);
-  finger(158, -4, 300, 6, 24);
-  finger(152, 26, 262, 48, 22);
-  finger(140, 52, 215, 84, 20);
-  finger(40, -40, 120, -72, 30);
-  finger(120, -72, 190, -92, 24);
-  g.restore();
 }
 
 // ---------------------------------------------------------------------------
@@ -126,11 +82,10 @@ function analyse(img: HTMLImageElement) {
   return { canvas: c, box: { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 } };
 }
 
-function buildGeometry(w: number, h: number, art: ReturnType<typeof analyse> | null): Geometry {
+function buildGeometry(w: number, h: number, art: ReturnType<typeof analyse>): Geometry {
   const cols = Math.ceil(w / CELL) + 1;
   const rows = Math.ceil(h / CELL) + 1;
   const mobile = w < 768;
-  const cy = mobile ? h * 0.9 : h * 0.76;
 
   // Supersample 2× then box-average so the reference's own dot screen does not moiré with ours.
   const ss = 2;
@@ -141,21 +96,15 @@ function buildGeometry(w: number, h: number, art: ReturnType<typeof analyse> | n
   g.imageSmoothingEnabled = true;
   g.scale(ss / CELL, ss / CELL);
 
-  if (art) {
-    const { canvas, box } = art;
-    const targetW = mobile ? w * 1.15 : Math.min(w * 0.98, 1500);
-    const s = targetW / box.w;
-    const dw = box.w * s;
-    const dh = box.h * s;
-    g.drawImage(canvas, box.x, box.y, box.w, box.h, w / 2 - dw / 2, cy - dh / 2, dw, dh);
-  } else {
-    const gap = mobile ? w * 0.14 : Math.min(Math.max(w * 0.13, 120), 230);
-    const handLen = mobile ? w * 0.5 : Math.min(Math.max(w * 0.36, 280), 620);
-    const scale = handLen / 352;
-    const tipOffsetX = 352 * scale;
-    drawVectorHand(g, w / 2 - gap / 2 - tipOffsetX, cy, scale, 1);
-    drawVectorHand(g, w / 2 + gap / 2 + tipOffsetX, cy, scale, -1);
-  }
+  const { canvas, box } = art;
+  // Edge to edge: the forearms run off both sides of the viewport.
+  const targetW = w * (mobile ? 1.15 : 1.06);
+  const s = targetW / box.w;
+  const dw = box.w * s;
+  const dh = box.h * s;
+  // Rest on the bottom edge, leaving room for the hint line under the hands.
+  const bottom = h - (mobile ? 16 : BOTTOM_GAP);
+  g.drawImage(canvas, box.x, box.y, box.w, box.h, w / 2 - dw / 2, bottom - dh, dw, dh);
 
   const d = g.getImageData(0, 0, off.width, off.height).data;
   const lum = new Float32Array(cols * rows);
@@ -263,7 +212,7 @@ export function AsciiHands({ className }: { className?: string }) {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas!.width = w * dpr;
       canvas!.height = h * dpr;
-      geo = buildGeometry(w, h, art);
+      geo = art ? buildGeometry(w, h, art) : null;
       if (reduced) draw();
     }
 
@@ -412,11 +361,12 @@ export function AsciiHands({ className }: { className?: string }) {
       if (visible) kick();
     });
 
-    // The artwork arrives asynchronously; until then the vector fallback is shown.
+    // The artwork arrives asynchronously; the canvas stays empty until then and fades in.
     const img = new Image();
     img.onload = () => {
       art = analyse(img);
       resize();
+      canvas.style.opacity = "1";
     };
     img.src = ART_SRC;
 
@@ -438,5 +388,5 @@ export function AsciiHands({ className }: { className?: string }) {
     };
   }, []);
 
-  return <canvas ref={ref} aria-hidden="true" className={className} />;
+  return <canvas ref={ref} aria-hidden="true" className={className} style={{ opacity: 0, transition: "opacity 600ms ease-out" }} />;
 }

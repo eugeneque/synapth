@@ -60,11 +60,30 @@ export interface PersonSummary extends AuthorRef {
   state: FriendState;
 }
 
+/** Emoji reactions a post accepts, in picker order. Anything else is rejected by the store. */
+export const POST_REACTIONS = ["👍", "❤️", "🔥", "🚀", "🎉", "🤯", "👀"] as const;
+export type PostReactionEmoji = (typeof POST_REACTIONS)[number];
+
+/** One emoji's tally on a post; `mine` — the viewer left it. Only emojis with a count > 0 are listed, in picker order. */
+export interface ReactionCount {
+  emoji: PostReactionEmoji;
+  count: number;
+  mine: boolean;
+}
+
+export interface PostReaction {
+  postId: string;
+  userId: string;
+  emoji: PostReactionEmoji;
+  createdAt: string;
+}
+
 export interface Post {
   id: string;
   author: AuthorRef;
   body: string;
   commentCount: number;
+  reactions: ReactionCount[];
   createdAt: string;
 }
 

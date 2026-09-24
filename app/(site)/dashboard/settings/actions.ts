@@ -16,7 +16,7 @@ export async function saveProfile(input: ProfileUpdate): Promise<SaveProfileResu
     enforceRateLimit("write", `user:${user.id}`);
     const profile = await updateProfile(user.id, input);
     await updateSession({ user: { name: profile.name, handle: profile.handle } });
-    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/settings");
     revalidatePath(`/u/${profile.handle}`);
     return { ok: true, profile };
   } catch (err) {

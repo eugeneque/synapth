@@ -189,7 +189,7 @@ export default async function AuthorPage({ params }: Params) {
         {sorted.map((s) => (
           <SkillCard key={s.id} skill={s} />
         ))}
-        <Link href="/dashboard#publish" className="group flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card/40 p-6 text-center transition-colors hover:border-synapse/50 hover:bg-card">
+        <Link href="/dashboard/developer#publish" className="group flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card/40 p-6 text-center transition-colors hover:border-synapse/50 hover:bg-card">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface text-muted-foreground transition-colors group-hover:border-synapse/40 group-hover:text-synapse">
             <Plus className="h-5 w-5" />
           </span>

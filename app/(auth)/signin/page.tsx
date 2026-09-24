@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SignInPage() {
   const session = await auth();
-  if (session?.user) redirect("/dashboard");
+  if (session?.user) redirect("/dashboard/settings");
   const indexed = (await skillRepository.all()).length;
   return (
     <Suspense>
