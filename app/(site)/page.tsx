@@ -41,7 +41,7 @@ export default async function HomePage() {
       <section data-pixel-glow className="relative overflow-hidden border-b border-border">
         <AsciiHands className="absolute inset-0 h-full w-full" />
 
-        <div className="container relative flex min-h-[780px] flex-col items-center justify-start pt-12 text-center md:min-h-[840px] md:pt-24">
+        <div className="container relative flex min-h-[780px] flex-col items-center justify-start pt-12 text-center md:min-h-[max(840px,calc(360px_+_34vw))] md:pt-24">
           <div className="pill mb-6 h-8 gap-3 px-4">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-synapse opacity-75" />

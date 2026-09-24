@@ -15,13 +15,14 @@
 import { z } from "zod";
 import { prisma, hasDatabase } from "@/cortex/db";
 import { getAuthorRefs } from "@/cortex/account";
-import { seedComments, seedImpulses, seedPosts, seedWatches } from "@/cortex/seed";
+import { seedComments, seedImpulses, seedPosts, seedReactions, seedWatches } from "@/cortex/seed";
 import { hasRecent, notify, notifyMany } from "@/cortex/notifications";
 import { followerIds } from "@/cortex/friends";
-import { COMMENT_MAX_LENGTH, POST_MAX_LENGTH, type AuthorRef, type Comment, type CommentTargetKind, type Impulse, type Post, type SkillWatch } from "@/types/social";
+import { COMMENT_MAX_LENGTH, POST_MAX_LENGTH, POST_REACTIONS, type AuthorRef, type Comment, type CommentTargetKind, type Impulse, type Post, type PostReaction, type PostReactionEmoji, type ReactionCount, type SkillWatch } from "@/types/social";
 
 export const postBodySchema = z.string().trim().min(1).max(POST_MAX_LENGTH);
 export const commentBodySchema = z.string().trim().min(1).max(COMMENT_MAX_LENGTH);
+export const reactionSchema = z.enum(POST_REACTIONS);
 
 export class SelfImpulseError extends Error {
   status = 400 as const;
@@ -70,10 +71,11 @@ interface MemoryStore {
   posts: PostRow[];
   comments: CommentRow[];
   watches: SkillWatch[];
+  reactions: PostReaction[];
 }
 
-const g = globalThis as unknown as { __synapthSocial_v1?: MemoryStore };
-const mem: MemoryStore = g.__synapthSocial_v1 ?? (g.__synapthSocial_v1 = { impulses: [...seedImpulses], posts: [...seedPosts], comments: [...seedComments], watches: [...seedWatches] });
+const g = globalThis as unknown as { __synapthSocial_v2?: MemoryStore };
+const mem: MemoryStore = g.__synapthSocial_v2 ?? (g.__synapthSocial_v2 = { impulses: [...seedImpulses], posts: [...seedPosts], comments: [...seedComments], watches: [...seedWatches], reactions: [...seedReactions] });
 
 const newId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 const now = () => new Date().toISOString();
@@ -139,10 +141,10 @@ export async function toggleImpulse(fromId: string, toId: string): Promise<Impul
 // Posts
 // ---------------------------------------------------------------------------
 
-async function hydratePosts(list: PostRow[]): Promise<Post[]> {
-  const authors = await attachAuthors(list);
-  const counts = await commentCounts("post", list.map((p) => p.id));
-  return list.map((p) => ({ id: p.id, author: authors.get(p.authorId) ?? unknownAuthor(p.authorId), body: p.body, commentCount: counts.get(p.id) ?? 0, createdAt: p.createdAt }));
+async function hydratePosts(list: PostRow[], viewerId?: string | null): Promise<Post[]> {
+  const ids = list.map((p) => p.id);
+  const [authors, counts, reactions] = await Promise.all([attachAuthors(list), commentCounts("post", ids), reactionCounts(ids, viewerId)]);
+  return list.map((p) => ({ id: p.id, author: authors.get(p.authorId) ?? unknownAuthor(p.authorId), body: p.body, commentCount: counts.get(p.id) ?? 0, reactions: reactions.get(p.id) ?? [], createdAt: p.createdAt }));
 }
 
 /**
@@ -165,22 +167,22 @@ export async function createPost(authorId: string, rawBody: string): Promise<Pos
   return (await hydratePosts([row]))[0];
 }
 
-export async function getPost(id: string): Promise<Post | null> {
+export async function getPost(id: string, viewerId?: string | null): Promise<Post | null> {
   if (!hasDatabase) {
     const row = mem.posts.find((p) => p.id === id);
-    return row ? (await hydratePosts([row]))[0] : null;
+    return row ? (await hydratePosts([row], viewerId))[0] : null;
   }
   const row = await prisma.post.findUnique({ where: { id } });
-  return row ? (await hydratePosts([{ id: row.id, authorId: row.authorId, body: row.body, createdAt: row.createdAt.toISOString() }]))[0] : null;
+  return row ? (await hydratePosts([{ id: row.id, authorId: row.authorId, body: row.body, createdAt: row.createdAt.toISOString() }], viewerId))[0] : null;
 }
 
-/** Newest first. */
-export async function listPosts(authorId: string, limit = 20): Promise<Post[]> {
+/** Newest first. `viewerId` marks the reactions the viewer left. */
+export async function listPosts(authorId: string, { limit = 20, viewerId = null }: { limit?: number; viewerId?: string | null } = {}): Promise<Post[]> {
   if (!hasDatabase) {
-    return hydratePosts(mem.posts.filter((p) => p.authorId === authorId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit));
+    return hydratePosts(mem.posts.filter((p) => p.authorId === authorId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit), viewerId);
   }
   const rows = await prisma.post.findMany({ where: { authorId }, orderBy: { createdAt: "desc" }, take: limit });
-  return hydratePosts(rows.map((r) => ({ id: r.id, authorId: r.authorId, body: r.body, createdAt: r.createdAt.toISOString() })));
+  return hydratePosts(rows.map((r) => ({ id: r.id, authorId: r.authorId, body: r.body, createdAt: r.createdAt.toISOString() })), viewerId);
 }
 
 /** Authors delete their own posts (`moderator` = holder of `content.moderate`: anyone's); the post's comments go with it. */
@@ -191,12 +193,52 @@ export async function deletePost(userId: string, postId: string, { moderator = f
     if (mem.posts[i].authorId !== userId && !moderator) throw new ForbiddenError();
     mem.posts.splice(i, 1);
     mem.comments = mem.comments.filter((c) => !(c.targetKind === "post" && c.targetId === postId));
+    mem.reactions = mem.reactions.filter((r) => r.postId !== postId);
     return;
   }
   const row = await prisma.post.findUnique({ where: { id: postId }, select: { authorId: true } });
   if (!row) throw new NotFoundError("Post not found");
   if (row.authorId !== userId && !moderator) throw new ForbiddenError();
   await prisma.$transaction([prisma.comment.deleteMany({ where: { targetKind: "post", targetId: postId } }), prisma.post.delete({ where: { id: postId } })]);
+}
+
+// ---------------------------------------------------------------------------
+// Reactions
+// ---------------------------------------------------------------------------
+
+/** Per post: emojis with at least one reaction, in `POST_REACTIONS` order. */
+export async function reactionCounts(postIds: string[], viewerId?: string | null): Promise<Map<string, ReactionCount[]>> {
+  const out = new Map<string, ReactionCount[]>();
+  if (!postIds.length) return out;
+  let rows: { postId: string; userId: string; emoji: string }[];
+  if (!hasDatabase) rows = mem.reactions.filter((r) => postIds.includes(r.postId));
+  else rows = await prisma.postReaction.findMany({ where: { postId: { in: postIds } }, select: { postId: true, userId: true, emoji: true } });
+  for (const id of postIds) {
+    const mine = rows.filter((r) => r.postId === id);
+    const list = POST_REACTIONS.map((emoji) => {
+      const hits = mine.filter((r) => r.emoji === emoji);
+      return { emoji, count: hits.length, mine: Boolean(viewerId) && hits.some((r) => r.userId === viewerId) };
+    }).filter((r) => r.count > 0);
+    if (list.length) out.set(id, list);
+  }
+  return out;
+}
+
+/** Adds or removes the user's `emoji` on a post and returns the post's fresh tallies. No notification: reactions are too cheap to ping for. */
+export async function toggleReaction(userId: string, postId: string, rawEmoji: string): Promise<ReactionCount[]> {
+  const emoji: PostReactionEmoji = reactionSchema.parse(rawEmoji);
+  if (!hasDatabase) {
+    if (!mem.posts.some((p) => p.id === postId)) throw new NotFoundError("Post not found");
+    const i = mem.reactions.findIndex((r) => r.postId === postId && r.userId === userId && r.emoji === emoji);
+    if (i >= 0) mem.reactions.splice(i, 1);
+    else mem.reactions.push({ postId, userId, emoji, createdAt: now() });
+  } else {
+    if (!(await prisma.post.findUnique({ where: { id: postId }, select: { id: true } }))) throw new NotFoundError("Post not found");
+    const key = { postId_userId_emoji: { postId, userId, emoji } };
+    if (await prisma.postReaction.findUnique({ where: key, select: { postId: true } })) await prisma.postReaction.delete({ where: key });
+    else await prisma.postReaction.create({ data: { postId, userId, emoji } });
+  }
+  return (await reactionCounts([postId], userId)).get(postId) ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -363,4 +405,5 @@ export function resetSocialForTests() {
   mem.posts.length = 0;
   mem.comments.length = 0;
   mem.watches.length = 0;
+  mem.reactions.length = 0;
 }

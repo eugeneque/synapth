@@ -125,7 +125,7 @@ export function SettingsForm({ profile, catalogue, verification, verified }: Pro
           </p>
           <p className="stat-value cursor">{catalogue.published}</p>
           <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{t("settings.rail.catalogueHint")}</p>
-          <Link href="/dashboard#publish" className="label-mono-sm mt-3 inline-block text-synapse hover:underline">
+          <Link href="/dashboard/developer#publish" className="label-mono-sm mt-3 inline-block text-synapse hover:underline">
             {t("settings.rail.publish")} →
           </Link>
         </div>
@@ -270,7 +270,7 @@ export function SettingsForm({ profile, catalogue, verification, verified }: Pro
               <Row k={t("settings.session.email")} v={profile.email ?? "—"} />
               <Row k={t("settings.session.id")} v={profile.id} />
               <Row k={t("settings.session.strategy")} v="jwt · 30d" />
-              <Row k={t("settings.session.keys")} v={t("settings.session.keysValue")} link="/dashboard#keys" />
+              <Row k={t("settings.session.keys")} v={t("settings.session.keysValue")} link="/dashboard/developer#keys" />
             </dl>
             <SignOutButton label={t("settings.session.signOut")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-danger/30 px-4 font-mono text-[11px] uppercase tracking-[0.14em] text-danger transition-colors hover:bg-danger/10 disabled:opacity-60">
               <LogOut className="h-4 w-4" /> {t("settings.session.signOut")}

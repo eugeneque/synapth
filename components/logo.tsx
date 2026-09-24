@@ -1,15 +1,11 @@
-/** Two neurons, one synapse — the Synapth mark, on the pixel grid. */
+/* eslint-disable @next/next/no-img-element -- tiny static brand assets; next/image adds nothing here. */
+
+/** The Synapth mark (four nodes, one synapse) — square, sized by `className`. */
 export function Logo({ className = "h-6 w-6" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" fill="none" className={className} aria-hidden="true" shapeRendering="crispEdges">
-      <rect x="4" y="6" width="8" height="8" className="fill-synapse" />
-      <rect x="20" y="18" width="8" height="8" className="fill-synapse" />
-      <rect x="12" y="12" width="2" height="2" fill="currentColor" />
-      <rect x="14" y="14" width="2" height="2" fill="currentColor" />
-      <rect x="16" y="16" width="2" height="2" fill="currentColor" />
-      <rect x="18" y="16" width="2" height="2" fill="currentColor" fillOpacity="0.5" />
-      <rect x="4" y="18" width="2" height="8" fill="currentColor" fillOpacity="0.3" />
-      <rect x="26" y="6" width="2" height="8" fill="currentColor" fillOpacity="0.3" />
-    </svg>
-  );
+  return <img src="/logo-mark.png" alt="" aria-hidden="true" width={256} height={256} className={`object-contain ${className}`} />;
+}
+
+/** Mark + wordmark lockup; height comes from `className`, width follows the aspect ratio. */
+export function LogoWordmark({ className = "h-7" }: { className?: string }) {
+  return <img src="/logo.png" alt="Synapth" width={469} height={96} className={`w-auto ${className}`} />;
 }

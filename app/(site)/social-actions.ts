@@ -14,9 +14,9 @@ import { enforceRateLimit, type RateLimitName } from "@/cortex/rate-limit";
 import { evaluateBadges } from "@/cortex/badges";
 import { hasPermission } from "@/cortex/roles";
 import { skillRepository } from "@/cortex/repository";
-import { addComment, createPost, deleteComment, deletePost, toggleImpulse, toggleWatch, type ImpulseSummary, type WatchSummary } from "@/cortex/social";
+import { addComment, createPost, deleteComment, deletePost, toggleImpulse, toggleReaction, toggleWatch, type ImpulseSummary, type WatchSummary } from "@/cortex/social";
 import { toggleFollow } from "@/cortex/friends";
-import type { Comment, FriendState, Post } from "@/types/social";
+import type { Comment, FriendState, Post, ReactionCount } from "@/types/social";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -79,6 +79,14 @@ export async function removePost(postId: string, handle: string): Promise<Action
     await deletePost(user.id, postId, { moderator: await hasPermission(user.id, "content.moderate") });
     revalidatePath(`/u/${handle}`);
     return null;
+  });
+}
+
+/** Toggle the viewer's emoji on a post; returns the post's fresh tallies. */
+export async function reactToPost(postId: string, emoji: string): Promise<ActionResult<ReactionCount[]>> {
+  return run(async () => {
+    const user = await requireUserWithin();
+    return toggleReaction(user.id, postId, emoji);
   });
 }
 

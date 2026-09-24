@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { LogOut, Plus, User } from "lucide-react";
+import { Heart, LogOut, User } from "lucide-react";
 import { auth } from "@/cortex/auth";
 import { getProfile } from "@/cortex/account";
 import { getI18n } from "@/cortex/locale";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SignOutButton } from "@/components/sign-out-button";
-import { Logo } from "@/components/logo";
+import { LogoWordmark } from "@/components/logo";
 import { NavLinks } from "@/components/nav-links";
 import { SearchTrigger } from "@/components/search-trigger";
 import { MobileNav } from "@/components/mobile-nav";
@@ -20,11 +20,6 @@ export async function SiteHeader() {
 
   const authActions = session?.user ? (
     <>
-      <Button asChild size="sm">
-        <Link href="/dashboard#publish">
-          <Plus /> {t("header.publish")}
-        </Link>
-      </Button>
       <SignOutButton label={t("header.signOut")} className={buttonVariants({ variant: "ghost", size: "icon-sm" })}>
         <LogOut />
       </SignOutButton>
@@ -55,9 +50,8 @@ export async function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="container flex h-16 items-center justify-between gap-4">
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <Logo className="h-6 w-6" />
-            Synapth
+          <Link href="/" aria-label="Synapth" className="flex items-center">
+            <LogoWordmark className="h-7" />
           </Link>
         </div>
 
@@ -68,6 +62,9 @@ export async function SiteHeader() {
           <LocaleSwitcher className="hidden md:inline-flex" />
           {session?.user ? (
             <>
+              <Link href="/favorites" aria-label={t("header.favorites")} title={t("header.favorites")} className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-low text-muted-foreground transition-all hover:border-foreground/40 hover:text-synapse active:scale-95">
+                <Heart className="h-4 w-4" />
+              </Link>
               <NotificationBell />
               <div className="hidden items-center gap-2 lg:flex">{authActions}</div>
               {profile?.handle ? <UserHoverCard handle={profile.handle}>{avatarLink}</UserHoverCard> : avatarLink}

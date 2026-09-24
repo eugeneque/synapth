@@ -7,22 +7,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Bell, Boxes, KeyRound, Rocket, ShieldCheck, ShieldEllipsis, SlidersHorizontal, UserRound } from "lucide-react";
+import { Bell, Rocket, ShieldCheck, ShieldEllipsis, SlidersHorizontal, UserRound } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
 import { can, type Permission, type UserRole } from "@/types/auth";
 
-const ITEMS: Array<{ key: UiKey; href: string | ((handle: string) => string); icon: typeof Activity; match: (p: string) => boolean; requires?: Permission; onlyWhenActive?: boolean }> = [
-  { key: "console.nav.overview", href: "/dashboard", icon: Activity, match: (p) => p === "/dashboard" },
-  { key: "console.nav.publish", href: "/dashboard#publish", icon: Rocket, match: () => false },
-  { key: "console.nav.keys", href: "/dashboard#keys", icon: KeyRound, match: () => false },
-  { key: "console.nav.skillsets", href: "/dashboard/skillsets", icon: Boxes, match: (p) => p.startsWith("/dashboard/skillsets") },
-  { key: "console.nav.moderation", href: "/dashboard/moderation", icon: ShieldCheck, match: (p) => p.startsWith("/dashboard/moderation"), requires: "catalog.moderate" },
-  { key: "console.nav.notifications", href: "/dashboard/notifications", icon: Bell, match: (p) => p.startsWith("/dashboard/notifications") },
+const ITEMS: Array<{ key: UiKey; href: string | ((handle: string) => string); icon: typeof Rocket; match: (p: string) => boolean; requires?: Permission }> = [
   { key: "console.nav.settings", href: "/dashboard/settings", icon: SlidersHorizontal, match: (p) => p.startsWith("/dashboard/settings") },
-  // Admin tools are opened from settings ("Open admin panel"); the rail only lights up while inside.
-  { key: "console.nav.admin", href: "/dashboard/admin", icon: ShieldEllipsis, match: (p) => p.startsWith("/dashboard/admin"), requires: "admin.access", onlyWhenActive: true },
+  { key: "console.nav.publish", href: "/dashboard/developer", icon: Rocket, match: (p) => p.startsWith("/dashboard/developer") },
+  { key: "console.nav.notifications", href: "/dashboard/notifications", icon: Bell, match: (p) => p.startsWith("/dashboard/notifications") },
+  // Staff section: moderation queue + account verification (tabs inside).
+  { key: "console.nav.staff", href: "/dashboard/moderation", icon: ShieldCheck, match: (p) => p.startsWith("/dashboard/moderation") || p.startsWith("/dashboard/verification"), requires: "catalog.moderate" },
+  { key: "console.nav.admin", href: "/dashboard/admin", icon: ShieldEllipsis, match: (p) => p.startsWith("/dashboard/admin"), requires: "admin.access" },
   { key: "console.nav.profile", href: (handle) => `/u/${handle}`, icon: UserRound, match: () => false },
 ];
 
@@ -33,7 +30,7 @@ export function ConsoleNav({ store, handle, role, className }: { store: string; 
     <aside className={cn("flex flex-col justify-between gap-6", className)}>
       <nav aria-label={t("console.nav.label")} className="flex flex-col gap-1">
         <p className="label-mono-sm mb-2 tracking-[0.2em]">{t("console.nav.label")}</p>
-        {ITEMS.filter((item) => (!item.requires || can(role, item.requires)) && (!item.onlyWhenActive || item.match(pathname))).map((item) => {
+        {ITEMS.filter((item) => (!item.requires || can(role, item.requires))).map((item) => {
           const href = typeof item.href === "function" ? item.href(handle) : item.href;
           const active = item.match(pathname);
           const Icon = item.icon;

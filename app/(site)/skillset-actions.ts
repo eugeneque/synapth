@@ -38,7 +38,7 @@ async function requireUserWithin(limit: RateLimitName = "write") {
 function revalidateSet(slug: string) {
   revalidatePath(`/skillsets/${slug}`);
   revalidatePath("/search");
-  revalidatePath("/dashboard/skillsets");
+  revalidatePath("/favorites");
 }
 
 /** Creates a set (`id` null) or saves the author's edits; returns the slug to navigate to. */
@@ -56,7 +56,7 @@ export async function removeSkillset(id: string): Promise<SkillsetActionResult<n
     const user = await requireUserWithin();
     await deleteSkillset(user.id, id, { moderator: await hasPermission(user.id, "content.moderate") });
     revalidatePath("/search");
-    revalidatePath("/dashboard/skillsets");
+    revalidatePath("/favorites");
     return null;
   });
 }

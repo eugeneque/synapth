@@ -48,15 +48,16 @@ export function FriendTile({ person, state }: { person: AuthorRef; state?: Frien
     <div className="group relative flex items-center gap-3 rounded-xl border border-border bg-surface-lowest/60 p-2.5 pr-3 transition-colors hover:border-foreground/25">
       <Avatar author={person} size="md" className="rounded-lg" />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1">
           <Link href={`/u/${person.handle}`} className="truncate text-sm font-medium transition-colors after:absolute after:inset-0 after:content-[''] group-hover:text-synapse">
             {name}
           </Link>
-          {person.verified && <VerifiedMark size="sm" />}
+          {person.verified && <VerifiedMark size="sm" className="shrink-0" />}
         </div>
         <p className="truncate text-xs text-muted-foreground">@{person.handle}</p>
       </div>
-      {state && <FriendButton toId={person.id} handle={person.handle} name={name} initial={state} size="sm" className="relative z-10" />}
+      {/* Icon-only: in narrow grid cells a labelled pill used to squeeze the name to nothing and spill out of the tile. */}
+      {state && <FriendButton toId={person.id} handle={person.handle} name={name} initial={state} size="icon" className="relative z-10" />}
     </div>
   );
 }

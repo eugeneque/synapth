@@ -96,7 +96,7 @@ export function SkillsetEditor({ initial, seed = [], canDelete = false }: { init
         return;
       }
       toast({ tone: "success", title: t("skillset.editor.deleted"), body: initial.name });
-      router.push("/dashboard/skillsets");
+      router.push("/favorites");
       router.refresh();
     });
   }

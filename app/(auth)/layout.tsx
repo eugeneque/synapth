@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { LogoWordmark } from "@/components/logo";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { getI18n } from "@/cortex/locale";
 import { hasDatabase } from "@/cortex/db";
@@ -12,11 +12,9 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/70 bg-background/80 px-4 py-3.5 backdrop-blur-md sm:px-6">
         <Link href="/" className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card p-1">
-            <Logo className="h-full w-full" />
-          </span>
-          <span className="font-display flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground">
-            SYNAPTH <span className="label-mono-sm rounded-md border border-synapse/30 bg-synapse/10 px-1.5 py-0.5 text-synapse">{t("auth.gate")}</span>
+          <LogoWordmark className="h-7" />
+          <span className="flex items-center">
+            <span className="label-mono-sm rounded-md border border-synapse/30 bg-synapse/10 px-1.5 py-0.5 text-synapse">{t("auth.gate")}</span>
           </span>
         </Link>
         <div className="flex items-center gap-4 font-mono text-xs text-muted-foreground">

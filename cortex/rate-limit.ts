@@ -28,6 +28,10 @@ export interface RateLimitResult {
 export const RATE_LIMITS = {
   register: { limit: 5, windowMs: 60 * 60_000 },
   signin: { limit: 10, windowMs: 10 * 60_000 },
+  /** Confirmation emails: every hit is a real message sent, so per address and per IP. */
+  emailCode: { limit: 5, windowMs: 60 * 60_000 },
+  /** Code guesses per IP; the per-code budget lives with the code (EMAIL_CODE_MAX_ATTEMPTS). */
+  emailVerify: { limit: 20, windowMs: 15 * 60_000 },
   execute: { limit: 30, windowMs: 60_000 },
   publish: { limit: 20, windowMs: 60 * 60_000 },
   import: { limit: 10, windowMs: 10 * 60_000 },

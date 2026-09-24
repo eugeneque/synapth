@@ -137,18 +137,25 @@ export async function listRequests(userId: string): Promise<{ incoming: AuthorRe
   return { incoming: ordered(incoming, refs), outgoing: ordered(outgoing, refs) };
 }
 
+/** The viewer's relation to each of `ids` (friend lists on someone else's profile), from two queries. */
+export async function friendStates(ids: string[], viewerId: string | null | undefined): Promise<Record<string, FriendState>> {
+  if (!viewerId) return Object.fromEntries(ids.map((id) => [id, "anonymous" as const]));
+  const [mine, theirs] = await Promise.all([outgoingIds(viewerId), followerIds(viewerId)]);
+  return Object.fromEntries(
+    ids.map((id) => {
+      const out = mine.includes(id);
+      const back = theirs.includes(id);
+      const state: FriendState = id === viewerId ? "self" : out && back ? "friends" : out ? "requested" : back ? "incoming" : "none";
+      return [id, state];
+    }),
+  );
+}
+
 /** People search with the viewer's relation and friend count on every row. */
 export async function searchPeople(query: string, viewerId: string | null, limit = 40): Promise<PersonSummary[]> {
   const hits = await searchProfiles(query, limit);
-  const [mine, theirs] = viewerId ? await Promise.all([outgoingIds(viewerId), followerIds(viewerId)]) : [[], []];
-  return Promise.all(
-    hits.map(async (h) => {
-      const out = mine.includes(h.id);
-      const back = theirs.includes(h.id);
-      const state: FriendState = !viewerId ? "anonymous" : h.id === viewerId ? "self" : out && back ? "friends" : out ? "requested" : back ? "incoming" : "none";
-      return { ...h, friends: (await friendCounts(h.id)).friends, state };
-    }),
-  );
+  const states = await friendStates(hits.map((h) => h.id), viewerId);
+  return Promise.all(hits.map(async (h) => ({ ...h, friends: (await friendCounts(h.id)).friends, state: states[h.id] })));
 }
 
 /** Test helper for the in-memory store. */

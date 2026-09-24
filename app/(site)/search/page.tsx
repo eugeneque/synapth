@@ -84,7 +84,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               </Link>
             </Button>
             <Button asChild className="rounded-full">
-              <Link href="/dashboard#publish">
+              <Link href="/dashboard/developer#publish">
                 <PlusCircle /> {t("explore.register")}
               </Link>
             </Button>

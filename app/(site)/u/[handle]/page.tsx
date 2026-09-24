@@ -1,21 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Activity, Award, Bolt, Briefcase, Building2, Calendar, Code2, Github, Globe, Layers, MapPin, MessageSquare, Pencil, Plus, Search, ShieldCheck, UserPlus, Users } from "lucide-react";
+import { Activity, Award, Bolt, Briefcase, Building2, Calendar, Code2, Github, Globe, Layers, MapPin, MessageSquare, Pencil, Plus, ShieldCheck } from "lucide-react";
 import { skillRepository } from "@/cortex/repository";
 import { auth } from "@/cortex/auth";
 import { hasPermission } from "@/cortex/roles";
 import { getAuthorRef, getProfileByHandle } from "@/cortex/account";
 import { evaluateBadges, listBadges } from "@/cortex/badges";
 import { impulseSummary, listComments, listPosts } from "@/cortex/social";
-import { friendState, listFriends, listRequests } from "@/cortex/friends";
+import { friendState, friendStates, listFriends, listRequests } from "@/cortex/friends";
 import { getI18n } from "@/cortex/locale";
 import { ActivityHeatmap, HeatmapLegend, bucketActivity } from "@/components/activity-heatmap";
 import { BadgeList } from "@/components/badge-list";
 import { publicRole } from "@/types/auth";
 import { ImpulseButton } from "@/components/impulse-button";
 import { FriendButton } from "@/components/friend-button";
-import { FriendTile } from "@/components/person-card";
+import { FriendsCard } from "@/components/friends-card";
+import { ProfileMoreMenu, type ProfileMoreItem } from "@/components/profile-more-menu";
 import { CountUp } from "@/components/count-up";
 import { VerifiedMark } from "@/components/verified-mark";
 import { ProfileDetails } from "@/components/profile-details";
@@ -24,7 +25,7 @@ import { PostFeed } from "@/components/post-feed";
 import { SkillCard } from "@/components/skill-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatCompact } from "@/lib/utils";
 import type { Comment } from "@/types/social";
 import { safeExternalHref, safeImageSrc } from "@/lib/url-safety";
 
@@ -36,7 +37,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const [{ handle }, { t }] = await Promise.all([params, getI18n()]);
   const profile = await getProfileByHandle(decodeURIComponent(handle));
   if (!profile) return { title: t("nf.label") };
-  return { title: t("meta.profile.title", { name: profile.name || profile.handle, handle: profile.handle }), description: profile.bio || undefined };
+  return {
+    title: t("meta.profile.title", {
+      name: profile.name || profile.handle,
+      handle: profile.handle,
+    }),
+    description: profile.bio || undefined,
+  };
 }
 
 /** Public developer profile: identity from settings plus everything Cortex indexed under this handle. */
@@ -55,7 +62,7 @@ export default async function UserProfilePage({ params }: Params) {
   await evaluateBadges(profile.id);
   const [impulses, posts, badges, viewer, canModerate, friends, relation, requests] = await Promise.all([
     impulseSummary(profile.id, viewerId),
-    listPosts(profile.id),
+    listPosts(profile.id, { viewerId }),
     listBadges(profile.id),
     viewerId ? getAuthorRef(viewerId) : Promise.resolve(null),
     hasPermission(viewerId, "content.moderate"),
@@ -64,6 +71,12 @@ export default async function UserProfilePage({ params }: Params) {
     // Pending requests are the owner's business only; the friend list itself is public.
     isOwner ? listRequests(profile.id) : Promise.resolve(null),
   ]);
+  // Each friend row carries the viewer's own relation to that person (the owner sees "friends" everywhere).
+  const states = await friendStates(
+    friends.map((f) => f.id),
+    viewerId,
+  );
+  const friendRows = friends.map((f) => ({ ...f, state: states[f.id] }));
   const threads: Record<string, Comment[]> = Object.fromEntries(await Promise.all(posts.map(async (p) => [p.id, await listComments("post", p.id)] as const)));
 
   // A registered developer may also be a crawled GitHub owner under the same handle: merge both.
@@ -86,13 +99,75 @@ export default async function UserProfilePage({ params }: Params) {
   // Admins pass as plain users here; the developer flag is shown next to (or instead of) "user".
   const shownRole = publicRole(profile.role);
   const roleLabel = [shownRole !== "user" || !profile.developer ? t(`settings.role.${shownRole}`) : null, profile.developer ? t("settings.role.developer") : null].filter(Boolean).join(" · ");
-  const joined = new Intl.DateTimeFormat(locale, { month: "short", year: "numeric" }).format(new Date(profile.createdAt));
+  const joined = new Intl.DateTimeFormat(locale, {
+    month: "short",
+    year: "numeric",
+  }).format(new Date(profile.createdAt));
+  const headline = [profile.occupation ? t(`occupation.${profile.occupation}`) : null, profile.organization].filter(Boolean).join(" · ");
+  const links = [
+    profile.organization ? { key: "org", icon: <Building2 />, label: profile.organization } : null,
+    website
+      ? {
+          key: "site",
+          icon: <Globe />,
+          label: website.replace(/^https?:\/\//, "").replace(/\/$/, ""),
+          href: website,
+        }
+      : null,
+    githubOwner
+      ? {
+          key: "gh",
+          icon: <Github />,
+          label: `github.com/${githubOwner}`,
+          href: `https://github.com/${githubOwner}`,
+        }
+      : null,
+    repos.length > 0
+      ? {
+          key: "repos",
+          icon: <Layers />,
+          label: n("author.reposIndexed", repos.length),
+        }
+      : null,
+  ].filter((l) => l !== null);
+  const moreItems: ProfileMoreItem[] = [
+    ...(isOwner
+      ? [
+          {
+            href: "/dashboard/settings#identity",
+            label: t("profile.editCover"),
+            icon: "edit" as const,
+          },
+        ]
+      : []),
+    ...(githubOwner
+      ? [
+          {
+            href: `https://github.com/${githubOwner}`,
+            label: t("author.githubProfile"),
+            icon: "github" as const,
+            external: true,
+          },
+        ]
+      : []),
+    ...(skills.length > 0
+      ? [
+          {
+            href: `/search?tab=skills&author=${encodeURIComponent(searchAuthor)}`,
+            label: t("author.searchPublisher"),
+            icon: "search" as const,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div className="container space-y-6 py-8">
       <p className="label-mono flex flex-wrap items-center gap-2">
         <span className="text-synapse">/</span>
-        <Link href="/search?tab=skills" className="hover:text-foreground">{t("profile.crumb.community")}</Link>
+        <Link href="/search?tab=skills" className="hover:text-foreground">
+          {t("profile.crumb.community")}
+        </Link>
         <span className="text-border">/</span>
         <span>{t("profile.crumb.members")}</span>
         <span className="text-border">/</span>
@@ -101,186 +176,147 @@ export default async function UserProfilePage({ params }: Params) {
 
       {/* Cover + identity header. */}
       <section className="relative overflow-hidden rounded-xl border border-border bg-card">
-        <div className={cn("relative h-48 w-full overflow-hidden sm:h-56", !cover && "bg-gradient-to-r from-surface-lowest via-surface-low to-surface-lowest")}>
+        <div className={cn("relative h-44 w-full overflow-hidden sm:h-52", !cover && "bg-gradient-to-r from-surface-lowest via-surface-low to-surface-lowest")}>
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
           ) : (
             <div className="dot-matrix absolute inset-0 opacity-60" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
-          <div className="absolute right-4 top-4 flex items-center gap-2">
-            {repos.length > 0 && (
-              <Badge variant="chip" className="h-7 gap-2 bg-surface-lowest/70 px-3 backdrop-blur">
-                <Layers className="h-3.5 w-3.5 text-synapse" /> {n("author.reposIndexed", repos.length)}
-              </Badge>
-            )}
-            {isOwner && (
-              <Button asChild variant="mono" size="sm" className="h-7 bg-surface-lowest/70 backdrop-blur">
-                <Link href="/dashboard/settings#identity">
-                  <Pencil className="text-synapse" /> {t("profile.editCover")}
-                </Link>
-              </Button>
-            )}
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/10 to-transparent" />
+          {isOwner && (
+            <Button asChild variant="mono" size="sm" className="absolute right-4 top-4 h-7 bg-surface-lowest/70 backdrop-blur">
+              <Link href="/dashboard/settings#identity">
+                <Pencil className="text-synapse" /> {t("profile.editCover")}
+              </Link>
+            </Button>
+          )}
         </div>
 
-        <div className="relative z-10 -mt-14 px-6 pb-6 sm:-mt-16">
-          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-end">
-              <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border-2 border-foreground/20 bg-surface-lowest sm:h-28 sm:w-28">
-                {avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatar} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="font-display flex h-full w-full items-center justify-center bg-muted text-3xl font-medium">{name[0]?.toUpperCase()}</div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2.5">
+        <div className="relative z-10 -mt-16 px-6 pb-6 sm:-mt-20">
+          <div className="h-28 w-28 overflow-hidden rounded-xl border-4 border-card bg-surface-lowest shadow-xl sm:h-32 sm:w-32">
+            {avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="font-display flex h-full w-full items-center justify-center bg-muted text-4xl font-medium">{name[0]?.toUpperCase()}</div>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 max-w-3xl space-y-3">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
                   <h1 className="font-display text-3xl font-medium tracking-tight sm:text-4xl">{name}</h1>
                   {profile.verified && <VerifiedMark size="lg" />}
                   {verified > 0 && <ShieldCheck className="h-5 w-5 text-muted-foreground" aria-label={t("author.verifiedCreator")} />}
-                  {profile.occupation && (
-                    <Badge variant="synapse" className="h-6 gap-1.5 px-2.5">
-                      <Briefcase className="h-3 w-3" /> {t(`occupation.${profile.occupation}`)}
-                    </Badge>
-                  )}
-                  <span className="font-mono text-sm text-muted-foreground">@{profile.handle}</span>
-                  <a href="#friends" className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-lowest/70 px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
-                    <Users className="h-3.5 w-3.5" /> {n("friend.count", friends.length)}
-                  </a>
                 </div>
-                <p className={cn("max-w-2xl text-base leading-relaxed", profile.bio ? "text-foreground/90" : "text-muted-foreground")}>{profile.bio || t("profile.bioEmpty")}</p>
+                {headline && <p className="mt-1.5 text-base text-foreground/90">{headline}</p>}
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                  <span className="font-mono">@{profile.handle}</span>
+                  {profile.location && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5" /> {profile.location}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" /> {t("profile.memberSince", { date: joined })}
+                  </span>
+                </p>
+              </div>
+
+              <p className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+                <Count href="#friends" value={friends.length} label={n("profile.count.friends", friends.length)} />
+                <Count href="#posts" value={posts.length} label={n("profile.count.posts", posts.length)} />
+                <Count value={skills.length} label={n("profile.count.skills", skills.length)} />
+              </p>
+
+              <p className={cn("text-[15px] leading-relaxed", profile.bio ? "text-foreground/85" : "text-muted-foreground")}>{profile.bio || t("profile.bioEmpty")}</p>
+
+              <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                {isOwner ? (
+                  <Link href="/dashboard/settings" className="inline-flex h-10 items-center gap-2 rounded-full border border-synapse bg-synapse px-5 text-sm font-medium text-synapse-foreground shadow-glow transition-all duration-200 hover:-translate-y-px hover:shadow-glow-lg">
+                    <Pencil className="h-4 w-4" /> {t("author.editProfile")}
+                  </Link>
+                ) : (
+                  <FriendButton toId={profile.id} handle={profile.handle} name={name} initial={relation} />
+                )}
+                <ProfileMoreMenu items={moreItems} profilePath={`/u/${profile.handle}`} />
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <FriendButton toId={profile.id} handle={profile.handle} name={name} initial={relation} />
-              {isOwner && (
-                <Button asChild variant="mono">
-                  <Link href="/dashboard/settings">
-                    <Pencil className="text-synapse" /> {t("author.editProfile")}
-                  </Link>
-                </Button>
-              )}
-              {githubOwner && (
-                <Button asChild variant="mono">
-                  <a href={`https://github.com/${githubOwner}`} target="_blank" rel="noreferrer">
-                    <Github className="text-synapse" /> {t("author.githubProfile")}
-                  </a>
-                </Button>
-              )}
-              {skills.length > 0 && (
-                <Button asChild className="font-mono text-[11px] uppercase tracking-[0.14em]">
-                  <Link href={`/search?tab=skills&author=${encodeURIComponent(searchAuthor)}`}>
-                    <Search /> {t("author.searchPublisher")}
-                  </Link>
-                </Button>
-              )}
+
+            {links.length > 0 && (
+              <ul className="stagger flex shrink-0 flex-col gap-3 lg:min-w-52 lg:pt-2">
+                {links.map((l) => (
+                  <li key={l.key}>
+                    <LinkRow {...l} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-stretch">
+            <ImpulseButton toId={profile.id} handle={profile.handle} name={name} initial={impulses} viewer={!viewerId ? "anonymous" : isOwner ? "self" : "member"} className="h-auto min-h-16 shrink-0" />
+            <div className="grid flex-1 grid-cols-4 divide-x divide-border rounded-xl border border-border bg-surface-lowest/80 py-3">
+              <Stat value={skills.length} label={t("profile.stats.skills")} />
+              <Stat value={installs} label={t("profile.stats.installs")} />
+              <Stat value={stars} label={t("profile.stats.stars")} />
+              <Stat value={verified} label={t("profile.stats.verified")} />
             </div>
           </div>
 
-          <div className="mt-6 grid gap-6 border-t border-border pt-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-            <ProfileDetails
-              tabs={[
-                {
-                  id: "about",
-                  label: t("profile.about.title"),
-                  icon: <Briefcase className="h-3.5 w-3.5 text-synapse" />,
-                  content: (
-                    <dl className="stagger grid gap-x-6 gap-y-2.5 font-mono text-xs sm:grid-cols-2 lg:grid-cols-3">
-                      <Fact icon={<Briefcase />} k={t("profile.about.occupation")} v={profile.occupation ? t(`occupation.${profile.occupation}`) : "—"} />
-                      <Fact icon={<ShieldCheck />} k={t("profile.about.role")} v={roleLabel} />
-                      {profile.organization && <Fact icon={<Building2 />} k={t("profile.about.organization")} v={profile.organization} />}
-                      {profile.location && <Fact icon={<MapPin />} k={t("profile.about.location")} v={profile.location} />}
-                      {website && <Fact icon={<Globe />} k={t("profile.about.website")} v={website.replace(/^https?:\/\//, "").replace(/\/$/, "")} href={website} />}
-                      {githubOwner && <Fact icon={<Code2 />} k={t("profile.about.github")} v={`@${githubOwner}`} href={`https://github.com/${githubOwner}`} />}
-                      <Fact icon={<Calendar />} k={t("profile.about.joined")} v={joined} />
-                    </dl>
-                  ),
-                },
-                {
-                  id: "focus",
-                  label: t("profile.focus.title"),
-                  icon: <Bolt className="h-3.5 w-3.5 text-synapse" />,
-                  count: Object.keys(byCategory).length + languages.length,
-                  content:
-                    skills.length > 0 ? (
-                      <div className="stagger flex flex-wrap gap-1.5">
-                        {Object.entries(byCategory).map(([c, count]) => (
-                          <Badge key={c} variant="synapse" className="h-6 px-2 transition-transform hover:-translate-y-px">
-                            {count} {c}
-                          </Badge>
-                        ))}
-                        {languages.map((l) => (
-                          <Badge key={l} variant="chip" className="h-6 px-2 text-moss transition-transform hover:-translate-y-px">
-                            {l}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">{t("profile.skills.empty")}</p>
-                    ),
-                },
-                {
-                  id: "friends",
-                  label: t("profile.friends.title"),
-                  icon: <Users className="h-3.5 w-3.5 text-synapse" />,
-                  count: friends.length,
-                  content: (
-                    <div className="space-y-5">
-                      {requests && requests.incoming.length > 0 && (
-                        <FriendGroup title={t("profile.friends.incoming")} icon={<UserPlus className="h-3.5 w-3.5 text-synapse" />}>
-                          {requests.incoming.map((p) => (
-                            <FriendTile key={p.id} person={p} state="incoming" />
-                          ))}
-                        </FriendGroup>
-                      )}
-                      {friends.length > 0 ? (
-                        <FriendGroup title={requests?.incoming.length ? t("profile.friends.title") : null}>
-                          {friends.map((p) => (
-                            <FriendTile key={p.id} person={p} />
-                          ))}
-                        </FriendGroup>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          {isOwner ? t("profile.friends.emptyOwner") : t("profile.friends.empty", { name })}{" "}
-                          {isOwner && (
-                            <Link href="/search?tab=people" className="text-synapse hover:underline">
-                              {t("profile.friends.find")}
-                            </Link>
-                          )}
-                        </p>
-                      )}
-                      {requests && requests.outgoing.length > 0 && (
-                        <FriendGroup title={t("profile.friends.outgoing")}>
-                          {requests.outgoing.map((p) => (
-                            <FriendTile key={p.id} person={p} state="requested" />
-                          ))}
-                        </FriendGroup>
-                      )}
+          <ProfileDetails
+            className="mt-5"
+            tabs={[
+              {
+                id: "about",
+                label: t("profile.about.title"),
+                icon: <Briefcase className="h-3.5 w-3.5 text-synapse" />,
+                content: (
+                  <dl className="stagger grid gap-x-6 gap-y-2.5 font-mono text-xs sm:grid-cols-2 lg:grid-cols-3">
+                    <Fact icon={<Briefcase />} k={t("profile.about.occupation")} v={profile.occupation ? t(`occupation.${profile.occupation}`) : "—"} />
+                    <Fact icon={<ShieldCheck />} k={t("profile.about.role")} v={roleLabel} />
+                    {profile.organization && <Fact icon={<Building2 />} k={t("profile.about.organization")} v={profile.organization} />}
+                    {profile.location && <Fact icon={<MapPin />} k={t("profile.about.location")} v={profile.location} />}
+                    {website && <Fact icon={<Globe />} k={t("profile.about.website")} v={website.replace(/^https?:\/\//, "").replace(/\/$/, "")} href={website} />}
+                    {githubOwner && <Fact icon={<Code2 />} k={t("profile.about.github")} v={`@${githubOwner}`} href={`https://github.com/${githubOwner}`} />}
+                    <Fact icon={<Calendar />} k={t("profile.about.joined")} v={joined} />
+                  </dl>
+                ),
+              },
+              {
+                id: "focus",
+                label: t("profile.focus.title"),
+                icon: <Bolt className="h-3.5 w-3.5 text-synapse" />,
+                count: Object.keys(byCategory).length + languages.length,
+                content:
+                  skills.length > 0 ? (
+                    <div className="stagger flex flex-wrap gap-1.5">
+                      {Object.entries(byCategory).map(([c, count]) => (
+                        <Badge key={c} variant="synapse" className="h-6 px-2 transition-transform hover:-translate-y-px">
+                          {count} {c}
+                        </Badge>
+                      ))}
+                      {languages.map((l) => (
+                        <Badge key={l} variant="chip" className="h-6 px-2 text-moss transition-transform hover:-translate-y-px">
+                          {l}
+                        </Badge>
+                      ))}
                     </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">{t("profile.skills.empty")}</p>
                   ),
-                },
-                {
-                  id: "badges",
-                  label: t("profile.badges.title"),
-                  icon: <Award className="h-3.5 w-3.5 text-synapse" />,
-                  count: badges.length,
-                  content: badges.length > 0 ? <BadgeList badges={badges} t={t} className="stagger" /> : <p className="text-xs leading-relaxed text-muted-foreground">{t("profile.badge.none")}</p>,
-                },
-              ]}
-            />
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-              <ImpulseButton toId={profile.id} handle={profile.handle} name={name} initial={impulses} viewer={!viewerId ? "anonymous" : isOwner ? "self" : "member"} className="h-auto min-h-16 shrink-0" />
-              <div className="grid flex-1 grid-cols-4 divide-x divide-border rounded-xl border border-border bg-surface-lowest/80 py-3">
-                <Stat value={skills.length} label={t("profile.stats.skills")} />
-                <Stat value={installs} label={t("profile.stats.installs")} />
-                <Stat value={stars} label={t("profile.stats.stars")} />
-                <Stat value={verified} label={t("profile.stats.verified")} />
-              </div>
-            </div>
-          </div>
+              },
+              {
+                id: "badges",
+                label: t("profile.badges.title"),
+                icon: <Award className="h-3.5 w-3.5 text-synapse" />,
+                count: badges.length,
+                content: badges.length > 0 ? <BadgeList badges={badges} t={t} className="stagger" /> : <p className="text-xs leading-relaxed text-muted-foreground">{t("profile.badge.none")}</p>,
+              },
+            ]}
+          />
         </div>
       </section>
 
@@ -299,93 +335,117 @@ export default async function UserProfilePage({ params }: Params) {
         </nav>
       </div>
 
-      {/* Skills, posts, activity. */}
-      <div className="min-w-0 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Layers className="h-5 w-5 text-synapse" />
-            <h2 className="text-lg font-semibold tracking-tight">{t("profile.skills.title")}</h2>
-            <Badge variant="chip">{n("author.skillsCount", skills.length)}</Badge>
-          </div>
-          {skills.length > 0 && (
-            <Link href={`/search?tab=skills&author=${encodeURIComponent(searchAuthor)}`} className="label-mono-sm text-synapse hover:underline">
-              {t("profile.skills.all")}
-            </Link>
-          )}
-        </div>
-
-        {skills.length > 0 ? (
-          <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {sorted.map((s) => (
-              <SkillCard key={s.id} skill={s} />
-            ))}
-          </div>
-        ) : (
-          <div className="hatch flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card/40 p-10 text-center">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface text-muted-foreground">
-              <Layers className="h-5 w-5" />
-            </span>
-            <span className="text-lg font-semibold tracking-tight">{t("profile.skills.empty")}</span>
-            <span className="max-w-sm text-sm text-muted-foreground">{isOwner ? t("author.publishNewLead") : t("profile.skills.emptyLead")}</span>
-            {isOwner && (
-              <Button asChild variant="mono" size="sm" className="mt-1">
-                <Link href="/dashboard#publish">
-                  <Plus className="text-synapse" /> {t("author.publishNewCta")}
-                </Link>
-              </Button>
+      {/* Skills, posts, activity + the friends card on the side. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div className="min-w-0 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Layers className="h-5 w-5 text-synapse" />
+              <h2 className="text-lg font-semibold tracking-tight">{t("profile.skills.title")}</h2>
+              <Badge variant="chip">{n("author.skillsCount", skills.length)}</Badge>
+            </div>
+            {skills.length > 0 && (
+              <Link href={`/search?tab=skills&author=${encodeURIComponent(searchAuthor)}`} className="label-mono-sm text-synapse hover:underline">
+                {t("profile.skills.all")}
+              </Link>
             )}
           </div>
-        )}
 
-        <section id="posts" className="scroll-mt-24 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-synapse" />
-              <h2 className="text-lg font-semibold tracking-tight">{t("posts.title")}</h2>
+          {skills.length > 0 ? (
+            <div className="stagger grid gap-4 md:grid-cols-2">
+              {sorted.map((s) => (
+                <SkillCard key={s.id} skill={s} />
+              ))}
             </div>
-            <span className="label-mono-sm normal-case tracking-normal">{t("posts.meta", { handle: profile.handle })}</span>
-          </div>
-          <PostFeed handle={profile.handle} ownerId={profile.id} viewer={viewer} canModerate={canModerate} initialPosts={posts} initialComments={threads} />
-        </section>
+          ) : (
+            <div className="hatch flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card/40 p-10 text-center">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface text-muted-foreground">
+                <Layers className="h-5 w-5" />
+              </span>
+              <span className="text-lg font-semibold tracking-tight">{t("profile.skills.empty")}</span>
+              <span className="max-w-sm text-sm text-muted-foreground">{isOwner ? t("author.publishNewLead") : t("profile.skills.emptyLead")}</span>
+              {isOwner && (
+                <Button asChild variant="mono" size="sm" className="mt-1">
+                  <Link href="/dashboard/developer#publish">
+                    <Plus className="text-synapse" /> {t("author.publishNewCta")}
+                  </Link>
+                </Button>
+              )}
+            </div>
+          )}
 
-        <Panel
-          id="activity"
-          title={t("author.activity.title")}
-          meta={t("author.activity.meta", { n: activity.stats.total })}
-          icon={<Activity className="h-4 w-4 shrink-0 text-synapse" />}
-          actions={<HeatmapLegend less={t("author.activity.less")} more={t("author.activity.more")} />}
-          className="scroll-mt-24"
-          bodyClassName="p-5"
-          footer={
-            <>
-              <span>
-                {t("author.activity.current")} <span className="text-synapse">{n("author.activity.days", activity.stats.currentStreak)}</span>
-              </span>
-              <span>
-                {t("author.activity.longest")} <span className="text-foreground">{n("author.activity.days", activity.stats.longestStreak)}</span>
-                <span className="mx-3 text-border">·</span>
-                {t("author.activity.active")} <span className="text-foreground">{n("author.activity.days", activity.stats.activeDays)}</span>
-              </span>
-            </>
-          }
-        >
-          <ActivityHeatmap cells={activity.cells} months={activity.months} />
-        </Panel>
+          <section id="posts" className="scroll-mt-24 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-synapse" />
+                <h2 className="text-lg font-semibold tracking-tight">{t("posts.title")}</h2>
+              </div>
+              <span className="label-mono-sm normal-case tracking-normal">{t("posts.meta", { handle: profile.handle })}</span>
+            </div>
+            <PostFeed handle={profile.handle} ownerId={profile.id} viewer={viewer} canModerate={canModerate} initialPosts={posts} initialComments={threads} />
+          </section>
+
+          <Panel
+            id="activity"
+            title={t("author.activity.title")}
+            meta={t("author.activity.meta", { n: activity.stats.total })}
+            icon={<Activity className="h-4 w-4 shrink-0 text-synapse" />}
+            actions={<HeatmapLegend less={t("author.activity.less")} more={t("author.activity.more")} />}
+            className="scroll-mt-24"
+            bodyClassName="p-5"
+            footer={
+              <>
+                <span>
+                  {t("author.activity.current")} <span className="text-synapse">{n("author.activity.days", activity.stats.currentStreak)}</span>
+                </span>
+                <span>
+                  {t("author.activity.longest")} <span className="text-foreground">{n("author.activity.days", activity.stats.longestStreak)}</span>
+                  <span className="mx-3 text-border">·</span>
+                  {t("author.activity.active")} <span className="text-foreground">{n("author.activity.days", activity.stats.activeDays)}</span>
+                </span>
+              </>
+            }
+          >
+            <ActivityHeatmap cells={activity.cells} months={activity.months} />
+          </Panel>
+        </div>
+        <aside className="lg:sticky lg:top-24">
+          <FriendsCard friends={friendRows} incoming={requests?.incoming} outgoing={requests?.outgoing} isOwner={isOwner} name={name} />
+        </aside>
       </div>
     </div>
   );
 }
 
-function FriendGroup({ title, icon, children }: { title: string | null; icon?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2.5">
-      {title && (
-        <p className="label-mono-sm flex items-center gap-1.5">
-          {icon} {title}
-        </p>
-      )}
-      <div className="stagger grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
-    </div>
+function Count({ value, label, href }: { value: number; label: string; href?: string }) {
+  const body = (
+    <>
+      <span className="font-semibold tabular-nums text-synapse">{formatCompact(value)}</span> <span className="text-muted-foreground">{label}</span>
+    </>
+  );
+  return href ? (
+    <a href={href} className="transition-opacity hover:opacity-80">
+      {body}
+    </a>
+  ) : (
+    <span>{body}</span>
+  );
+}
+
+/** Right-hand identity links in the header: organization, site, GitHub, indexed repos. */
+function LinkRow({ icon, label, href }: { icon: React.ReactNode; label: string; href?: string }) {
+  const inner = (
+    <>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-lowest text-synapse transition-colors group-hover/link:border-synapse/40 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>
+      <span className="truncate text-sm font-medium">{label}</span>
+    </>
+  );
+  return href ? (
+    <a href={href} target="_blank" rel="noreferrer nofollow" className="group/link flex min-w-0 items-center gap-3 transition-colors hover:text-synapse">
+      {inner}
+    </a>
+  ) : (
+    <span className="group/link flex min-w-0 items-center gap-3">{inner}</span>
   );
 }
 

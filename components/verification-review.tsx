@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * VerificationReview — the admin's controls on /dashboard/admin/verification/[id]:
+ * VerificationReview — the admin's controls on /dashboard/verification/[id]:
  * take the request into review (the applicant sees it live), then approve or
  * reject with a reason. Approval re-runs the skills scan on the server.
  */

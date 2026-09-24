@@ -1,6 +1,6 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { addComment, createPost, deleteComment, deletePost, impulseSummary, listComments, listPosts, notifySkillUpdated, resetSocialForTests, socialSignals, toggleImpulse, toggleWatch, watchSummary, SelfImpulseError, ForbiddenError } from "@/cortex/social";
+import { addComment, createPost, deleteComment, deletePost, impulseSummary, listComments, listPosts, notifySkillUpdated, resetSocialForTests, socialSignals, toggleImpulse, toggleReaction, reactionCounts, NotFoundError, toggleWatch, watchSummary, SelfImpulseError, ForbiddenError } from "@/cortex/social";
 import { countByChannel, dismiss, listNotifications, markRead, pollNotifications, resetNotificationsForTests } from "@/cortex/notifications";
 import { evaluateBadges, grantBadge, listBadges, resetBadgesForTests, BadgeGrantError } from "@/cortex/badges";
 import { NOTIFICATION_CHANNEL } from "@/types/social";
@@ -33,6 +33,32 @@ test("impulses: one per pair, toggled, never to yourself, and the receiver is no
   // Withdrawing is silent, and re-firing the same day does not ping again.
   await toggleImpulse(ACME, DEMO);
   assert.equal((await listNotifications(DEMO)).total, 1);
+});
+
+test("reactions: toggled per (user, emoji), only the allowed set, tallied in palette order, gone with the post", async () => {
+  const post = await createPost(DEMO, "Reactions please");
+  await assert.rejects(toggleReaction(KITE, post.id, "💩"));
+  await assert.rejects(toggleReaction(KITE, "post_missing", "👍"), NotFoundError);
+
+  await toggleReaction(KITE, post.id, "🔥");
+  await toggleReaction(ACME, post.id, "🔥");
+  const mine = await toggleReaction(KITE, post.id, "👍");
+  assert.deepEqual(mine, [
+    { emoji: "👍", count: 1, mine: true },
+    { emoji: "🔥", count: 2, mine: true },
+  ]);
+  assert.deepEqual((await listPosts(DEMO, { viewerId: ACME }))[0].reactions, [
+    { emoji: "👍", count: 1, mine: false },
+    { emoji: "🔥", count: 2, mine: true },
+  ]);
+
+  // Toggling again withdraws; a zero tally disappears from the list.
+  assert.deepEqual(await toggleReaction(KITE, post.id, "👍"), [{ emoji: "🔥", count: 2, mine: true }]);
+  // Reactions are not worth a notification.
+  assert.equal((await listNotifications(DEMO)).total, 0);
+
+  await deletePost(DEMO, post.id);
+  assert.equal((await reactionCounts([post.id])).size, 0);
 });
 
 test("posts and comments: threads attach to posts, the post author is notified, only authors delete", async () => {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { LogoWordmark } from "@/components/logo";
 import { getI18n } from "@/cortex/locale";
 import pkg from "@/package.json";
 
@@ -7,7 +7,7 @@ const LINKS = [
   { key: "footer.api", href: "/faq#agents" },
   { key: "footer.registry", href: "/search?tab=skills" },
   { key: "footer.security", href: "/faq#install" },
-  { key: "footer.publish", href: "/dashboard#publish" },
+  { key: "footer.publish", href: "/dashboard/developer#publish" },
 ] as const;
 
 /** Compact footer: version, API and scanner versions, mono link row. */
@@ -17,8 +17,8 @@ export async function SiteFooter() {
     <footer className="mt-24 border-t border-border bg-surface-lowest/80 backdrop-blur-sm">
       <div className="container flex flex-col gap-4 py-6 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <Link href="/" className="inline-flex items-center gap-2 font-semibold tracking-tight">
-            <Logo className="h-4 w-4" /> Synapth
+          <Link href="/" aria-label="Synapth" className="inline-flex items-center">
+            <LogoWordmark className="h-5" />
           </Link>
           <span className="hidden h-3 w-px bg-border sm:block" />
           <span className="label-mono-sm inline-flex items-center gap-2 text-foreground">
