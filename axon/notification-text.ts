@@ -30,6 +30,8 @@ export function describeNotification(n: Notification, { t, n: plural }: Pick<Tra
       return { ...withActor("notif.friendAccepted.title"), body: t("notif.friendAccepted.body"), cta: t("notif.cta.profile"), href: n.actor ? `/u/${n.actor.handle}` : null };
     case "post.new":
       return { ...withActor("notif.postNew.title"), body: s.excerpt, cta: t("notif.cta.post"), href: n.actor ? `/u/${n.actor.handle}#post-${s.postId}` : null };
+    case "post.mention":
+      return { ...withActor("notif.postMention.title"), body: s.excerpt, cta: t("notif.cta.post"), href: n.actor ? `/u/${n.actor.handle}#post-${s.postId}` : null };
     case "comment.post":
       return { ...withActor("notif.commentPost.title"), body: s.excerpt, cta: t("notif.cta.post"), href: viewerHandle ? `/u/${viewerHandle}#post-${s.postId}` : null };
     case "comment.skill":

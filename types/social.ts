@@ -78,10 +78,35 @@ export interface PostReaction {
   createdAt: string;
 }
 
+/** One run of highlighted code; `cls` is the highlight.js scope class list (`hljs-keyword` …), absent for plain text. */
+export interface CodeToken {
+  text: string;
+  cls?: string;
+}
+
+/** A piece of a rendered text block. Mentions are only emitted for handles that belong to a real account. */
+export type PostInline = { kind: "text"; text: string } | { kind: "code"; text: string } | { kind: "mention"; user: AuthorRef };
+
+/**
+ * A post body, parsed and resolved on the server (`cortex/post-content.ts`):
+ * text with mentions, and code blocks already tokenized so the client ships
+ * no highlighter. `auto` — the language was guessed, not written on the fence.
+ */
+export type PostBlock = { kind: "text"; parts: PostInline[] } | { kind: "code"; lang: string; label: string; auto: boolean; code: string; tokens: CodeToken[] };
+
+/** A photo of the post's carousel, served by `GET POST_IMAGE_PATH<id>`. */
+export interface PostImage {
+  id: string;
+  url: string;
+}
+
 export interface Post {
   id: string;
   author: AuthorRef;
+  /** Raw source as typed (code fences, @handles); `content` is what to render. */
   body: string;
+  content: PostBlock[];
+  images: PostImage[];
   commentCount: number;
   reactions: ReactionCount[];
   createdAt: string;
@@ -106,14 +131,21 @@ export interface SkillWatch {
   createdAt: string;
 }
 
-export const POST_MAX_LENGTH = 2000;
+export const POST_MAX_LENGTH = 4000;
+/** Photos per post (the carousel). */
+export const POST_MAX_IMAGES = 10;
+/** Each photo is scaled to fit this box in the browser; the server re-checks the byte ceiling. */
+export const POST_IMAGE = { width: 1600, height: 1600, maxBytes: 900 * 1024 } as const;
+export const POST_IMAGE_PATH = "/api/v1/posts/images/";
+/** Mentioned people notified per post; the rest still render as links. */
+export const POST_MAX_MENTION_NOTIFY = 10;
 export const COMMENT_MAX_LENGTH = 1000;
 
 // ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 
-export const NOTIFICATION_KINDS = ["impulse", "friend.request", "friend.accepted", "post.new", "comment.post", "comment.skill", "skill.updated", "moderation.requested", "moderation.decided", "skillset.updated", "skillset.verified", "verification.requested", "verification.updated", "badge", "system"] as const;
+export const NOTIFICATION_KINDS = ["impulse", "friend.request", "friend.accepted", "post.new", "post.mention", "comment.post", "comment.skill", "skill.updated", "moderation.requested", "moderation.decided", "skillset.updated", "skillset.verified", "verification.requested", "verification.updated", "badge", "system"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /** Drawer filter tabs; each kind belongs to exactly one channel. */
@@ -123,6 +155,7 @@ export const NOTIFICATION_CHANNEL: Record<NotificationKind, NotificationChannel>
   "friend.request": "social",
   "friend.accepted": "social",
   "post.new": "social",
+  "post.mention": "social",
   "comment.post": "social",
   "comment.skill": "skills",
   "skill.updated": "skills",
@@ -145,6 +178,8 @@ export type NotificationSubject =
   | { kind: "friend.accepted" }
   /** To everyone following the author (friends and pending senders alike). */
   | { kind: "post.new"; postId: string; excerpt: string }
+  /** To everyone @mentioned in a post (instead of `post.new`, if they also follow the author). */
+  | { kind: "post.mention"; postId: string; excerpt: string }
   | { kind: "comment.post"; postId: string; commentId: string; excerpt: string }
   | { kind: "comment.skill"; skillId: string; slug: string; skillName: string; commentId: string; excerpt: string }
   | { kind: "skill.updated"; skillId: string; slug: string; skillName: string; version: string; previousVersion: string | null; verified: boolean }

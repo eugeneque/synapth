@@ -2,22 +2,26 @@
 
 /**
  * PostFeed — "Recent posts & updates" on the profile page. The owner gets a
- * composer on top; every post carries its comment thread, collapsed until
- * the reply count is clicked (or the URL hash points at it).
+ * composer on top (`PostComposer`: photos, code, @mentions); every post
+ * renders its parsed body, its photo carousel and its comment thread,
+ * collapsed until the reply count is clicked (or the URL hash points at it).
  */
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import { Loader2, MessageSquare, MoreHorizontal, Send, Trash2 } from "lucide-react";
+import { MessageSquare, MoreHorizontal, Trash2 } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
-import { commentOnPost, publishPost, removePost } from "@/app/(site)/social-actions";
+import { commentOnPost, removePost } from "@/app/(site)/social-actions";
 import { Avatar } from "@/components/avatar";
 import { VerifiedMark } from "@/components/verified-mark";
 import { CommentThread } from "@/components/comment-thread";
 import { PostReactions } from "@/components/post-reactions";
+import { PostCarousel } from "@/components/post-carousel";
+import { PostComposer } from "@/components/post-composer";
+import { PostContent } from "@/components/post-content";
 import { cn, timeAgo } from "@/lib/utils";
-import { POST_MAX_LENGTH, type AuthorRef, type Comment, type Post } from "@/types/social";
+import type { AuthorRef, Comment, Post } from "@/types/social";
 
 interface Props {
   handle: string;
@@ -34,24 +38,8 @@ export function PostFeed({ handle, ownerId, viewer, canModerate = false, initial
   const { t } = useI18n();
   const { toast } = useToast();
   const [posts, setPosts] = useState(initialPosts);
-  const [draft, setDraft] = useState("");
-  const [pending, start] = useTransition();
+  const [, start] = useTransition();
   const isOwner = viewer?.id === ownerId;
-
-  function publish() {
-    const body = draft.trim();
-    if (!body) return;
-    start(async () => {
-      const res = await publishPost(body, handle);
-      if (!res.ok) {
-        toast({ tone: "danger", title: t("posts.failed"), body: res.error });
-        return;
-      }
-      setPosts((list) => [res.data, ...list]);
-      setDraft("");
-      toast({ tone: "success", title: t("posts.publishedTitle"), body: t("posts.publishedBody") });
-    });
-  }
 
   function remove(post: Post) {
     start(async () => {
@@ -67,39 +55,7 @@ export function PostFeed({ handle, ownerId, viewer, canModerate = false, initial
 
   return (
     <div className="space-y-4">
-      {isOwner && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            publish();
-          }}
-          className="rounded-xl border border-border bg-card p-4"
-        >
-          <div className="flex items-start gap-3">
-            <Avatar author={viewer!} size="md" />
-            <div className="min-w-0 flex-1">
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value.slice(0, POST_MAX_LENGTH))}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") publish();
-                }}
-                rows={3}
-                placeholder={t("posts.placeholder")}
-                className="w-full resize-none rounded-lg border border-border bg-muted px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:border-synapse/60 focus:outline-none focus:ring-1 focus:ring-synapse/25"
-              />
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <span className="label-mono-sm normal-case tracking-normal">
-                  {draft.length} / {POST_MAX_LENGTH} · {t("posts.shortcut")}
-                </span>
-                <button type="submit" disabled={pending || !draft.trim()} className="inline-flex h-8 items-center gap-2 rounded-lg bg-synapse px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-synapse-foreground shadow-glow transition-all hover:shadow-glow-lg disabled:opacity-50 disabled:shadow-none">
-                  {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} {t("posts.publish")}
-                </button>
-              </div>
-            </div>
-          </div>
-        </form>
-      )}
+      {isOwner && viewer && <PostComposer viewer={viewer} handle={handle} onPublished={(post) => setPosts((list) => [post, ...list])} />}
 
       {posts.length === 0 && (
         <div className="hatch flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card/40 p-8 text-center">
@@ -169,7 +125,8 @@ function PostCard({ post, viewer, canModerate, initialComments, onDelete }: { po
         )}
       </div>
 
-      <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{post.body}</p>
+      <PostContent blocks={post.content} className="mt-3" />
+      {post.images.length > 0 && <PostCarousel images={post.images} className="mt-3" />}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
         <PostReactions postId={post.id} initial={post.reactions} signInHref={viewer ? null : `/signin?callbackUrl=/u/${post.author.handle}`} />

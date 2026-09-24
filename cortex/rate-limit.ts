@@ -45,6 +45,8 @@ export const RATE_LIMITS = {
   verificationRequest: { limit: 3, windowMs: 24 * 60 * 60_000 },
   /** Images pasted into skillset descriptions: stored rows, so metered like publishing. */
   skillsetImage: { limit: 40, windowMs: 60 * 60_000 },
+  /** Post photos: stored rows, up to `POST_MAX_IMAGES` per post. */
+  postImage: { limit: 60, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;
