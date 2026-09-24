@@ -60,7 +60,7 @@ export default async function HomePage() {
           </p>
           <div className="mt-8 flex w-full flex-wrap items-center justify-center gap-3">
             <Button asChild size="hero">
-              <Link href="/explore">
+              <Link href="/search?tab=skills">
                 {t("common.exploreRegistry")} <ArrowRight />
               </Link>
             </Button>
@@ -131,7 +131,7 @@ export default async function HomePage() {
         <div className="container">
           <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <h2 className="text-2xl font-semibold tracking-tight">{t("home.trending.title")}</h2>
-            <Link href="/explore" className="label-mono inline-flex items-center gap-1.5 text-foreground hover:text-synapse">
+            <Link href="/search?tab=skills" className="label-mono inline-flex items-center gap-1.5 text-foreground hover:text-synapse">
               {t("home.trending.browseAll", { n: formatCompact(all.length) })} <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -152,7 +152,7 @@ export default async function HomePage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-12">
-          <Pillar span="md:col-span-7" tag={t("home.pillar1.tag")} icon={<Database className="h-5 w-5" />} title={t("home.pillar1.title")} foot={<><span>{t("home.pillar1.mcp")} · {t("home.pillar1.prompts")} · {t("home.pillar1.tools")}</span><Link href="/explore" className="label-mono-sm text-synapse hover:underline">{t("home.pillar1.browse")}</Link></>}>
+          <Pillar span="md:col-span-7" tag={t("home.pillar1.tag")} icon={<Database className="h-5 w-5" />} title={t("home.pillar1.title")} foot={<><span>{t("home.pillar1.mcp")} · {t("home.pillar1.prompts")} · {t("home.pillar1.tools")}</span><Link href="/search?tab=skills" className="label-mono-sm text-synapse hover:underline">{t("home.pillar1.browse")}</Link></>}>
             <p className="mb-6 text-sm leading-relaxed text-muted-foreground">{rich(t("home.pillar1.body"))}</p>
             <div className="grid gap-3 sm:grid-cols-3">
               <Mini label={t("home.pillar1.mcp")} value={String(byCategory.MCP)} />
@@ -185,7 +185,7 @@ export default async function HomePage() {
                 <p className="mb-6 text-sm leading-relaxed text-muted-foreground">{t("home.cta.lead")}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
                   <Button asChild size="hero">
-                    <Link href="/explore">{t("common.exploreRegistry")}</Link>
+                    <Link href="/search?tab=skills">{t("common.exploreRegistry")}</Link>
                   </Button>
                   <Button asChild size="hero" variant="outline">
                     <Link href="/faq">{t("common.readDocs")}</Link>

@@ -32,6 +32,8 @@ export interface AccountProfile {
   image: string | null;
   coverImage: string | null;
   role: UserRole;
+  /** Builds the platform itself (admin-set flag, not a role). */
+  developer: boolean;
   occupation: Occupation | null;
   bio: string;
   organization: string;
@@ -146,6 +148,7 @@ export async function getProfile(userId: string): Promise<AccountProfile | null>
       image: u.image,
       coverImage: x?.coverImage ?? null,
       role: u.role,
+      developer: Boolean(u.developer),
       occupation: x?.occupation ?? null,
       bio: x?.bio ?? "",
       organization: x?.organization ?? "",
@@ -166,6 +169,7 @@ export async function getProfile(userId: string): Promise<AccountProfile | null>
     image: u.image,
     coverImage: u.coverImage,
     role: toUserRole(u.role),
+    developer: u.developer,
     occupation: isOccupation(u.occupation) ? u.occupation : null,
     bio: u.bio ?? "",
     organization: u.organization ?? "",

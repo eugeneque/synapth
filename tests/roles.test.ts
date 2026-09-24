@@ -1,9 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { can, permissionsOf, PERMISSIONS, toUserRole } from "@/types/auth";
+import { can, permissionsOf, PERMISSIONS, publicRole, toUserRole } from "@/types/auth";
 import { PermissionDeniedError, RoleChangeError, getRole, listUsers, requirePermission, setUserRole } from "@/cortex/roles";
+import { setDeveloper } from "@/cortex/developers";
 import { moderationQueue, setVerification, VerificationRefusedError } from "@/cortex/moderation";
-import { grantBadge, BadgeGrantError } from "@/cortex/badges";
+import { grantBadge, listBadges, BadgeGrantError } from "@/cortex/badges";
+import { getUserCard } from "@/cortex/user-card";
+import { getProfile } from "@/cortex/account";
 import { createPost, addComment, deletePost, deleteComment, ForbiddenError, resetSocialForTests } from "@/cortex/social";
 import { skillRepository } from "@/cortex/repository";
 import { registerWithPassword } from "@/cortex/registration";
@@ -90,5 +93,35 @@ test("content moderation and badge grants are admin-only", async () => {
   await assert.rejects(deletePost(mod, post.id, { moderator: can(await getRole(mod), "content.moderate") }), ForbiddenError);
   await deletePost("usr_demo", post.id, { moderator: true });
 
-  await assert.rejects(grantBadge(mod, author, "platform-admin"), BadgeGrantError);
+  await assert.rejects(grantBadge(mod, author, "early-adopter"), BadgeGrantError);
+  // Unique badges follow the developer flag and cannot be handed out, not even by an admin.
+  await assert.rejects(grantBadge("usr_demo", author, "platform-developer"), BadgeGrantError);
+});
+
+test("admins never show up as admins in public", async () => {
+  assert.equal(publicRole("admin"), "user");
+  assert.equal(publicRole("moderator"), "moderator");
+  assert.equal((await getProfile("usr_demo"))?.role, "admin");
+  assert.equal((await getUserCard("demo", null))?.role, "user");
+});
+
+test("developer flag: admin-only, allowed on oneself, the unique badge follows it", async () => {
+  const dev = await account("vega");
+  await assert.rejects(setDeveloper(dev, dev, true), PermissionDeniedError);
+
+  const on = await setDeveloper("usr_demo", dev, true);
+  assert.equal(on.developer, true);
+  assert.equal((await getProfile(dev))?.developer, true);
+  assert.ok((await listBadges(dev)).some((b) => b.badgeId === "platform-developer"));
+  assert.ok((await listUsers({ developer: true })).some((u) => u.id === dev));
+  assert.equal((await getUserCard("vega", null))?.developer, true);
+
+  const off = await setDeveloper("usr_demo", dev, false);
+  assert.equal(off.developer, false);
+  assert.ok(!(await listBadges(dev)).some((b) => b.badgeId === "platform-developer"));
+
+  // Grants nothing, so an admin may mark themselves; system accounts are refused.
+  assert.equal((await setDeveloper("usr_demo", "usr_demo", true)).developer, true);
+  await assert.rejects(setDeveloper("usr_demo", "usr_platform", true), RoleChangeError);
+  await assert.rejects(setDeveloper("usr_demo", "nobody", true), (e: unknown) => e instanceof RoleChangeError && e.status === 404);
 });

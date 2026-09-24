@@ -8,6 +8,13 @@
  *
  * The server never trusts the role cached in the JWT for a decision: it
  * re-reads the stored role (`cortex/roles.ts`), so a demotion applies at once.
+ *
+ * Public surfaces (profile, hover card) never reveal `admin`: they render
+ * `publicRole()`, which shows an admin as a plain user.
+ *
+ * `developer` is not a role but a flag on top of it (`User.developer`): it
+ * marks the people who build Synapth itself, carries no permissions, is set
+ * by admins only and brings the unique `platform-developer` achievement.
  */
 
 export const USER_ROLES = ["user", "moderator", "admin"] as const;
@@ -22,6 +29,11 @@ export function toUserRole(value: unknown): UserRole {
   return isUserRole(value) ? value : "user";
 }
 
+/** What other people may see: moderators stay visible, admins pass as plain users. */
+export function publicRole(role: UserRole): Exclude<UserRole, "admin"> {
+  return role === "admin" ? "user" : role;
+}
+
 export const PERMISSIONS = [
   /** Set or revoke `Verified` on a catalogue entry after a human review. */
   "catalog.verify",
@@ -29,7 +41,7 @@ export const PERMISSIONS = [
   "catalog.moderate",
   /** Run the GitHub crawler / bulk import. */
   "crawler.run",
-  /** Change another account's role. */
+  /** Change another account's role and the platform-developer flag. */
   "users.manageRoles",
   /** Grant manual badges. */
   "badges.grant",

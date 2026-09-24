@@ -5,17 +5,24 @@
  *
  * `auto` badges are granted by `cortex/badges.ts` when `evaluateBadges()`
  * sees the criteria met; `manual` ones only via `grantBadge()` (admin / ops).
+ * `unique` badges mirror a flag on the account: `evaluateBadges()` also takes
+ * them away once the criteria stop holding, and `grantBadge()` refuses them.
  */
 
-export const BADGE_TIERS = ["bronze", "silver", "gold", "signal"] as const;
+/** `astra` is reserved for unique, role-bound achievements (see `unique`). */
+export const BADGE_TIERS = ["bronze", "silver", "gold", "signal", "astra"] as const;
 export type BadgeTier = (typeof BADGE_TIERS)[number];
 
 export interface BadgeDefinition {
   id: string;
   tier: BadgeTier;
   /** Lucide icon name rendered by `<BadgeIcon />`. */
-  icon: "layers" | "shield-check" | "bolt" | "sparkles" | "wrench" | "github" | "message-square" | "messages-square" | "zap" | "radio" | "eye" | "award" | "flag";
+  icon: "layers" | "shield-check" | "bolt" | "sparkles" | "wrench" | "github" | "message-square" | "messages-square" | "zap" | "radio" | "eye" | "award" | "flag" | "rocket";
   award: "auto" | "manual";
+  /** Bound to an account flag: revoked with it, never granted by hand, left out of the hover-card meter unless held. */
+  unique?: boolean;
+  /** Render the body under the title as a motto instead of only as a tooltip. */
+  motto?: boolean;
 }
 
 export const BADGES = [
@@ -31,13 +38,18 @@ export const BADGES = [
   { id: "magnet", tier: "gold", icon: "radio", award: "auto" },
   { id: "curator", tier: "bronze", icon: "eye", award: "auto" },
   { id: "early-adopter", tier: "signal", icon: "flag", award: "manual" },
-  { id: "platform-admin", tier: "signal", icon: "award", award: "auto" },
+  { id: "platform-developer", tier: "astra", icon: "rocket", award: "auto", unique: true, motto: true },
 ] as const satisfies readonly BadgeDefinition[];
 
 export type BadgeId = (typeof BADGES)[number]["id"];
 
 export function isBadgeId(value: unknown): value is BadgeId {
   return typeof value === "string" && BADGES.some((b) => b.id === value);
+}
+
+/** Badges that count towards the hover-card meter for someone holding `held`. */
+export function meterBadgeCount(held: readonly string[]): number {
+  return BADGES.filter((b: BadgeDefinition) => !b.unique || held.includes(b.id)).length;
 }
 
 export function badgeById(id: BadgeId): BadgeDefinition {
@@ -56,7 +68,8 @@ export interface BadgeSignals {
   comments: number;
   impulsesReceived: number;
   watching: number;
-  isAdmin: boolean;
+  /** `User.developer` — builds the platform itself. */
+  isDeveloper: boolean;
 }
 
 /** Thresholds live next to the ids so the profile page can show "3 / 10" progress later. */
@@ -72,7 +85,7 @@ export const BADGE_CRITERIA: Record<Exclude<BadgeId, "early-adopter">, (s: Badge
   resonance: (s) => s.impulsesReceived >= 5,
   magnet: (s) => s.impulsesReceived >= 50,
   curator: (s) => s.watching >= 5,
-  "platform-admin": (s) => s.isAdmin,
+  "platform-developer": (s) => s.isDeveloper,
 };
 
 export interface UserBadge {

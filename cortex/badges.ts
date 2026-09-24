@@ -6,7 +6,8 @@
  * notification per new badge. Server actions call it after the event that
  * could have changed the outcome (a post, an impulse, a publish); the
  * profile page calls it for its owner so seeded data catches up too.
- * `grantBadge()` handles the manual tier (admin / ops).
+ * `grantBadge()` handles the manual tier (admin / ops). `unique` badges
+ * follow an account flag both ways: evaluation also revokes them.
  */
 
 import { prisma, hasDatabase } from "@/cortex/db";
@@ -17,8 +18,8 @@ import { socialSignals } from "@/cortex/social";
 import { hasPermission } from "@/cortex/roles";
 import { BADGES, BADGE_CRITERIA, badgeById, isBadgeId, type BadgeDefinition, type BadgeId, type BadgeSignals, type UserBadge } from "@/types/badges";
 
-const g = globalThis as unknown as { __synapthBadges_v1?: Map<string, UserBadge[]> };
-const mem = g.__synapthBadges_v1 ?? (g.__synapthBadges_v1 = new Map<string, UserBadge[]>());
+const g = globalThis as unknown as { __synapthBadges_v2?: Map<string, UserBadge[]> };
+const mem = g.__synapthBadges_v2 ?? (g.__synapthBadges_v2 = new Map<string, UserBadge[]>());
 
 export interface AwardedBadge extends UserBadge {
   def: BadgeDefinition;
@@ -50,6 +51,16 @@ async function award(userId: string, badgeId: BadgeId, grantedBy: string | null)
   return { badgeId, awardedAt: awardedAt.toISOString(), grantedBy };
 }
 
+/** Silent removal (no notification): the flag behind a unique badge was taken away. */
+async function revoke(userId: string, badgeId: BadgeId): Promise<void> {
+  if (!hasDatabase) {
+    const list = mem.get(userId) ?? [];
+    mem.set(userId, list.filter((b) => b.badgeId !== badgeId));
+    return;
+  }
+  await prisma.userBadge.deleteMany({ where: { userId, badgeId } });
+}
+
 /** Gathers the numbers the auto criteria read. */
 export async function badgeSignals(userId: string): Promise<BadgeSignals> {
   const [profile, all, social] = await Promise.all([getProfile(userId), skillRepository.all(), socialSignals(userId)]);
@@ -61,21 +72,26 @@ export async function badgeSignals(userId: string): Promise<BadgeSignals> {
     promptSkills: skills.filter((s) => s.category === "Prompt").length,
     toolSkills: skills.filter((s) => s.category === "Tool").length,
     githubSkills: skills.filter((s) => s.origin === "github").length,
-    isAdmin: profile?.role === "admin",
+    isDeveloper: Boolean(profile?.developer),
     ...social,
   };
 }
 
-/** Awards every auto badge whose criteria are now met and returns the new ones. */
+/** Awards every auto badge whose criteria are now met (and revokes unique ones that no longer hold); returns the new ones. */
 export async function evaluateBadges(userId: string): Promise<UserBadge[]> {
   const signals = await badgeSignals(userId);
   const have = new Set((await listBadges(userId)).map((b) => b.badgeId));
   const fresh: UserBadge[] = [];
-  for (const def of BADGES) {
-    if (def.award !== "auto" || have.has(def.id)) continue;
-    const met = BADGE_CRITERIA[def.id as keyof typeof BADGE_CRITERIA];
-    if (!met?.(signals)) continue;
-    const row = await award(userId, def.id, null);
+  for (const def of BADGES as readonly BadgeDefinition[]) {
+    if (def.award !== "auto") continue;
+    const met = BADGE_CRITERIA[def.id as keyof typeof BADGE_CRITERIA]?.(signals) ?? false;
+    const id = def.id as BadgeId;
+    if (have.has(id)) {
+      if (def.unique && !met) await revoke(userId, id);
+      continue;
+    }
+    if (!met) continue;
+    const row = await award(userId, id, null);
     if (row) fresh.push(row);
   }
   return fresh;
@@ -89,10 +105,11 @@ export class BadgeGrantError extends Error {
   }
 }
 
-/** Manual grant: only admins, any badge id. Returns null when already held. */
+/** Manual grant: only admins, any non-unique badge id. Returns null when already held. */
 export async function grantBadge(adminId: string, userId: string, badgeId: string): Promise<UserBadge | null> {
   if (!(await hasPermission(adminId, "badges.grant"))) throw new BadgeGrantError("Only admins can grant badges");
   if (!isBadgeId(badgeId)) throw new BadgeGrantError(`Unknown badge ${badgeId}`);
+  if ((badgeById(badgeId) as BadgeDefinition).unique) throw new BadgeGrantError(`${badgeId} follows an account flag and cannot be granted by hand`);
   return award(userId, badgeId, adminId);
 }
 

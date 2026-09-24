@@ -45,6 +45,7 @@ function prisma(args, input) {
  * permission, so its holders become plain users and the enum value is renamed
  * in place to `moderator` — a removal would need --accept-data-loss.
  * Idempotent; a fresh database has no "UserRole" type yet and skips it.
+ * Also drops award rows and notifications of the retired `platform-admin` badge.
  */
 const PRE_PUSH_SQL = `
 DO $$
@@ -53,6 +54,17 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'UserRole' AND e.enumlabel = 'moderator') THEN
     UPDATE "User" SET "role" = 'user' WHERE "role"::text = 'creator';
     ALTER TYPE "UserRole" RENAME VALUE 'creator' TO 'moderator';
+  END IF;
+END $$;
+
+-- The public "platform-admin" badge was retired (admins are not revealed on profiles).
+DO $$
+BEGIN
+  IF to_regclass('"UserBadge"') IS NOT NULL THEN
+    DELETE FROM "UserBadge" WHERE "badgeId" = 'platform-admin';
+  END IF;
+  IF to_regclass('"Notification"') IS NOT NULL THEN
+    DELETE FROM "Notification" WHERE "kind" = 'badge' AND "subject"->>'badgeId' = 'platform-admin';
   END IF;
 END $$;
 `;

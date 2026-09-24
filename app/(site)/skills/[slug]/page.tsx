@@ -76,9 +76,9 @@ export default async function SkillPage({ params }: Params) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="label-mono flex flex-wrap items-center gap-2">
           <span className="text-synapse">/</span>
-          <Link href="/explore" className="hover:text-foreground">{t("skill.catalogue")}</Link>
+          <Link href="/search?tab=skills" className="hover:text-foreground">{t("skill.catalogue")}</Link>
           <span className="text-border">/</span>
-          <Link href={`/explore?category=${skill.category}`} className="hover:text-foreground">{skill.category}</Link>
+          <Link href={`/search?tab=skills&category=${skill.category}`} className="hover:text-foreground">{skill.category}</Link>
           <span className="text-border">/</span>
           <Link href={`/authors/${encodeURIComponent(owner)}`} className="hover:text-foreground">{owner}</Link>
           <span className="text-border">/</span>

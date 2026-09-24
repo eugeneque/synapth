@@ -69,7 +69,7 @@ export default async function DashboardSkillsetsPage() {
         ) : (
           <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">
             {t("console.skillsets.favoritesEmpty")}{" "}
-            <Link href="/explore?tab=skillsets" className="text-synapse hover:underline">
+            <Link href="/search?tab=skillsets" className="text-synapse hover:underline">
               {t("console.skillsets.browse")}
             </Link>
           </p>

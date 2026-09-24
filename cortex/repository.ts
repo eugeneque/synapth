@@ -18,7 +18,7 @@ import { sortSkills } from "@/cortex/ranking";
 import { buildIndex, search, suggest, type SearchIndex, type SearchOptions, type SearchResult, type Suggestion } from "@/cortex/search";
 import { slugify } from "@/lib/utils";
 import { usdToMicros, microsToUsd } from "@/types/economy";
-import type { Paginated, Skill, SkillCreateInput, SkillManifest, SkillQuery, SecurityLevel } from "@/types/skill";
+import { skillSource, type Paginated, type Skill, type SkillCreateInput, type SkillManifest, type SkillQuery, type SecurityLevel } from "@/types/skill";
 
 export interface SkillRepository {
   list(query: SkillQuery): Promise<Paginated<Skill>>;
@@ -69,6 +69,7 @@ function matchesQuery(skill: Skill, q: SkillQuery): boolean {
   if (q.category && skill.category !== q.category) return false;
   if (q.securityLevel && skill.securityLevel !== q.securityLevel) return false;
   if (q.language && (skill.source?.language ?? "").toLowerCase() !== q.language.toLowerCase()) return false;
+  if (q.source && skillSource(skill) !== q.source) return false;
   if (q.author && skill.authorName.toLowerCase() !== q.author.toLowerCase() && skill.source?.owner.toLowerCase() !== q.author.toLowerCase()) return false;
   if (q.q) {
     const needle = q.q.toLowerCase();
@@ -258,6 +259,7 @@ class FileSkillRepository implements SkillRepository {
         securityLevel: query.securityLevel,
         language: query.language,
         author: query.author,
+        source: query.source,
         sort: query.sort === "hidden-gems" ? "relevance" : query.sort === "trending" ? "relevance" : query.sort === "recent" ? "recent" : "relevance",
       });
       let items = res.hits.map((h) => h.skill);
@@ -459,7 +461,7 @@ class PrismaSkillRepository implements SkillRepository {
 
   async list(query: SkillQuery) {
     if (query.q?.trim()) {
-      const res = await this.search(query.q, { limit: query.limit, offset: query.offset, category: query.category, securityLevel: query.securityLevel, language: query.language, author: query.author, sort: query.sort === "recent" ? "recent" : "relevance" });
+      const res = await this.search(query.q, { limit: query.limit, offset: query.offset, category: query.category, securityLevel: query.securityLevel, language: query.language, author: query.author, source: query.source, sort: query.sort === "recent" ? "recent" : "relevance" });
       return { items: res.hits.map((h) => h.skill), total: res.total, limit: res.limit, offset: res.offset };
     }
     // Ranking formulas live in TS, so we filter in SQL and rank in memory.
@@ -468,6 +470,7 @@ class PrismaSkillRepository implements SkillRepository {
     const where: Prisma.SkillWhereInput = {
       ...(query.category ? { category: query.category } : {}),
       ...(query.securityLevel ? { securityLevel: query.securityLevel } : {}),
+      ...(query.source ? { origin: query.source === "github" ? "github" : { not: "github" } } : {}),
       ...(query.q
         ? {
             OR: [

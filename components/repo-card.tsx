@@ -46,7 +46,7 @@ export async function RepoCard({ source }: { source: GithubSource }) {
         {source.topics.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1">
             {source.topics.slice(0, 8).map((t) => (
-              <Link key={t} href={`/explore?q=${encodeURIComponent(`tag:${t}`)}`}>
+              <Link key={t} href={`/search?tab=skills&q=${encodeURIComponent(`tag:${t}`)}`}>
                 <Badge variant="chip">{t}</Badge>
               </Link>
             ))}

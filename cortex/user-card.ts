@@ -11,8 +11,8 @@ import { listBadges } from "@/cortex/badges";
 import { skillRepository } from "@/cortex/repository";
 import { impulseSummary, socialSignals, type ImpulseSummary } from "@/cortex/social";
 import { safeExternalHref, safeImageSrc } from "@/lib/url-safety";
-import { BADGES, type BadgeTier } from "@/types/badges";
-import type { UserRole } from "@/types/auth";
+import { meterBadgeCount, type BadgeTier } from "@/types/badges";
+import { publicRole, type UserRole } from "@/types/auth";
 import type { Occupation } from "@/types/profile";
 import type { ImpulseViewer } from "@/types/social";
 
@@ -23,7 +23,9 @@ export interface UserCard {
   image: string | null;
   coverImage: string | null;
   occupation: Occupation | null;
-  role: UserRole;
+  /** `publicRole()` — an admin is shown as a plain user. */
+  role: Exclude<UserRole, "admin">;
+  developer: boolean;
   /** Account check mark. */
   verified: boolean;
   bio: string;
@@ -52,7 +54,8 @@ export async function getUserCard(handle: string, viewerId: string | null): Prom
     image: safeImageSrc(image) ?? null,
     coverImage: safeImageSrc(profile.coverImage) ?? null,
     occupation: profile.occupation,
-    role: profile.role,
+    role: publicRole(profile.role),
+    developer: profile.developer,
     verified: Boolean(profile.verified),
     bio: profile.bio,
     website: safeExternalHref(profile.website) ?? null,
@@ -60,6 +63,6 @@ export async function getUserCard(handle: string, viewerId: string | null): Prom
     stats: { skills: skills.length, posts: social.posts, installs: skills.reduce((sum, s) => sum + s.downloadsCount, 0) },
     impulses,
     viewer: !viewerId ? "anonymous" : viewerId === profile.id ? "self" : "member",
-    badges: { tiers: badges.map((b) => b.def.tier), total: BADGES.length },
+    badges: { tiers: badges.map((b) => b.def.tier), total: meterBadgeCount(badges.map((b) => b.badgeId)) },
   };
 }

@@ -15,7 +15,7 @@ import { scanManifest, assertInstallable } from "@/lib/sandbox-scanner";
 import { agentJson, json, withErrors } from "@/lib/api";
 import { enforceRequestLimit } from "@/cortex/rate-limit";
 import { httpUrlSchema, isPubliclyRoutableUrl } from "@/lib/url-safety";
-import { SKILL_CATEGORIES, SECURITY_LEVELS, type SkillQuery } from "@/types/skill";
+import { SKILL_CATEGORIES, SECURITY_LEVELS, type SkillQuery, SKILL_SOURCES } from "@/types/skill";
 
 export const runtime = "nodejs";
 
@@ -23,6 +23,7 @@ const querySchema = z.object({
   q: z.string().trim().max(120).optional(),
   category: z.enum(SKILL_CATEGORIES).optional(),
   securityLevel: z.enum(SECURITY_LEVELS).optional(),
+  source: z.enum(SKILL_SOURCES).optional(),
   sort: z.enum(["trending", "hidden-gems", "recent"]).default("trending"),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),

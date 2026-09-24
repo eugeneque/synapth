@@ -13,6 +13,8 @@ export interface MemoryUser {
   handle: string;
   image: string | null;
   role: UserRole;
+  /** Platform-developer flag (types/auth.ts); absent = false. */
+  developer?: boolean;
   /** bcrypt hash of "synapth-demo" */
   passwordHash: string;
 }
@@ -26,6 +28,7 @@ const seedUsers: MemoryUser[] = [
     image: null,
     // Operator of the local demo: the crawler console is admin-gated.
     role: "admin",
+    developer: true,
     passwordHash: "$2a$10$Ofc7QSru4aYuwQOVrR1vVO5d1/nEKkFxGkYTxLrWoACuEzyGgAv8i",
   },
   { id: "usr_acme", name: "Acme Labs", email: "labs@acme.dev", handle: "acme", image: null, role: "user", passwordHash: "" },
@@ -38,8 +41,8 @@ const seedUsers: MemoryUser[] = [
  * dev bundles each route separately, so a module-level array would give
  * sign-in, settings and the profile page three diverging copies.
  */
-const g = globalThis as unknown as { __synapthUsers_v1?: MemoryUser[] };
-export const memoryUsers: MemoryUser[] = g.__synapthUsers_v1 ?? (g.__synapthUsers_v1 = seedUsers);
+const g = globalThis as unknown as { __synapthUsers_v2?: MemoryUser[] };
+export const memoryUsers: MemoryUser[] = g.__synapthUsers_v2 ?? (g.__synapthUsers_v2 = seedUsers);
 
 const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
 

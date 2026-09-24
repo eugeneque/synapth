@@ -247,7 +247,7 @@ export default async function FaqPage() {
       <div className="container grid gap-10 py-10 lg:grid-cols-[220px_minmax(0,1fr)_200px]">
         {/* Left: numbered navigation. */}
         <aside className="lg:sticky lg:top-24 lg:self-start">
-          <Link href="/explore?focus=1" className="mb-6 flex h-9 items-center gap-2 rounded-md border border-border bg-surface-low px-3 text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground">
+          <Link href="/search" className="mb-6 flex h-9 items-center gap-2 rounded-md border border-border bg-surface-low px-3 text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground">
             <Search className="h-3.5 w-3.5" />
             <span className="font-mono text-xs">{t("faq.filter")}</span>
             <kbd className="label-mono-sm ml-auto rounded-md border border-border bg-surface-high px-1.5 normal-case">⌘K</kbd>
@@ -369,7 +369,7 @@ export default async function FaqPage() {
           <p className="label-mono-sm mb-4 tracking-[0.2em]">{t("faq.next.label")}</p>
           <div className="grid gap-4 sm:grid-cols-2">
             {[
-              { href: "/explore", tag: t("faq.next.explore.tag"), title: t("faq.next.explore.title"), body: t("faq.next.explore.body") },
+              { href: "/search?tab=skills", tag: t("faq.next.explore.tag"), title: t("faq.next.explore.title"), body: t("faq.next.explore.body") },
               { href: "/dashboard#publish", tag: t("faq.next.publish.tag"), title: t("faq.next.publish.title"), body: t("faq.next.publish.body") },
             ].map((card) => (
               <Link key={card.href} href={card.href} className="group rounded-xl border border-border bg-card p-5 transition-colors hover:border-synapse/50">
@@ -412,7 +412,7 @@ export default async function FaqPage() {
           <div className="well p-3">
             <p className="label-mono-sm mb-1">{t("faq.release")}</p>
             <p className="font-mono text-xs text-foreground">v{pkg.version}</p>
-            <Link href="/explore" className="label-mono-sm mt-2 block text-synapse hover:underline">
+            <Link href="/search?tab=skills" className="label-mono-sm mt-2 block text-synapse hover:underline">
               {t("faq.browse")}
             </Link>
           </div>

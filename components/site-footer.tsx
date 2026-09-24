@@ -5,7 +5,7 @@ import pkg from "@/package.json";
 
 const LINKS = [
   { key: "footer.api", href: "/faq#agents" },
-  { key: "footer.registry", href: "/explore" },
+  { key: "footer.registry", href: "/search?tab=skills" },
   { key: "footer.security", href: "/faq#install" },
   { key: "footer.publish", href: "/dashboard#publish" },
 ] as const;

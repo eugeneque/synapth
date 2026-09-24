@@ -11,7 +11,7 @@
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowUpRight, Briefcase, Github, Globe, ShieldCheck, User } from "lucide-react";
+import { ArrowUpRight, Briefcase, Github, Globe, Rocket, ShieldCheck, User } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { ImpulseButton } from "@/components/impulse-button";
 import { VerifiedMark } from "@/components/verified-mark";
@@ -169,6 +169,7 @@ const TIER_SEGMENT: Record<BadgeTier, string> = {
   silver: "bg-foreground",
   gold: "bg-warn",
   signal: "bg-synapse shadow-[0_0_6px_hsl(var(--synapse)/0.8)]",
+  astra: "bg-gradient-to-t from-synapse to-warn shadow-[0_0_8px_hsl(var(--warn)/0.8)]",
 };
 
 function CardBody({ card, onImpulse }: { card: UserCard; onImpulse: (next: UserCard["impulses"]) => void }) {
@@ -230,6 +231,7 @@ function CardBody({ card, onImpulse }: { card: UserCard; onImpulse: (next: UserC
             </Link>
             {card.verified && <VerifiedMark size="md" />}
             {card.role !== "user" && <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" aria-label={t(`settings.role.${card.role}`)} />}
+            {card.developer && <Rocket className="h-4 w-4 shrink-0 text-synapse" aria-label={t("settings.role.developer")} />}
           </div>
           <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground">
             <span>@{card.handle}</span>
