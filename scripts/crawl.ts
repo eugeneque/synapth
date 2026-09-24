@@ -4,7 +4,7 @@
  *   npm run crawl -- --max 300 --min-stars 5
  *   npm run crawl -- --query "topic:mcp-server" --no-code-search
  *   npm run crawl -- --repo anthropics/skills
- *   npm run crawl -- --source mcp-registry --source npm   (registries only)
+ *   npm run crawl -- --source marketplaces --source awesome   (only these sources)
  *
  * Writes to data/catalog.json; the dev server picks the file up on the next request.
  */

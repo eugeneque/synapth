@@ -18,6 +18,7 @@ import { timingSafeEqual } from "node:crypto";
 import { prisma, hasDatabase, isServerless } from "@/cortex/db";
 import { crawl, DEFAULT_QUERIES, loadState, type CrawlOptions, type CrawlProgress, type CrawlSource } from "@/cortex/crawler";
 import { skillRepository } from "@/cortex/repository";
+import { EXTERNAL_SOURCES } from "@/cortex/crawl-sources";
 
 export const CRAWL_INTERVAL_HOURS = 2;
 /** Cron expression for the same cadence (Netlify scheduled function, UTC). */
@@ -179,13 +180,13 @@ function scheduledQueries(now = new Date()): string[] {
 }
 
 /**
- * GitHub search every pass, plus one registry in turn; the search order
+ * GitHub search every pass, plus one external source in turn (all five come round within 10 hours); the search order
  * alternates so recently pushed repos surface, not only the top-starred ones
  * the catalogue already holds.
  */
 export function scheduledPlan(now = new Date()): { queries: string[]; sources: CrawlSource[]; sort: "stars" | "updated" } {
   const slot = slotOf(now);
-  return { queries: scheduledQueries(now), sources: ["github", slot % 2 ? "npm" : "mcp-registry"], sort: slot % 2 ? "updated" : "stars" };
+  return { queries: scheduledQueries(now), sources: ["github", EXTERNAL_SOURCES[slot % EXTERNAL_SOURCES.length]], sort: slot % 2 ? "updated" : "stars" };
 }
 
 /** Repos the catalogue already holds: the crawl-state file does not survive a serverless instance. */

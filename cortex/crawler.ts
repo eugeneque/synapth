@@ -18,7 +18,7 @@ import { scanManifest, type ScanReport } from "@/lib/sandbox-scanner";
 import { skillRepository } from "@/cortex/repository";
 import { resolveGithubToken } from "@/cortex/github-token";
 import { isServerless } from "@/cortex/db";
-import { externalCandidates, type ExternalSource } from "@/cortex/crawl-sources";
+import { EXTERNAL_SOURCES, externalCandidates, type ExternalSource } from "@/cortex/crawl-sources";
 import type { SkillCreateInput } from "@/types/skill";
 
 export const DEFAULT_QUERIES = [
@@ -69,7 +69,7 @@ export interface CrawlOptions {
   isKnown?: (key: string) => boolean;
 }
 
-export const CRAWL_SOURCES = ["github", "mcp-registry", "npm"] as const;
+export const CRAWL_SOURCES = ["github", ...EXTERNAL_SOURCES] as const;
 export type CrawlSource = "github" | ExternalSource;
 
 export interface RepoCandidate {
@@ -286,7 +286,7 @@ export async function discover(opts: CrawlOptions, gate: RateGate, log: (m: stri
 
   for (const source of CRAWL_SOURCES) {
     if (source === "github" || !sources.has(source) || enough()) continue;
-    const found = await externalCandidates(source, { want: want - fresh, isKnown: (key) => seen.has(key) || isKnown(key), signal: opts.signal, deadline: opts.deadline, log });
+    const found = await externalCandidates(source, { want: want - fresh, isKnown: (key) => seen.has(key) || isKnown(key), signal: opts.signal, deadline: opts.deadline, log, auth });
     for (const c of found) add(c);
   }
 

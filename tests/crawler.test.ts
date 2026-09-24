@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { processRepo, crawl, loadState } from "@/cortex/crawler";
 import { createMockFetcher, importAllFromGithub, discoverManifests, parseRepoUrl, rateLimitReset, GithubParseError, type RepoFetcher } from "@/lib/github-parser";
-import { githubFullName, mcpRegistryCandidates } from "@/cortex/crawl-sources";
+import { githubFullName, mcpRegistryCandidates, dockerProject, marketplaceRepos, linkedRepos, awesomeCandidates } from "@/cortex/crawl-sources";
 
 const fetcher = createMockFetcher();
 
@@ -149,4 +149,46 @@ test("NUL characters never reach the catalogue", async () => {
   const [r] = await importAllFromGithub("acme/weather-tool", nul);
   assert.equal(r.input.description, "Weather now \\");
   assert.ok(!JSON.stringify(r.input).includes("\\u0000"));
+});
+
+test("Docker catalog server.yaml yields its GitHub project", () => {
+  const yaml = "name: github-official\nimage: ghcr.io/github/github-mcp-server\nabout:\n  title: GitHub\nsource:\n  project: https://github.com/github/github-mcp-server\n  commit: 23fa0dd\nrun:\n  allowHosts: []\n";
+  assert.equal(dockerProject(yaml), "github/github-mcp-server");
+  assert.equal(dockerProject("name: remote\ntype: remote\nremote:\n  url: https://x.dev/mcp\n"), null);
+});
+
+test("marketplace.json: the marketplace repo plus every plugin source on GitHub", () => {
+  const json = JSON.stringify({
+    plugins: [
+      { name: "local", source: "./plugins/local" },
+      { name: "gh", source: { source: "github", repo: "acme/gh-plugin" } },
+      { name: "url", source: { source: "url", url: "https://github.com/acme/url-plugin.git" } },
+      { name: "sub", source: { source: "git-subdir", url: "https://github.com/acme/mono.git", path: "plugins/x" } },
+      { name: "gitlab", source: { source: "url", url: "https://gitlab.com/acme/x.git" } },
+    ],
+  });
+  assert.deepEqual(marketplaceRepos(json, "acme/market"), ["acme/market", "acme/gh-plugin", "acme/url-plugin", "acme/mono"]);
+  assert.deepEqual(marketplaceRepos("not json", "acme/market"), []);
+});
+
+test("awesome lists: repo links in order, without the list itself or non-repo pages", () => {
+  const md = "- [A](https://github.com/acme/a) - x\n- [B](https://github.com/acme/b.git)\n[topic](https://github.com/topics/mcp) [self](https://github.com/me/awesome) [sponsor](https://github.com/sponsors/acme)\n- https://github.com/acme/c/tree/main/src.";
+  assert.deepEqual(linkedRepos(md, "me/awesome"), ["acme/a", "acme/b", "acme/c"]);
+});
+
+test("awesome discovery stops at the wanted number of unknown repos", async () => {
+  const realFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = (async (url: string) => {
+    urls.push(url);
+    return new Response("[a](https://github.com/acme/known) [b](https://github.com/acme/one) [c](https://github.com/acme/two) [d](https://github.com/acme/three)", { status: 200 });
+  }) as typeof fetch;
+  try {
+    const found = await awesomeCandidates({ want: 2, isKnown: (k) => k === "acme/known", log: () => undefined }, ["me/list-a", "me/list-b"]);
+    assert.deepEqual(found.map((c) => c.fullName), ["acme/known", "acme/one", "acme/two"]);
+    assert.equal(urls.length, 1, "the second list is not fetched");
+    assert.ok(urls[0].startsWith("https://raw.githubusercontent.com/me/list-a/HEAD/README.md"));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
