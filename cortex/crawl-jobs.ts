@@ -16,8 +16,9 @@
 
 import { timingSafeEqual } from "node:crypto";
 import { prisma, hasDatabase, isServerless } from "@/cortex/db";
-import { crawl, DEFAULT_QUERIES, loadState, type CrawlOptions, type CrawlProgress } from "@/cortex/crawler";
+import { crawl, DEFAULT_QUERIES, loadState, type CrawlOptions, type CrawlProgress, type CrawlSource } from "@/cortex/crawler";
 import { skillRepository } from "@/cortex/repository";
+import { EXTERNAL_SOURCES } from "@/cortex/crawl-sources";
 
 export const CRAWL_INTERVAL_HOURS = 2;
 /** Cron expression for the same cadence (Netlify scheduled function, UTC). */
@@ -25,6 +26,8 @@ export const CRAWL_CRON = `0 */${CRAWL_INTERVAL_HOURS} * * *`;
 /** Serverless functions are cut off at ~26 s; the scheduled pass stops starting new work before that. */
 export const SCHEDULED_BUDGET_MS = 20_000;
 const LOG_LINES_KEPT = 200;
+/** A "running" row older than this belongs to an instance that was killed mid-run (serverless timeout, redeploy). */
+const STALE_RUN_MS = 30 * 60_000;
 const RUNS_KEPT_IN_MEMORY = 50;
 
 export type CrawlTrigger = "schedule" | "manual";
@@ -74,7 +77,19 @@ export class CrawlBusyError extends Error {
 
 const newRunId = () => `crun_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
+/** Closes rows no live process will ever finish, so the run log does not show them "running" forever. */
+async function closeStaleRuns() {
+  const before = new Date(Date.now() - STALE_RUN_MS);
+  const error = "interrupted: the process ended before the run finished";
+  if (!hasDatabase) {
+    for (const r of memoryRuns) if (r.status === "running" && new Date(r.startedAt) < before) Object.assign(r, { status: "failed", error, finishedAt: new Date().toISOString() });
+    return;
+  }
+  await prisma.crawlRun.updateMany({ where: { status: "running", startedAt: { lt: before } }, data: { status: "failed", error, finishedAt: new Date() } });
+}
+
 async function openRun(trigger: CrawlTrigger, actorId: string | null): Promise<string> {
+  await closeStaleRuns().catch((err) => console.error("[crawl] could not close stale runs", err));
   if (!hasDatabase) {
     const run: CrawlRunRecord = { id: newRunId(), trigger, status: "running", actorId, startedAt: new Date().toISOString(), finishedAt: null, discovered: 0, processed: 0, imported: 0, rejected: 0, errors: 0, created: 0, updated: 0, error: null, log: [] };
     memoryRuns.unshift(run);
@@ -156,11 +171,22 @@ export function isCronAuthorized(request: Request, secret = process.env.SYNAPTH_
   return given.length === want.length && timingSafeEqual(given, want);
 }
 
+const slotOf = (now: Date) => Math.floor(now.getTime() / (CRAWL_INTERVAL_HOURS * 3_600_000));
+
 /** Two queries per pass, rotating with the slot, so every query comes round within a day. */
 function scheduledQueries(now = new Date()): string[] {
-  const slot = Math.floor(now.getTime() / (CRAWL_INTERVAL_HOURS * 3_600_000));
-  const i = (slot * 2) % DEFAULT_QUERIES.length;
+  const i = (slotOf(now) * 2) % DEFAULT_QUERIES.length;
   return [DEFAULT_QUERIES[i], DEFAULT_QUERIES[(i + 1) % DEFAULT_QUERIES.length]];
+}
+
+/**
+ * GitHub search every pass, plus one external source in turn (all of them come round within a few passes); the search order
+ * alternates so recently pushed repos surface, not only the top-starred ones
+ * the catalogue already holds.
+ */
+export function scheduledPlan(now = new Date()): { queries: string[]; sources: CrawlSource[]; sort: "stars" | "updated" } {
+  const slot = slotOf(now);
+  return { queries: scheduledQueries(now), sources: ["github", EXTERNAL_SOURCES[slot % EXTERNAL_SOURCES.length]], sort: slot % 2 ? "updated" : "stars" };
 }
 
 /** Repos the catalogue already holds: the crawl-state file does not survive a serverless instance. */
@@ -207,23 +233,37 @@ export interface ManualCrawlInput {
   minStars: number;
   queries?: string[];
   repos?: string[];
+  sources?: CrawlSource[];
   codeSearch?: boolean;
   refresh?: boolean;
   requireManifest?: boolean;
 }
 
-/** Starts a crawl in the background and returns immediately; progress is read with `crawlStatus()`. */
-export function startManualCrawl(actorId: string, input: ManualCrawlInput): void {
+/**
+ * Starts a manual crawl. In a long-lived process it runs in the background and
+ * returns immediately (progress via `crawlStatus()`). On serverless a promise
+ * left running after the response is frozen with the instance, so there the
+ * call awaits a time-boxed pass instead, like the scheduled one; repos it did
+ * not reach are picked up by the next run.
+ */
+export async function startManualCrawl(actorId: string, input: ManualCrawlInput): Promise<void> {
   if (job.running) throw new CrawlBusyError();
-  void execute("manual", actorId, {
-    maxRepos: input.maxRepos,
+  const direct = Boolean(input.repos?.length);
+  const options: CrawlOptions = {
+    maxRepos: isServerless ? Math.min(input.maxRepos, 25) : input.maxRepos,
     minStars: input.minStars,
-    queries: input.repos?.length ? [] : input.queries,
+    queries: direct ? [] : input.queries,
+    sources: direct ? [] : input.sources,
     candidates: input.repos?.map((fullName) => ({ fullName, foundBy: "api" })),
-    codeSearch: input.repos?.length ? false : input.codeSearch,
-    refresh: input.refresh || Boolean(input.repos?.length),
+    codeSearch: direct ? false : input.codeSearch,
+    refresh: input.refresh || direct,
     requireManifest: input.requireManifest,
-  });
+  };
+  if (!isServerless) {
+    void execute("manual", actorId, options);
+    return;
+  }
+  await execute("manual", actorId, { ...options, deadline: Date.now() + SCHEDULED_BUDGET_MS, knownRepos: direct ? undefined : await catalogueRepos() });
 }
 
 /**
@@ -238,9 +278,9 @@ export async function runScheduledCrawl(options: { budgetMs?: number; now?: Date
   }
   const budgetMs = options.budgetMs ?? (isServerless ? SCHEDULED_BUDGET_MS : undefined);
   return execute("schedule", null, {
+    ...scheduledPlan(options.now),
     maxRepos: budgetMs ? 25 : 100,
     minStars: 3,
-    queries: scheduledQueries(options.now),
     codeSearch: false,
     deadline: budgetMs ? Date.now() + budgetMs : undefined,
     knownRepos: await catalogueRepos(),

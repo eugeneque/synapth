@@ -22,7 +22,7 @@ import { skillRepository } from "@/cortex/repository";
 import { impulseSummary } from "@/cortex/social";
 import { notify, notifyMany } from "@/cortex/notifications";
 import { listStaffIds, requirePermission } from "@/cortex/roles";
-import { scanManifest } from "@/lib/sandbox-scanner";
+import { scanSkill } from "@/lib/sandbox-scanner";
 import {
   VERIFICATION_NOTE_MAX,
   VERIFICATION_RULES,
@@ -75,7 +75,8 @@ export async function checkEligibility(userId: string, phone: string | null, { n
   const handle = profile.handle.toLowerCase();
   const skills = all.filter((s) => s.authorId === userId || (handle && s.source?.owner.toLowerCase() === handle));
   const flaggedSkills = skills
-    .map((s) => ({ id: s.id, slug: s.slug, name: s.name, findings: scanManifest(s.manifest).findings.length }))
+    // Only findings that keep an entry out of Community count: medium hygiene (unpinned npx, permission combos) does not.
+    .map((s) => ({ id: s.id, slug: s.slug, name: s.name, findings: scanSkill(s).findings.filter((f) => f.verdict || f.severity === "high" || f.severity === "critical").length }))
     .filter((s) => s.findings > 0);
   const ageDays = Math.max(0, Math.floor((now.getTime() - new Date(profile.createdAt).getTime()) / DAY_MS));
   const checks: Eligibility["checks"] = [

@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { scanSkill } from "@/lib/sandbox-scanner";
 import assert from "node:assert/strict";
 import { PermissionDeniedError, setUserRole } from "@/cortex/roles";
 import { decideModeration, listModerationRequests, ModerationRequestError, pendingRequestFor, requestModeration, rescanForReview, resetModerationForTests, setVerification, VerificationRefusedError } from "@/cortex/moderation";
@@ -13,7 +14,8 @@ async function account(handle: string) {
 }
 
 async function communityEntry() {
-  const entry = (await skillRepository.all()).find((s) => s.securityLevel === "Community");
+  // Verified needs risk score ≥ 85 (ТЗ §2, stage 7): pick an entry the scanner lets through.
+  const entry = (await skillRepository.all()).find((s) => s.securityLevel === "Community" && scanSkill(s).verifiable);
   assert.ok(entry, "seed catalogue has Community entries");
   return entry;
 }

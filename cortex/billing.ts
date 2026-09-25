@@ -1,12 +1,16 @@
 /**
- * Cortex · Creator economy / pay-per-task
+ * Cortex · Creator economy / pay-per-task (ТЗ §5.2)
  *
- * Every paid execution produces three ledger entries in one transaction:
- *   caller wallet   : charge        (−price)
- *   creator wallet  : earning       (+price − fee)
- *   platform wallet : platform_fee  (+fee)
- * and one UsageEvent row that links them. Free skills still get a UsageEvent
- * (price 0) so retention and execution stats work for everyone.
+ * A paid call is a hold, then a settle or a release:
+ *   open  → caller wallet : hold     (−price)  — parallel calls cannot overdraw
+ *   2xx   → caller wallet : release  (+price)
+ *           caller wallet : charge   (−price)
+ *           creator wallet: earning  (+price − fee)
+ *           platform      : platform_fee (+fee)
+ *   else  → caller wallet : release  (+price)  — nothing is charged
+ * Every operation sums to zero across wallets, entries are append-only and a
+ * wallet's balance is the sum of its entries. One UsageEvent links them; free
+ * skills still get one (price 0) so retention and execution stats work.
  */
 
 import { prisma, hasDatabase } from "@/cortex/db";
@@ -33,6 +37,8 @@ export function splitPrice(priceMicros: number) {
 export interface ExecutionRequest {
   skill: Skill;
   callerId: string;
+  /** Key that made the call: daily caps are per key (types/api-keys.ts). */
+  apiKeyId?: string | null;
   toolName: string | null;
   input: unknown;
 }
@@ -42,15 +48,22 @@ export interface ExecutionOutcome {
   latencyMs: number;
   inputTokens?: number;
   outputTokens?: number;
+  /** Upstream HTTP status and response size, for author quality monitoring. */
+  httpStatus?: number | null;
+  responseBytes?: number | null;
 }
+
+const utcMidnight = (now = new Date()) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
 export interface BillingService {
   getWallet(userId: string): Promise<Wallet>;
   topUp(userId: string, usd: number, memo?: string): Promise<Wallet>;
-  /** Reserve funds and open a UsageEvent. Throws InsufficientFundsError. */
+  /** Hold the price and open a UsageEvent. Throws InsufficientFundsError. */
   openExecution(req: ExecutionRequest): Promise<UsageEvent>;
-  /** Close the event: on failure the charge is refunded. */
+  /** Settle on success (three entries) or release the hold; closing twice throws. */
   closeExecution(executionId: string, outcome: ExecutionOutcome): Promise<ExecutionReceipt>;
+  /** Held + charged today (UTC), micro-dollars — per key when given, else per caller. */
+  spentToday(callerId: string, apiKeyId?: string | null): Promise<number>;
   ledger(userId: string, limit?: number): Promise<LedgerEntry[]>;
   creatorSummary(creatorId: string): Promise<{ executions: number; earningsUsd: number; bySkill: Array<{ skillId: string; executions: number; earningsUsd: number }> }>;
 }
@@ -116,15 +129,28 @@ class MemoryBillingService implements BillingService {
       priceMicros,
       platformFeeMicros,
       creatorShareMicros,
+      apiKeyId: req.apiKeyId ?? null,
       latencyMs: null,
       inputTokens: null,
       outputTokens: null,
+      httpStatus: null,
+      responseBytes: null,
       inputHash: await sha256Hex(JSON.stringify(req.input ?? null)),
       createdAt: nowIso(),
     };
     this.events.set(event.id, event);
-    if (priceMicros > 0) this.post(caller, "charge", -priceMicros, `${req.skill.name} · ${req.toolName ?? "execute"}`, event.id);
+    if (priceMicros > 0) this.post(caller, "hold", -priceMicros, `Hold · ${req.skill.name} · ${req.toolName ?? "execute"}`, event.id);
     return { ...event };
+  }
+
+  async spentToday(callerId: string, apiKeyId?: string | null) {
+    const since = utcMidnight().getTime();
+    let sum = 0;
+    for (const e of this.events.values()) {
+      if (Date.parse(e.createdAt) < since || (e.status !== "pending" && e.status !== "succeeded")) continue;
+      if (apiKeyId ? e.apiKeyId === apiKeyId : e.callerId === callerId) sum += e.priceMicros;
+    }
+    return sum;
   }
 
   async closeExecution(executionId: string, outcome: ExecutionOutcome) {
@@ -135,17 +161,20 @@ class MemoryBillingService implements BillingService {
     event.latencyMs = outcome.latencyMs;
     event.inputTokens = outcome.inputTokens ?? null;
     event.outputTokens = outcome.outputTokens ?? null;
+    event.httpStatus = outcome.httpStatus ?? null;
+    event.responseBytes = outcome.responseBytes ?? null;
 
     const caller = this.wallet(event.callerId);
+    if (event.priceMicros > 0) this.post(caller, "release", event.priceMicros, `Release ${event.id}`, event.id);
     if (outcome.status === "succeeded") {
       event.status = "succeeded";
       if (event.priceMicros > 0) {
+        this.post(caller, "charge", -event.priceMicros, `Execution ${event.id}`, event.id);
         this.post(this.wallet(event.creatorId), "earning", event.creatorShareMicros, `Execution ${event.id}`, event.id);
         this.post(this.wallet(PLATFORM_USER_ID), "platform_fee", event.platformFeeMicros, `Fee ${event.id}`, event.id);
       }
     } else {
-      event.status = "refunded";
-      if (event.priceMicros > 0) this.post(caller, "refund", event.priceMicros, `Refund ${event.id} (failed)`, event.id);
+      event.status = "failed";
     }
 
     return {
@@ -228,20 +257,26 @@ class PrismaBillingService implements BillingService {
           priceMicros,
           platformFeeMicros,
           creatorShareMicros,
+          apiKeyId: req.apiKeyId ?? null,
           inputHash,
         },
       });
       if (priceMicros > 0) {
-        await tx.wallet.update({
-          where: { id: caller.id },
-          data: {
-            balanceMicros: { decrement: BigInt(priceMicros) },
-            entries: { create: { type: "charge", amountMicros: BigInt(-priceMicros), executionId: event.id, memo: `${req.skill.name} · ${req.toolName ?? "execute"}` } },
-          },
-        });
+        // Conditional decrement: two parallel holds cannot both pass the balance check.
+        const held = await tx.wallet.updateMany({ where: { id: caller.id, balanceMicros: { gte: BigInt(priceMicros) } }, data: { balanceMicros: { decrement: BigInt(priceMicros) } } });
+        if (held.count !== 1) throw new InsufficientFundsError(priceMicros / MICROS_PER_USD, Number(caller.balanceMicros) / MICROS_PER_USD);
+        await tx.ledgerEntry.create({ data: { walletId: caller.id, type: "hold", amountMicros: BigInt(-priceMicros), executionId: event.id, memo: `Hold · ${req.skill.name} · ${req.toolName ?? "execute"}` } });
       }
-      return { ...event, latencyMs: null, inputTokens: null, outputTokens: null, createdAt: event.createdAt.toISOString() } as UsageEvent;
+      return { ...event, latencyMs: null, inputTokens: null, outputTokens: null, httpStatus: null, responseBytes: null, createdAt: event.createdAt.toISOString() } as UsageEvent;
     });
+  }
+
+  async spentToday(callerId: string, apiKeyId?: string | null) {
+    const agg = await prisma.usageEvent.aggregate({
+      where: { ...(apiKeyId ? { apiKeyId } : { callerId }), status: { in: ["pending", "succeeded"] }, createdAt: { gte: utcMidnight() } },
+      _sum: { priceMicros: true },
+    });
+    return agg._sum.priceMicros ?? 0;
   }
 
   async closeExecution(executionId: string, outcome: ExecutionOutcome) {
@@ -249,14 +284,31 @@ class PrismaBillingService implements BillingService {
       const event = await tx.usageEvent.findUniqueOrThrow({ where: { id: executionId } });
       if (event.status !== "pending") throw new Error(`Execution ${executionId} already ${event.status}`);
 
-      const status = outcome.status === "succeeded" ? "succeeded" : "refunded";
-      await tx.usageEvent.update({
-        where: { id: executionId },
-        data: { status, latencyMs: outcome.latencyMs, inputTokens: outcome.inputTokens ?? null, outputTokens: outcome.outputTokens ?? null },
+      const status = outcome.status === "succeeded" ? "succeeded" : "failed";
+      // Close only a pending event: a concurrent close loses here instead of paying twice.
+      const closed = await tx.usageEvent.updateMany({
+        where: { id: executionId, status: "pending" },
+        data: { status, latencyMs: outcome.latencyMs, inputTokens: outcome.inputTokens ?? null, outputTokens: outcome.outputTokens ?? null, httpStatus: outcome.httpStatus ?? null, responseBytes: outcome.responseBytes ?? null },
       });
+      if (closed.count !== 1) throw new Error(`Execution ${executionId} already closed`);
 
       if (event.priceMicros > 0) {
+        const callerWallet = await tx.wallet.findUniqueOrThrow({ where: { userId: event.callerId } });
+        await tx.wallet.update({
+          where: { id: callerWallet.id },
+          data: {
+            balanceMicros: { increment: BigInt(event.priceMicros) },
+            entries: { create: { type: "release", amountMicros: BigInt(event.priceMicros), executionId, memo: `Release ${executionId}` } },
+          },
+        });
         if (status === "succeeded") {
+          await tx.wallet.update({
+            where: { id: callerWallet.id },
+            data: {
+              balanceMicros: { decrement: BigInt(event.priceMicros) },
+              entries: { create: { type: "charge", amountMicros: BigInt(-event.priceMicros), executionId, memo: `Execution ${executionId}` } },
+            },
+          });
           const creator = await tx.wallet.upsert({ where: { userId: event.creatorId }, create: { userId: event.creatorId }, update: {} });
           await tx.wallet.update({
             where: { id: creator.id },
@@ -272,15 +324,6 @@ class PrismaBillingService implements BillingService {
             data: {
               balanceMicros: { increment: BigInt(event.platformFeeMicros) },
               entries: { create: { type: "platform_fee", amountMicros: BigInt(event.platformFeeMicros), executionId, memo: `Fee ${executionId}` } },
-            },
-          });
-        } else {
-          const caller = await tx.wallet.findUniqueOrThrow({ where: { userId: event.callerId } });
-          await tx.wallet.update({
-            where: { id: caller.id },
-            data: {
-              balanceMicros: { increment: BigInt(event.priceMicros) },
-              entries: { create: { type: "refund", amountMicros: BigInt(event.priceMicros), executionId, memo: `Refund ${executionId} (failed)` } },
             },
           });
         }
@@ -321,5 +364,5 @@ class PrismaBillingService implements BillingService {
   }
 }
 
-const g = globalThis as unknown as { __synapthBilling?: BillingService };
-export const billing: BillingService = g.__synapthBilling ?? (g.__synapthBilling = hasDatabase ? new PrismaBillingService() : new MemoryBillingService());
+const g = globalThis as unknown as { __synapthBilling_v2?: BillingService };
+export const billing: BillingService = g.__synapthBilling_v2 ?? (g.__synapthBilling_v2 = hasDatabase ? new PrismaBillingService() : new MemoryBillingService());
