@@ -1267,6 +1267,8 @@ export const ui: UiMessages = {
   "reactions.add": "Додати реакцію",
   "reactions.toggle": "{emoji} · {n}",
   "reactions.failed": "Реакцію не збережено",
+  "reactions.group": "Реакції",
+  "reactions.pick": "Реакція {emoji}",
   "notif.friendRequest.title": "{name} хоче додати вас у друзі",
   "notif.friendRequest.body": "Прийміть запит, щоб отримувати дописи одне одного; поки що лише відправник отримує ваші.",
   "notif.friendAccepted.title": "{name} прийняв(ла) ваш запит у друзі",

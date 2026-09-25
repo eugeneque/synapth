@@ -355,19 +355,25 @@ export async function reactionCounts(postIds: string[], viewerId?: string | null
   return out;
 }
 
-/** Adds or removes the user's `emoji` on a post and returns the post's fresh tallies. No notification: reactions are too cheap to ping for. */
+/**
+ * One reaction per (user, post): the same emoji again withdraws it, a different
+ * one replaces it. Returns the post's fresh tallies. No notification: reactions
+ * are too cheap to ping for.
+ */
 export async function toggleReaction(userId: string, postId: string, rawEmoji: string): Promise<ReactionCount[]> {
   const emoji: PostReactionEmoji = reactionSchema.parse(rawEmoji);
   if (!hasDatabase) {
     if (!mem.posts.some((p) => p.id === postId)) throw new NotFoundError("Post not found");
-    const i = mem.reactions.findIndex((r) => r.postId === postId && r.userId === userId && r.emoji === emoji);
+    const i = mem.reactions.findIndex((r) => r.postId === postId && r.userId === userId);
+    const same = i >= 0 && mem.reactions[i].emoji === emoji;
     if (i >= 0) mem.reactions.splice(i, 1);
-    else mem.reactions.push({ postId, userId, emoji, createdAt: now() });
+    if (!same) mem.reactions.push({ postId, userId, emoji, createdAt: now() });
   } else {
     if (!(await prisma.post.findUnique({ where: { id: postId }, select: { id: true } }))) throw new NotFoundError("Post not found");
-    const key = { postId_userId_emoji: { postId, userId, emoji } };
-    if (await prisma.postReaction.findUnique({ where: key, select: { postId: true } })) await prisma.postReaction.delete({ where: key });
-    else await prisma.postReaction.create({ data: { postId, userId, emoji } });
+    const key = { postId_userId: { postId, userId } };
+    const cur = await prisma.postReaction.findUnique({ where: key, select: { emoji: true } });
+    if (cur?.emoji === emoji) await prisma.postReaction.delete({ where: key });
+    else await prisma.postReaction.upsert({ where: key, create: { postId, userId, emoji }, update: { emoji, createdAt: new Date() } });
   }
   return (await reactionCounts([postId], userId)).get(postId) ?? [];
 }

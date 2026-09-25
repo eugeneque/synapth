@@ -1267,6 +1267,8 @@ export const ui: UiMessages = {
   "reactions.add": "添加表情回应",
   "reactions.toggle": "{emoji} · {n}",
   "reactions.failed": "表情回应未保存",
+  "reactions.group": "表情回应",
+  "reactions.pick": "用 {emoji} 回应",
   "notif.friendRequest.title": "{name} 想加你为好友",
   "notif.friendRequest.body": "接受后你们将互相收到新动态；在此之前只有对方会收到你的动态。",
   "notif.friendAccepted.title": "{name} 接受了你的好友请求",
