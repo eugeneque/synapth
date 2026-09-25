@@ -47,6 +47,14 @@ export const RATE_LIMITS = {
   skillsetImage: { limit: 40, windowMs: 60 * 60_000 },
   /** Post photos: stored rows, up to `POST_MAX_IMAGES` per post. */
   postImage: { limit: 60, windowMs: 60 * 60_000 },
+  /** Agent API without a key: public search only (ТЗ FR-AI-13). */
+  agentAnon: { limit: 30, windowMs: 60_000 },
+  /** Agent API per key (plans add daily quotas on top, cortex/plans.ts). */
+  agent: { limit: 300, windowMs: 60_000 },
+  /** `resolve_task` ranks up to 50 candidates per call: stricter. */
+  resolveTask: { limit: 20, windowMs: 60_000 },
+  /** Checkout sessions opened with a payment provider. */
+  checkout: { limit: 10, windowMs: 10 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

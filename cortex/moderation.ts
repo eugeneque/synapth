@@ -21,9 +21,10 @@ import { skillRepository } from "@/cortex/repository";
 import { listStaffIds, requirePermission } from "@/cortex/roles";
 import { getAuthorRefs } from "@/cortex/account";
 import { notifyMany } from "@/cortex/notifications";
-import { scanManifest, type ScanReport } from "@/lib/sandbox-scanner";
+import { scanSkill, type ScanReport } from "@/lib/sandbox-scanner";
+import { VERIFIED_MIN_SCORE } from "@/types/trust";
 import { MODERATION_NOTE_MAX, type ModerationRequest, type ModerationStatus, type ModerationVerdict } from "@/types/moderation";
-import type { SecurityLevel, Skill } from "@/types/skill";
+import { SECURITY_LEVELS, type SecurityLevel, type Skill } from "@/types/skill";
 
 export class VerificationRefusedError extends Error {
   status = 422 as const;
@@ -55,10 +56,15 @@ export async function setVerification(actorId: string, skillId: string, verified
   const skill = await skillRepository.byId(skillId);
   if (!skill) throw new EntryNotFoundError();
 
-  const scan = scanManifest(skill.manifest, { reviewed: verified });
-  if (verified && scan.level !== "Verified") {
-    const worst = scan.findings.filter((f) => f.severity === "critical" || f.severity === "high").map((f) => f.rule);
-    throw new VerificationRefusedError(`The sandbox scan blocks verification (${worst.join(", ") || "too many medium findings"}); the manifest has to be fixed first`);
+  // Gov sits on top of Verified: re-confirming a Gov entry keeps it, revoking drops both.
+  const scan = scanSkill(skill, { reviewed: verified, gov: verified && skill.securityLevel === "Gov" });
+  if (verified && scan.level !== "Verified" && scan.level !== "Gov") {
+    const worst = scan.findings.filter((f) => f.verdict || f.severity === "critical" || f.severity === "high").map((f) => f.rule);
+    throw new VerificationRefusedError(
+      worst.length
+        ? `The sandbox scan blocks verification (${[...new Set(worst)].join(", ")}); the manifest has to be fixed first`
+        : `Risk score ${scan.score} is below ${VERIFIED_MIN_SCORE}; resolve the medium findings first`,
+    );
   }
   if (scan.level === skill.securityLevel) return skill;
 
@@ -80,8 +86,8 @@ export async function moderationQueue(limit = 100): Promise<ModerationQueue> {
   const byReach = (a: Skill, b: Skill) => b.downloadsCount - a.downloadsCount || b.githubStars - a.githubStars;
   return {
     pending: all.filter((s) => s.securityLevel === "Community").sort(byReach).slice(0, limit),
-    verified: all.filter((s) => s.securityLevel === "Verified").sort(byReach).slice(0, limit),
-    sandboxed: all.filter((s) => s.securityLevel === "Sandbox").length,
+    verified: all.filter((s) => s.securityLevel === "Verified" || s.securityLevel === "Gov").sort(byReach).slice(0, limit),
+    sandboxed: all.filter((s) => s.securityLevel === "Sandbox" || s.securityLevel === "Quarantine").length,
   };
 }
 
@@ -107,7 +113,7 @@ const memoryRequests: RequestRow[] = g.__synapthModeration_v1 ?? (g.__synapthMod
 
 const newRequestId = () => `mod_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 const isStatus = (v: string): v is ModerationStatus => v === "pending" || v === "approved" || v === "rejected";
-const isLevel = (v: string | null): v is SecurityLevel => v === "Sandbox" || v === "Community" || v === "Verified";
+const isLevel = (v: string | null): v is SecurityLevel => (SECURITY_LEVELS as readonly (string | null)[]).includes(v);
 /** Crawled entries belong to `gh:<owner>` pseudo-users, who cannot read notifications. */
 const isPerson = (id: string) => !id.startsWith("gh:") && id !== "usr_platform";
 
@@ -216,8 +222,8 @@ export async function rescanForReview(actorId: string, skillId: string): Promise
   await requirePermission(actorId, "catalog.moderate");
   const skill = await skillRepository.byId(skillId);
   if (!skill) throw new EntryNotFoundError();
-  const report = scanManifest(skill.manifest);
-  return { report, verifiable: scanManifest(skill.manifest, { reviewed: true }).level === "Verified", scannedAt: new Date().toISOString() };
+  const report = scanSkill(skill, { reviewed: false, gov: false });
+  return { report, verifiable: report.verifiable, scannedAt: new Date().toISOString() };
 }
 
 /**

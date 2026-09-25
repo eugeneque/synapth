@@ -9,6 +9,7 @@
 
 import type { AuthorRef } from "@/types/social";
 import type { SecurityLevel, SkillCategory } from "@/types/skill";
+import type { PackTrustLevel } from "@/types/trust";
 
 export const SKILLSET_NAME_MAX = 80;
 export const SKILLSET_SUMMARY_MAX = 280;
@@ -53,7 +54,10 @@ export interface Skillset {
   avatar: string | null;
   author: AuthorRef;
   items: SkillsetItem[];
+  /** Moderator certificate (Certified); `trust` is what agents and filters compare against. */
   verified: boolean;
+  /** Derived from the items and the certificate (`packTrust`, types/trust.ts). */
+  trust: PackTrustLevel;
   verifiedBy: AuthorRef | null;
   verifiedAt: string | null;
   favorites: number;

@@ -88,6 +88,29 @@ export async function followerIds(userId: string): Promise<string[]> {
   return (await prisma.follow.findMany({ where: { toId: userId }, select: { fromId: true } })).map((r) => r.fromId);
 }
 
+export interface FollowGraph {
+  /** Mutual follows. */
+  friends: string[];
+  /** One-way follows the user sent (pending requests). */
+  following: string[];
+  /** One-way followers (requests waiting for the user's answer). */
+  followers: string[];
+  /** People the user's friends follow and the user has no relation to, with how many friends follow them. */
+  secondDegree: Map<string, number>;
+}
+
+/** The user's neighbourhood two hops out — the feed ranker's social signal. */
+export async function followGraph(userId: string): Promise<FollowGraph> {
+  const { friends, incoming, outgoing } = await split(userId);
+  const known = new Set([userId, ...friends, ...incoming, ...outgoing]);
+  let hops: string[];
+  if (!hasDatabase) hops = mem.filter((f) => friends.includes(f.fromId)).map((f) => f.toId);
+  else hops = friends.length ? (await prisma.follow.findMany({ where: { fromId: { in: friends } }, select: { toId: true } })).map((r) => r.toId) : [];
+  const secondDegree = new Map<string, number>();
+  for (const id of hops) if (!known.has(id)) secondDegree.set(id, (secondDegree.get(id) ?? 0) + 1);
+  return { friends, following: outgoing, followers: incoming, secondDegree };
+}
+
 interface Split {
   friends: string[];
   incoming: string[];

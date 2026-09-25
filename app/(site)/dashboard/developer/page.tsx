@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { KeyRound, Lock, RefreshCw, Rocket } from "lucide-react";
+import { KeyRound, Lock, RefreshCw, Rocket, ScrollText } from "lucide-react";
 import { auth } from "@/cortex/auth";
 import { skillRepository } from "@/cortex/repository";
 import { getI18n } from "@/cortex/locale";
 import { rich } from "@/lib/i18n/rich";
 import { hasDatabase } from "@/cortex/db";
-import { DEMO_API_KEY } from "@/cortex/api-keys";
+import { DEMO_API_KEY, listApiKeys } from "@/cortex/api-keys";
+import { listAgentAudit } from "@/cortex/agent-audit";
+import { ApiKeysPanel } from "@/components/api-keys-panel";
+import { AgentAuditTable } from "@/components/agent-audit-table";
+import { API_KEYS_MAX, keyStatus } from "@/types/api-keys";
+import { planLimits } from "@/cortex/plans";
 import { PublishForm } from "@/components/publish-form";
 import { Panel, StatTile } from "@/components/panel";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +30,10 @@ export default async function DeveloperPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/dashboard/developer");
 
-  const [{ t }, all] = await Promise.all([getI18n(), skillRepository.all()]);
+  const [{ t }, all, keys, audit, limits] = await Promise.all([getI18n(), skillRepository.all(), listApiKeys(session.user.id), listAgentAudit(session.user.id, { limit: 50 }), planLimits(session.user.id)]);
+  const maxKeys = Math.min(limits.keys, API_KEYS_MAX);
+  const retentionDays = limits.auditDays;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const handle = session.user.handle ?? "account";
   const mine = all.filter((s) => s.authorId === session.user.id);
   const verified = mine.filter((s) => s.securityLevel === "Verified").length;
@@ -66,7 +74,7 @@ export default async function DeveloperPage() {
       </header>
 
       <section className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-2 sm:divide-y-0 sm:divide-x">
-        <StatTile label={t("dash.apiKeys")} value={hasDatabase ? "—" : "01"} hint={t("dash.scopes")} />
+        <StatTile label={t("dash.apiKeys")} value={String(keys.filter((k) => keyStatus(k) === "active").length).padStart(2, "0")} hint={t("dash.scopes")} />
         <StatTile label={t("dash.myEntries")} value={String(mine.length).padStart(2, "0")} hint={<span className="flex justify-between"><span>{t("dash.myEntriesHint")}</span><span className="text-synapse">{t("dash.myVerified", { n: verified })}</span></span>} />
       </section>
 
@@ -80,24 +88,20 @@ export default async function DeveloperPage() {
 
         <div className="flex flex-col gap-8 lg:col-span-4">
           <Panel id="keys" title={t("dash.keys.title")} icon={<KeyRound className="h-4 w-4 shrink-0 text-synapse" />} corners className="scroll-mt-20" bodyClassName="flex flex-col gap-4 p-5">
-            <div className="flex items-center justify-between">
-              <span className="label-mono-sm">{t("dash.keys.registered")}</span>
-              <span className="label-mono-sm text-synapse">{hasDatabase ? t("dash.keys.managed") : t("dash.keys.demo")}</span>
-            </div>
-            <div className="space-y-2 rounded-lg border border-border bg-muted p-3.5">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[11px] font-semibold text-synapse">{hasDatabase ? "syn_live_••••" : `${DEMO_API_KEY.slice(0, 12)}…${DEMO_API_KEY.slice(-4)}`}</span>
-                <Badge variant={hasDatabase ? "synapse" : "chip"}>{hasDatabase ? t("dash.keys.active") : t("dash.keys.sandbox")}</Badge>
+            <ApiKeysPanel keys={keys} maxKeys={maxKeys} baseUrl={baseUrl} />
+            {!hasDatabase && (
+              <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-semibold text-synapse">{`${DEMO_API_KEY.slice(0, 12)}…${DEMO_API_KEY.slice(-4)}`}</span>
+                  <Badge variant="chip">{t("dash.keys.sandbox")}</Badge>
+                </div>
+                <p className="text-[13px] font-medium">{t("dash.keys.local")}</p>
+                <div className="label-mono-sm flex items-center justify-between border-t border-border pt-2">
+                  <span>{t("dash.keys.bound", { handle: "demo" })}</span>
+                  <CopyButton text={DEMO_API_KEY} label={t("dash.keys.copy")} />
+                </div>
               </div>
-              <p className="text-[13px] font-medium">{hasDatabase ? t("dash.keys.prod") : t("dash.keys.local")}</p>
-              <p className="label-mono-sm">
-                {t("dash.keys.perms")} <span className="font-mono normal-case tracking-normal text-foreground/80">read, install</span>
-              </p>
-              <div className="label-mono-sm flex items-center justify-between border-t border-border pt-2">
-                <span>{t("dash.keys.bound", { handle })}</span>
-                {!hasDatabase && <CopyButton text={DEMO_API_KEY} label={t("dash.keys.copy")} />}
-              </div>
-            </div>
+            )}
             <div className="well flex items-start gap-2 p-3">
               <Lock className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />
               <p className="label-mono-sm leading-relaxed normal-case tracking-normal">{rich(t("dash.keys.note"))} {hasDatabase ? t("dash.keys.hashed") : t("dash.keys.demoNote")}</p>
@@ -105,6 +109,10 @@ export default async function DeveloperPage() {
           </Panel>
         </div>
       </div>
+
+      <Panel id="audit" title={t("audit.title")} icon={<ScrollText className="h-4 w-4 shrink-0 text-synapse" />} meta={t("audit.retention", { n: retentionDays })} className="scroll-mt-20" bodyClassName="p-0">
+        <AgentAuditTable entries={audit} />
+      </Panel>
 
       <div className="label-mono-sm flex flex-col items-center justify-between gap-4 rounded-xl border border-border bg-muted p-4 md:flex-row">
         <span>{t("dash.foot.scanner", { store: hasDatabase ? "postgres" : "in-memory" })}</span>

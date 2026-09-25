@@ -8,7 +8,7 @@ import { z } from "zod";
 import { skillRepository, hydratePrompt } from "@/cortex/repository";
 import { resolveCaller } from "@/cortex/api-keys";
 import { isAgentRequest, buildAgentContext } from "@/cortex/agent-context";
-import { scanManifest } from "@/lib/sandbox-scanner";
+import { scanSkill } from "@/lib/sandbox-scanner";
 import { agentJson, json, withErrors } from "@/lib/api";
 import { enforceRequestLimit } from "@/cortex/rate-limit";
 
@@ -22,7 +22,8 @@ export const GET = withErrors(async (request: Request, { params }: Ctx) => {
   enforceRequestLimit("read", request);
   const { id } = await params;
   const found = await load(id);
-  if (!found) return json({ error: "Skill not found" }, { status: 404 });
+  // Quarantined entries are hidden from the API: installs learn about it via `revoked` on check_updates.
+  if (!found || found.securityLevel === "Quarantine") return json({ error: "Skill not found" }, { status: 404 });
   const skill = await hydratePrompt(found);
 
   const format = new URL(request.url).searchParams.get("format");
@@ -33,7 +34,7 @@ export const GET = withErrors(async (request: Request, { params }: Ctx) => {
     return agentJson(buildAgentContext([skill], 1));
   }
   if (format === "scan") {
-    return json({ skill: skill.id, scan: scanManifest(skill.manifest, { reviewed: skill.securityLevel === "Verified" }) });
+    return json({ skill: skill.id, scan: scanSkill(skill) });
   }
   return json(skill);
 });

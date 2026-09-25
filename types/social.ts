@@ -64,7 +64,7 @@ export interface PersonSummary extends AuthorRef {
 export const POST_REACTIONS = ["👍", "❤️", "🔥", "🚀", "🎉", "🤯", "👀"] as const;
 export type PostReactionEmoji = (typeof POST_REACTIONS)[number];
 
-/** One emoji's tally on a post; `mine` — the viewer left it. Only emojis with a count > 0 are listed, in picker order. */
+/** One emoji's tally on a post; `mine` — it is the viewer's reaction (at most one per post). Only emojis with a count > 0 are listed, in picker order. */
 export interface ReactionCount {
   emoji: PostReactionEmoji;
   count: number;

@@ -1,13 +1,14 @@
 import type { MetadataRoute } from "next";
 import { skillRepository } from "@/cortex/repository";
 import { listSkillsets } from "@/cortex/skillsets";
+import { isListed } from "@/types/trust";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [skills, skillsets] = await Promise.all([skillRepository.all(), listSkillsets({ limit: 200 })]);
+  const [skills, skillsets] = await Promise.all([skillRepository.all().then((all) => all.filter((s) => isListed(s.securityLevel))), listSkillsets({ limit: 200 })]);
   const authors = [...new Set(skills.map((s) => s.source?.owner ?? s.authorName))];
   return [
     { url: `${APP_URL}/`, changeFrequency: "hourly", priority: 1 },

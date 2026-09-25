@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { scanSkill } from "@/lib/sandbox-scanner";
 import assert from "node:assert/strict";
 import { can, permissionsOf, PERMISSIONS, publicRole, toUserRole } from "@/types/auth";
 import { PermissionDeniedError, RoleChangeError, getRole, listUsers, requirePermission, setUserRole } from "@/cortex/roles";
@@ -60,8 +61,11 @@ test("moderators verify clean entries; the scanner still blocks sandboxed ones; 
   await setUserRole("usr_demo", mod, "moderator");
 
   const queue = await moderationQueue();
-  const pending = queue.pending[0];
-  assert.ok(pending, "seed catalogue has Community entries");
+  const pending = queue.pending.find((s) => scanSkill(s).verifiable);
+  assert.ok(pending, "seed catalogue has Community entries clean enough for Verified");
+  // Medium findings pushing the risk score under 85 keep an entry out of Verified (ТЗ §2, stage 7).
+  const lowScore = queue.pending.find((s) => !scanSkill(s).verifiable);
+  if (lowScore) await assert.rejects(setVerification(mod, lowScore.id, true), VerificationRefusedError);
   await assert.rejects(setVerification(user, pending.id, true), PermissionDeniedError);
 
   const verified = await setVerification(mod, pending.id, true);

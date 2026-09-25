@@ -8,7 +8,7 @@
  */
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { MessageSquare, MoreHorizontal, Trash2 } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
@@ -72,7 +72,8 @@ export function PostFeed({ handle, ownerId, viewer, canModerate = false, initial
   );
 }
 
-function PostCard({ post, viewer, canModerate, initialComments, onDelete }: { post: Post; viewer: AuthorRef | null; canModerate: boolean; initialComments: Comment[]; onDelete: () => void }) {
+/** One post with its reactions and thread. `aside` sits under the author line (the feed's "why you see this" chip). */
+export function PostCard({ post, viewer, canModerate, initialComments, onDelete, aside }: { post: Post; viewer: AuthorRef | null; canModerate: boolean; initialComments: Comment[]; onDelete: () => void; aside?: ReactNode }) {
   const i18n = useI18n();
   const { t, n } = i18n;
   const [open, setOpen] = useState(false);
@@ -100,6 +101,7 @@ function PostCard({ post, viewer, canModerate, initialComments, onDelete }: { po
               </span>
             </div>
             {post.author.occupation && <span className="label-mono-sm text-synapse">{t(`occupation.${post.author.occupation}`)}</span>}
+            {aside}
           </div>
         </div>
         {(viewer?.id === post.author.id || canModerate) && (
