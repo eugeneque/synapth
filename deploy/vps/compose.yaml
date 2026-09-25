@@ -1,0 +1,85 @@
+name: synapth
+
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-synapth}
+      POSTGRES_USER: ${POSTGRES_USER:-synapth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    image: ${SYNAPTH_MIGRATOR_IMAGE:?SYNAPTH_MIGRATOR_IMAGE is required}
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+    networks:
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+  app:
+    image: ${SYNAPTH_IMAGE:?SYNAPTH_IMAGE is required}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      AUTH_URL: https://${SYNAPTH_DOMAIN:-synapth.localhost8081.ru}
+      NEXT_PUBLIC_APP_URL: https://${SYNAPTH_DOMAIN:-synapth.localhost8081.ru}
+    expose:
+      - "3000"
+    volumes:
+      - crawl_data:/app/data
+    networks:
+      - backend
+      - traefik-public
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik-public}
+      traefik.http.routers.synapth.rule: Host(`${SYNAPTH_DOMAIN:-synapth.localhost8081.ru}`)
+      traefik.http.routers.synapth.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
+      traefik.http.routers.synapth.tls: "true"
+      traefik.http.routers.synapth.tls.certresolver: ${TRAEFIK_CERTRESOLVER:-cloudflare}
+      traefik.http.services.synapth.loadbalancer.server.port: "3000"
+
+volumes:
+  postgres_data:
+  crawl_data:
+
+networks:
+  backend:
+    internal: true
+  traefik-public:
+    name: ${TRAEFIK_NETWORK:-traefik-public}
+    external: true

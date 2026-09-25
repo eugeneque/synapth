@@ -1,0 +1,15 @@
+.git
+.github
+.next
+.next-*
+.env
+.env.*
+!.env.example
+node_modules
+data
+*.log
+.test-catalog.json
+Dockerfile*
+compose*.yml
+compose*.yaml
+deploy
