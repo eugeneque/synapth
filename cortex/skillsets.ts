@@ -27,6 +27,7 @@ import { slugify } from "@/lib/utils";
 import { dataUrlBytes, isImageDataUrl } from "@/types/profile";
 import type { Skill, SkillCategory } from "@/types/skill";
 import type { AuthorRef } from "@/types/social";
+import { packTrust } from "@/types/trust";
 import {
   SKILLSET_AVATAR,
   SKILLSET_DESCRIPTION_MAX,
@@ -208,6 +209,7 @@ async function hydrate(row: SetRow): Promise<Skillset> {
       return { skill: skill ? skillRef(skill) : null, skillId: i.skillId, addedAt: i.addedAt, addedBy: i.addedById };
     }),
     verified: row.verified,
+    trust: packTrust(items.map((i) => skills.get(i.skillId)?.securityLevel).filter((l): l is Skill["securityLevel"] => Boolean(l)), row.verified),
     verifiedBy: row.verifiedById ? (people.get(row.verifiedById) ?? null) : null,
     verifiedAt: row.verifiedAt,
     favorites: favorites.get(row.id) ?? 0,

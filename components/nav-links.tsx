@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 export const NAV = [
   { key: "nav.overview", href: "/", match: (p: string) => p === "/" },
   { key: "nav.docs", href: "/faq", match: (p: string) => p.startsWith("/faq") },
+  { key: "nav.pro", href: "/pro", match: (p: string) => p.startsWith("/pro") },
 ] as const;
 
 /** Header navigation: mono uppercase labels, a 2px synapse rule under the active section. */

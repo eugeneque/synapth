@@ -14,7 +14,8 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createGithubFetcher, importAllFromGithub, toRepoMeta, GithubParseError, type GithubRepoJson, type RepoFetcher, type RepoMeta } from "@/lib/github-parser";
-import { scanManifest, type ScanReport } from "@/lib/sandbox-scanner";
+import { scanSkill, type ScanReport } from "@/lib/sandbox-scanner";
+import { auditRepository } from "@/cortex/repo-audit";
 import { skillRepository } from "@/cortex/repository";
 import { resolveGithubToken } from "@/cortex/github-token";
 import { isServerless } from "@/cortex/db";
@@ -57,6 +58,8 @@ export interface CrawlOptions {
   deadline?: number;
   /** Lower-cased `owner/repo` names to treat as already seen (the catalogue, when the state file is ephemeral). */
   knownRepos?: ReadonlySet<string>;
+  /** Query OSV and the package registries for DP-01 / DP-05 (default: on, except on serverless and under tests). */
+  dependencyAudit?: boolean;
 }
 
 export interface RepoCandidate {
@@ -244,15 +247,25 @@ export interface ProcessedRepo {
 /** Full-name → authorId used for crawled content. */
 export const githubAuthorId = (owner: string) => `gh:${owner.toLowerCase()}`;
 
+/** OSV / registry lookups cost seconds per repo: skip them inside the serverless crawl budget and in tests. */
+function defaultDependencyAudit(): boolean {
+  if (process.env.SYNAPTH_DEPENDENCY_AUDIT) return process.env.SYNAPTH_DEPENDENCY_AUDIT === "1";
+  return !isServerless && process.env.NODE_ENV !== "test" && !process.env.SYNAPTH_CATALOG_PATH?.includes(".test-");
+}
+
 export async function processRepo(candidate: RepoCandidate, fetcher: RepoFetcher, opts: CrawlOptions): Promise<ProcessedRepo> {
   try {
     const results = await importAllFromGithub(candidate.fullName, fetcher, { maxPerRepo: opts.maxPerRepo ?? 40, requireManifest: opts.requireManifest ?? false });
     const items: ProcessedRepo["items"] = [];
+    const audit = results.length
+      ? await auditRepository(results[0].ref, fetcher, [...new Set(results.map((r) => r.manifestPath.split("/").slice(0, -1).join("/")))], { online: opts.dependencyAudit ?? defaultDependencyAudit() })
+      : null;
     for (const r of results) {
-      const scan = scanManifest(r.input.manifest);
-      // Never republish leaked credentials; everything else lands with the badge the scanner assigned.
-      if (scan.findings.some((f) => f.kind === "secret_leak" && f.severity === "critical")) continue;
-      items.push({ input: r.input, scan });
+      const input = r.input.source ? { ...r.input, source: { ...r.input.source, audit } } : r.input;
+      const scan = scanSkill({ manifest: input.manifest, securityLevel: "Community", source: input.source ?? null }, { reviewed: false });
+      // Never republish leaked credentials or manifests the pipeline rejected; everything else lands with the level the scanner assigned.
+      if (scan.outcome === "Rejected" || scan.findings.some((f) => f.blocksPublication)) continue;
+      items.push({ input, scan });
     }
     if (!items.length) return { fullName: candidate.fullName, status: "rejected", skills: 0, reason: "all manifests rejected by scanner", items };
     return { fullName: candidate.fullName, status: "imported", skills: items.length, items };

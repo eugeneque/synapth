@@ -8,6 +8,7 @@ const LINKS = [
   { key: "footer.registry", href: "/search?tab=skills" },
   { key: "footer.security", href: "/faq#install" },
   { key: "footer.publish", href: "/dashboard/developer#publish" },
+  { key: "footer.pricing", href: "/pro" },
 ] as const;
 
 /** Compact footer: version, API and scanner versions, mono link row. */

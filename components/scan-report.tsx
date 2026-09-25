@@ -2,16 +2,17 @@
 
 import { AlertTriangle, CheckCircle2, Shield, ShieldCheck, XCircle } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
+import { VERIFIED_MIN_SCORE } from "@/types/trust";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/panel";
 import { SecurityBadge } from "@/components/security-badge";
 import type { FindingKind, ScanReport } from "@/lib/sandbox-scanner";
 import { cn } from "@/lib/utils";
 
-const SEVERITY_VARIANT = { low: "default", medium: "community", high: "sandbox", critical: "danger" } as const;
+const SEVERITY_VARIANT = { info: "chip", low: "default", medium: "community", high: "sandbox", critical: "danger" } as const;
 
 /** The rule families every scan covers; each one is reported as PASS unless a finding of that kind exists. */
-const CHECKS: FindingKind[] = ["prompt_injection", "malicious_command", "secret_leak", "exfiltration", "over_permissioned", "malformed"];
+const CHECKS: FindingKind[] = ["prompt_injection", "malicious_command", "secret_leak", "exfiltration", "over_permissioned", "malformed", "remote", "dependency", "behaviour"];
 
 export function ScanReportView({ report, compact }: { report: ScanReport; compact?: boolean }) {
   const { t } = useI18n();
@@ -29,7 +30,9 @@ export function ScanReportView({ report, compact }: { report: ScanReport; compac
       bodyClassName="flex flex-col gap-4 p-4"
       footer={
         <>
-          <span>{t("scan.footer", { v: report.scannerVersion, n: report.surfacesScanned })}</span>
+          <span>
+            {t("scan.footer", { v: report.scannerVersion, n: report.surfacesScanned })} · {t("scan.rules", { v: report.rulesVersion })}
+          </span>
           <span>{report.durationMs} ms</span>
         </>
       }
@@ -43,12 +46,18 @@ export function ScanReportView({ report, compact }: { report: ScanReport; compac
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <SecurityBadge level={report.level} />
+          {report.outcome === "Rejected" ? <Badge variant="danger">{t("scan.outcome.Rejected")}</Badge> : <SecurityBadge level={report.level} />}
           <span className={cn("flex h-12 w-12 items-center justify-center rounded-full", report.findings.length ? "bg-warn/10 text-warn" : "bg-synapse/10 text-synapse")}>
             <Shield className="h-7 w-7" />
           </span>
         </div>
       </div>
+
+      {report.outcome === "Community" && (
+        <p className={cn("label-mono-sm normal-case tracking-normal", report.verifiable ? "text-synapse" : "text-muted-foreground")}>
+          {report.verifiable ? t("scan.verifiable") : t("scan.notVerifiable", { min: VERIFIED_MIN_SCORE })}
+        </p>
+      )}
 
       <ul className="flex flex-col gap-1.5">
         {CHECKS.map((kind) => {

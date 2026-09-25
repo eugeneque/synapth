@@ -78,6 +78,8 @@ model User {
   skillsetImages     SkillsetImage[]
   verificationRequests VerificationRequest[] @relation("VerificationApplicant")
   emailCode            EmailCode?
+  subscription         Subscription?
+  payments             Payment[]
 }
 
 model Account {
@@ -116,17 +118,75 @@ model VerificationToken {
 }
 
 /// Keys agents use to call the gateway (`X-Synapth-Key`). Only the hash is stored.
+/// types/api-keys.ts: `sk_live_<32>`, scopes, 90-day expiry, a policy that can only tighten the owner's.
 model ApiKey {
   id         String    @id @default(cuid())
   userId     String
   label      String
   keyHash    String    @unique
   prefix     String
+  /// ApiKeyScope[]; keys issued before scopes existed keep read + fetch + execute.
+  scopes     String[]  @default(["catalog:read", "skills:fetch", "skills:execute"])
+  /// Partial<KeyPolicy>
+  policy     Json?
   lastUsedAt DateTime?
   createdAt  DateTime  @default(now())
+  /// Null only for keys issued before expiry existed.
+  expiresAt  DateTime?
   revokedAt  DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  audit AgentAuditLog[]
+
+  @@index([userId])
+}
+
+/// `report_outcome` from agents (ТЗ FR-AI-50/51): one per (key or user, skill, day).
+/// `weight` is 0 for keys younger than 7 days and for the skill author's own keys.
+model AgentReport {
+  id         String   @id @default(cuid())
+  skillId    String
+  userId     String
+  keyId      String?
+  /// "success" | "partial" | "fail"
+  result     String
+  tokens     Int?
+  durationMs Int?
+  comment    String?
+  weight     Float    @default(1)
+  /// UTC day, for the one-report-per-day rule.
+  day        String
+  createdAt  DateTime @default(now())
+
+  @@unique([skillId, userId, keyId, day])
+  @@index([skillId])
+}
+
+/// Every agent call (ТЗ FR-AI-62): key and agent, action, object + version + hash, policy decision, result.
+/// Retention depends on the plan (types/billing.ts); rows are append-only.
+model AgentAuditLog {
+  id            String   @id @default(cuid())
+  userId        String?
+  keyId         String?
+  /// `X-Agent-Name` as sent (journal only, grants nothing).
+  agentName     String?
+  action        String
+  objectType    String?
+  objectId      String?
+  objectVersion String?
+  objectHash    String?
+  /// "allow" | "deny"
+  decision      String
+  /// Policy rule or error code behind a deny.
+  rule          String?
+  /// "ok" or an error code (policy_denied, budget_exceeded …)
+  result        String
+  createdAt     DateTime @default(now())
+
+  key ApiKey? @relation(fields: [keyId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([keyId, createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -139,10 +199,13 @@ enum SkillCategory {
   Tool
 }
 
+/// types/trust.ts: Quarantine < Sandbox < Community < Verified < Gov.
 enum SecurityLevel {
+  Quarantine
   Sandbox
   Community
   Verified
+  Gov
 }
 
 model Skill {
@@ -247,6 +310,8 @@ model SecurityScan {
 
 enum LedgerEntryType {
   topup
+  hold
+  release
   charge
   earning
   platform_fee
@@ -300,9 +365,13 @@ model UsageEvent {
   priceMicros        Int
   platformFeeMicros  Int
   creatorShareMicros Int
+  /// Key that made the call (daily caps are per key); null for sessions.
+  apiKeyId           String?
   latencyMs          Int?
   inputTokens        Int?
   outputTokens       Int?
+  httpStatus         Int?
+  responseBytes      Int?
   inputHash          String
   createdAt          DateTime        @default(now())
 
@@ -314,6 +383,88 @@ model UsageEvent {
   @@index([skillId, createdAt])
   @@index([callerId, createdAt])
   @@index([creatorId, createdAt])
+  @@index([apiKeyId, createdAt])
+}
+
+/// Replay protection for paid calls (ТЗ §5.2, step 7): the same `Idempotency-Key`
+/// from the same caller within 24 h returns the stored result without a new charge.
+model IdempotencyRecord {
+  id          String   @id @default(cuid())
+  callerId    String
+  key         String
+  /// SHA-256 of method + path + body: a reused key with a different request is refused.
+  requestHash String
+  status      Int
+  /// Stored JSON response (our own envelope, never the upstream body).
+  response    Json
+  executionId String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@unique([callerId, key])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Synapth Pro · subscriptions and payments (types/billing.ts)
+// ---------------------------------------------------------------------------
+
+/// One live subscription per account; Free is the absence of a row (or a canceled one).
+model Subscription {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  /// PlanId: free | pro | team | business
+  plan               String
+  /// month | year
+  period             String
+  seats              Int       @default(1)
+  /// active | past_due | grace | canceled
+  status             String
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean   @default(false)
+  /// Downgrade scheduled for the next period.
+  pendingPlan        String?
+  provider           String
+  /// Saved method at the provider (token id), for renewals. Never card data.
+  paymentMethodId    String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Every checkout: subscription purchases, upgrades, renewals and wallet top-ups.
+model Payment {
+  id                String    @id @default(cuid())
+  userId            String
+  /// subscription | topup
+  kind              String
+  plan              String?
+  period            String?
+  seats             Int?
+  /// Minor units of `currency`.
+  amount            Int
+  currency          String
+  /// yookassa | cloudpayments | mock
+  provider          String
+  /// card | sbp | invoice
+  method            String
+  /// pending | succeeded | failed | canceled | refunded
+  status            String    @default("pending")
+  providerPaymentId String?
+  confirmationUrl   String?
+  description       String
+  failureReason     String?
+  /// Change details (upgrade, renewal …), provider metadata echoes.
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  paidAt            DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerPaymentId])
+  @@index([userId, createdAt])
 }
 
 // ---------------------------------------------------------------------------

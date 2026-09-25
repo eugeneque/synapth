@@ -11,6 +11,7 @@ import { SkillCard } from "@/components/skill-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCompact, timeAgo } from "@/lib/utils";
+import { isListed } from "@/types/trust";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  */
 export default async function AuthorPage({ params }: Params) {
   const owner = decodeURIComponent((await params).owner).toLowerCase();
-  const skills = (await skillRepository.all()).filter((s) => s.source?.owner.toLowerCase() === owner || s.authorName.toLowerCase() === owner);
+  const skills = (await skillRepository.all()).filter((s) => isListed(s.securityLevel) && (s.source?.owner.toLowerCase() === owner || s.authorName.toLowerCase() === owner));
   if (!skills.length) notFound();
 
   const name = skills[0].source?.owner ?? skills[0].authorName;
