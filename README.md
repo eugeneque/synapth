@@ -49,6 +49,14 @@ npm run role -- you@example.com admin # первый администратор
 
 Опции — `node scripts/install.mjs --help`.
 
+### Docker и VPS
+
+Параллельный production-деплой на VPS собирает immutable-образы в GitHub
+Actions, публикует их в GHCR и обновляет приложение через SSH. PostgreSQL
+работает в закрытой Docker-сети, а приложение доступно только через внешнюю
+сеть Traefik. Полная подготовка сервера, SSH-ключа, GitHub secrets и окружения —
+в [`deploy/vps/README.md`](deploy/vps/README.md).
+
 ## Каталог из GitHub
 
 ```bash

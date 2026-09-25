@@ -59,6 +59,9 @@ const corsHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Docker copies the traced standalone server into a small runtime image.
+  // Netlify keeps its normal OpenNext output unless explicitly requested.
+  ...(process.env.SYNAPTH_STANDALONE === "1" ? { output: "standalone" } : {}),
   // Lets a second dev server / build run beside the default one without sharing `.next`.
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   poweredByHeader: false,
