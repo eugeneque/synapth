@@ -79,9 +79,9 @@ openssl rand -hex 32
 ```
 
 Use the first value as `POSTGRES_PASSWORD`, the second as `AUTH_SECRET`, and the
-third as `SYNAPTH_CRON_SECRET`. Put the PostgreSQL password into both
-`POSTGRES_PASSWORD` and `DATABASE_URL`. Hex output is URL-safe and therefore
-does not need percent encoding in the connection URL.
+third as `SYNAPTH_CRON_SECRET`. Compose builds `DATABASE_URL` itself with the
+internal hostname `db`, so it must not be added to the VPS `.env`. Hex output is
+URL-safe and therefore does not need percent encoding in the generated URL.
 
 For email confirmation, configure `RESEND_API_KEY` and a verified `EMAIL_FROM`,
 then set `SYNAPTH_EMAIL_VERIFICATION=1`. With the example value `0`, password
