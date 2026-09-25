@@ -71,8 +71,15 @@ export interface ImportResult {
   warnings: string[];
 }
 
+export type GithubErrorCode = "bad_url" | "not_found" | "invalid_manifest" | "rate_limited" | "forbidden";
+
 export class GithubParseError extends Error {
-  constructor(message: string, public readonly code: "bad_url" | "not_found" | "invalid_manifest" | "rate_limited") {
+  constructor(
+    message: string,
+    public readonly code: GithubErrorCode,
+    /** For `rate_limited`: epoch ms when the budget comes back (best effort). */
+    public readonly resetAt?: number,
+  ) {
     super(message);
     this.name = "GithubParseError";
   }
@@ -127,27 +134,107 @@ export const repoUrl = (ref: RepoRef) => `https://github.com/${ref.owner}/${ref.
 // Fetchers
 // ---------------------------------------------------------------------------
 
-export interface GithubFetcherOptions {
-  token?: string;
-  /** Called with rate-limit headers after every API response (crawler uses it to pace itself). */
-  onRateLimit?: (info: { remaining: number; resetAt: number; resource: string }) => void;
+/** Mutable token holder shared by every GitHub call of one crawl: a rejected token is dropped once for all of them. */
+export interface GithubAuth {
+  token: string | null;
 }
 
-export function createGithubFetcher(opts: GithubFetcherOptions = {}): RepoFetcher {
-  const token = opts.token ?? process.env.GITHUB_TOKEN;
-  const headers: Record<string, string> = { "User-Agent": "synapth-cortex/0.2", Accept: "application/vnd.github+json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const metaCache = new Map<string, Promise<RepoMeta>>();
+export interface GithubCallOptions {
+  signal?: AbortSignal;
+  /** Called with rate-limit headers after every API response (crawler uses it to pace itself). */
+  onRateLimit?: (info: { remaining: number; resetAt: number; resource: string }) => void;
+  /** Non-fatal problems worth a log line (e.g. the token was rejected). */
+  onWarning?: (message: string) => void;
+}
 
-  async function api<T>(path: string): Promise<T | null> {
-    const res = await fetch(`https://api.github.com${path}`, { headers, cache: "no-store" });
+const USER_AGENT = "synapth-cortex/0.3";
+
+/**
+ * GET against api.github.com. A token GitHub rejects (401: expired, revoked,
+ * wrong scope) is dropped and the call retried anonymously: one stale
+ * GITHUB_TOKEN must not turn every crawl into a hard failure.
+ */
+export async function githubApiFetch(path: string, auth: GithubAuth, opts: GithubCallOptions = {}): Promise<Response> {
+  for (;;) {
+    const headers: Record<string, string> = { "User-Agent": USER_AGENT, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
+    const token = auth.token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`https://api.github.com${path}`, { headers, signal: opts.signal, cache: "no-store" });
     const remaining = Number(res.headers.get("x-ratelimit-remaining") ?? NaN);
     if (!Number.isNaN(remaining)) {
       opts.onRateLimit?.({ remaining, resetAt: Number(res.headers.get("x-ratelimit-reset")) * 1000, resource: res.headers.get("x-ratelimit-resource") ?? "core" });
     }
-    if (res.status === 404) return null;
-    if (res.status === 403 || res.status === 429) throw new GithubParseError(`GitHub rate limit hit on ${path}`, "rate_limited");
-    if (!res.ok) throw new Error(`GitHub API ${res.status} for ${path}`);
+    if (res.status === 401 && token) {
+      await res.body?.cancel();
+      if (auth.token === token) {
+        auth.token = null;
+        opts.onWarning?.("GitHub rejected the token (401 Bad credentials): continuing unauthenticated — renew GITHUB_TOKEN");
+      }
+      continue;
+    }
+    return res;
+  }
+}
+
+/**
+ * Primary (`x-ratelimit-remaining: 0`) and secondary (`retry-after`, "rate
+ * limit" in the message) limits. Any other 403 is a real refusal (blocked
+ * repo, SSO, proxy policy) and must not be retried forever.
+ */
+export function rateLimitReset(res: Response, body: string): number | null {
+  if (res.status !== 403 && res.status !== 429) return null;
+  const retryAfter = Number(res.headers.get("retry-after"));
+  if (retryAfter > 0) return Date.now() + retryAfter * 1000;
+  const reset = Number(res.headers.get("x-ratelimit-reset")) * 1000;
+  if (res.headers.get("x-ratelimit-remaining") === "0") return reset > 0 ? reset : Date.now() + 60_000;
+  if (res.status === 429 || /rate limit/i.test(body)) return Date.now() + 60_000;
+  return null;
+}
+
+/** GitHub error bodies are JSON `{ message }`; keep log lines short. */
+export function githubErrorMessage(body: string): string {
+  try {
+    const message = (JSON.parse(body) as { message?: unknown }).message;
+    if (typeof message === "string") return message.slice(0, 200);
+  } catch {
+    /* not JSON */
+  }
+  return body.replace(/\s+/g, " ").slice(0, 200);
+}
+
+/** Postgres rejects U+0000 in text and jsonb; some READMEs and manifests carry it. */
+const stripNul = (text: string) => (text.includes("\u0000") ? text.replace(/\u0000/g, "") : text);
+
+/** Same for parsed JSON manifests, where the NUL arrives as a `\u0000` escape (an escaped backslash before it is kept). */
+function withoutNul<T>(value: T): T {
+  const json = JSON.stringify(value);
+  return json.includes("\\u0000") ? (JSON.parse(json.replace(/(?<!\\)((?:\\\\)*)\\u0000/g, "$1")) as T) : value;
+}
+
+export interface GithubFetcherOptions extends Omit<GithubCallOptions, "signal"> {
+  token?: string;
+  /** Shared token holder (the crawler passes one so search and fetches drop a bad token together). */
+  auth?: GithubAuth;
+}
+
+export function createGithubFetcher(opts: GithubFetcherOptions = {}): RepoFetcher {
+  const auth: GithubAuth = opts.auth ?? { token: opts.token ?? process.env.GITHUB_TOKEN ?? null };
+  const metaCache = new Map<string, Promise<RepoMeta>>();
+
+  async function api<T>(path: string): Promise<T | null> {
+    const res = await githubApiFetch(path, auth, opts);
+    // 404 missing, 409 empty repository, 451 blocked for legal reasons: nothing to import.
+    if (res.status === 404 || res.status === 409 || res.status === 451) {
+      await res.body?.cancel();
+      return null;
+    }
+    if (!res.ok) {
+      const body = await res.text();
+      const resetAt = rateLimitReset(res, body);
+      if (resetAt !== null) throw new GithubParseError(`GitHub rate limit hit on ${path}`, "rate_limited", resetAt);
+      if (res.status === 403) throw new GithubParseError(`GitHub refused ${path}: ${githubErrorMessage(body)}`, "forbidden");
+      throw new Error(`GitHub API ${res.status} for ${path}: ${githubErrorMessage(body)}`);
+    }
     return (await res.json()) as T;
   }
 
@@ -168,10 +255,11 @@ export function createGithubFetcher(opts: GithubFetcherOptions = {}): RepoFetche
       const branch = ref.ref === "HEAD" ? (await this.meta(ref)).defaultBranch : ref.ref;
       const full = [ref.path, path].filter(Boolean).join("/");
       const target = `https://raw.githubusercontent.com/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${branch.split("/").map(encodeURIComponent).join("/")}/${full.split("/").map(encodeURIComponent).join("/")}`;
-      const res = await fetch(target, { headers: { "User-Agent": headers["User-Agent"] }, cache: "no-store" });
+      const res = await fetch(target, { headers: { "User-Agent": USER_AGENT }, cache: "no-store" });
       if (res.status === 404) return null;
+      if (res.status === 429) throw new GithubParseError(`raw.githubusercontent.com rate limit on ${full}`, "rate_limited", Date.now() + 60_000);
       if (!res.ok) throw new Error(`raw fetch ${res.status}: ${full}`);
-      return res.text();
+      return stripNul(await res.text());
     },
     async tree(ref) {
       const branch = ref.ref === "HEAD" ? (await this.meta(ref)).defaultBranch : ref.ref;
@@ -599,7 +687,7 @@ export async function importAllFromGithub(url: string, fetcher: RepoFetcher = cr
       manifestPath: found.path,
       meta,
       warnings,
-      input: {
+      input: withoutNul({
         name: manifest.name.slice(0, 80),
         slug,
         description: (manifest.description || meta.description || "").slice(0, 2000),
@@ -613,7 +701,7 @@ export async function importAllFromGithub(url: string, fetcher: RepoFetcher = cr
         origin: "github",
         source,
         readme: readme ? readme.slice(0, README_STORE_CAP) : null,
-      },
+      }),
     });
   }
 
