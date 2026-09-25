@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 export const NAV = [
   { key: "nav.overview", href: "/", match: (p: string) => p === "/" },
+  { key: "nav.feed", href: "/feed", match: (p: string) => p.startsWith("/feed") },
   { key: "nav.docs", href: "/faq", match: (p: string) => p.startsWith("/faq") },
 ] as const;
 
