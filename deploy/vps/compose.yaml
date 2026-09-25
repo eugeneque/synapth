@@ -24,7 +24,7 @@ services:
   migrate:
     image: ${SYNAPTH_MIGRATOR_IMAGE:?SYNAPTH_MIGRATOR_IMAGE is required}
     environment:
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-synapth}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-synapth}?schema=public
     networks:
       - backend
     depends_on:
@@ -41,7 +41,7 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-synapth}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-synapth}?schema=public
       AUTH_URL: https://${SYNAPTH_DOMAIN:-synapth.localhost8081.ru}
       NEXT_PUBLIC_APP_URL: https://${SYNAPTH_DOMAIN:-synapth.localhost8081.ru}
     expose:
