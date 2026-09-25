@@ -8,7 +8,7 @@ import { getModerationRequest } from "@/cortex/moderation";
 import { skillRepository } from "@/cortex/repository";
 import { getI18n } from "@/cortex/locale";
 import { can } from "@/types/auth";
-import { scanManifest } from "@/lib/sandbox-scanner";
+import { scanSkill } from "@/lib/sandbox-scanner";
 import { safeExternalHref } from "@/lib/url-safety";
 import { timeAgo } from "@/lib/utils";
 import { Panel } from "@/components/panel";
@@ -57,8 +57,8 @@ export default async function ReviewPage({ params }: Params) {
   }
 
   const readme = await skillRepository.readme(skill.id);
-  const report = scanManifest(skill.manifest);
-  const verifiable = scanManifest(skill.manifest, { reviewed: true }).level === "Verified";
+  const report = scanSkill(skill, { reviewed: false, gov: false });
+  const verifiable = report.verifiable;
   const ep = skill.manifest.entrypoint;
   const repoHref = safeExternalHref(skill.repoUrl);
 

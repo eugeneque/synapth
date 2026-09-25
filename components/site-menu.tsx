@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowRight, BookOpen, Blocks, ChevronDown, Github, Heart, Home, Layers, Loader2, LogOut, Menu, Newspaper, Search, Users, X, type LucideIcon } from "lucide-react";
+import { ArrowRight, BookOpen, Blocks, ChevronDown, Github, Heart, Home, Layers, Loader2, LogOut, Menu, Newspaper, Search, Sparkles, Users, X, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { CategoryIcon } from "@/components/category-icon";
 import { LocaleSwitcher } from "@/components/locale-switcher";
@@ -50,6 +50,7 @@ const SECTIONS: { key: string; href: string; icon: LucideIcon; match: (p: string
   { key: "people", href: "/search?tab=people", icon: Users, match: (p) => p.startsWith("/u/") || p.startsWith("/authors") },
   { key: "favorites", href: "/favorites", icon: Heart, match: (p) => p.startsWith("/favorites") },
   { key: "docs", href: "/faq", icon: BookOpen, match: (p) => p.startsWith("/faq") },
+  { key: "pro", href: "/pro", icon: Sparkles, match: (p) => p.startsWith("/pro") },
 ];
 
 const DEVELOPER_LINKS: { key: UiKey; href: string }[] = [

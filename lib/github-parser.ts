@@ -220,6 +220,8 @@ export interface GithubFetcherOptions extends Omit<GithubCallOptions, "signal"> 
 export function createGithubFetcher(opts: GithubFetcherOptions = {}): RepoFetcher {
   const auth: GithubAuth = opts.auth ?? { token: opts.token ?? process.env.GITHUB_TOKEN ?? null };
   const metaCache = new Map<string, Promise<RepoMeta>>();
+  // Import and the supply-chain audit both walk the tree: one API call per repository.
+  const treeCache = new Map<string, Promise<string[] | null>>();
 
   async function api<T>(path: string): Promise<T | null> {
     const res = await githubApiFetch(path, auth, opts);
@@ -262,11 +264,22 @@ export function createGithubFetcher(opts: GithubFetcherOptions = {}): RepoFetche
       return stripNul(await res.text());
     },
     async tree(ref) {
-      const branch = ref.ref === "HEAD" ? (await this.meta(ref)).defaultBranch : ref.ref;
-      const json = await api<{ tree: Array<{ path: string; type: string }>; truncated: boolean }>(`/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
-      if (!json) return null;
-      const paths = json.tree.filter((t) => t.type === "blob").map((t) => t.path);
-      return ref.path ? paths.filter((p) => p.startsWith(`${ref.path}/`)).map((p) => p.slice(ref.path.length + 1)) : paths;
+      const key = `${ref.owner}/${ref.repo}#${ref.ref}:${ref.path}`.toLowerCase();
+      let p = treeCache.get(key);
+      if (!p) {
+        p = (async () => {
+          const branch = ref.ref === "HEAD" ? (await this.meta(ref)).defaultBranch : ref.ref;
+          const json = await api<{ tree: Array<{ path: string; type: string }>; truncated: boolean }>(`/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
+          if (!json) return null;
+          const paths = json.tree.filter((t) => t.type === "blob").map((t) => t.path);
+          return ref.path ? paths.filter((p) => p.startsWith(`${ref.path}/`)).map((p) => p.slice(ref.path.length + 1)) : paths;
+        })().catch((err) => {
+          treeCache.delete(key);
+          throw err;
+        });
+        treeCache.set(key, p);
+      }
+      return p;
     },
   };
 }
