@@ -44,6 +44,7 @@ export const ui = {
   "nav.overview": "Overview",
   "nav.explore": "Catalogue",
   "nav.docs": "Docs",
+  "nav.about": "About",
   "nav.primary": "Primary",
   "nav.openMenu": "Open menu",
   "nav.closeMenu": "Close menu",
@@ -1424,4 +1425,61 @@ stars:>100            minimum GitHub stars
   "faq.next.publish.tag": "Publishing",
   "faq.next.publish.title": "Publish your first skill",
   "faq.next.publish.body": "Paste a repository URL under Publishing & keys; the parser and the scanner do the rest.",
+} as const;
+
+/**
+ * The /about manifesto. Kept out of `ui` so the client bundle does not carry
+ * it; the page hands the active dictionary to its client islands as props.
+ * Every title (H1/H2/card) has exactly one *em* word — the serif accent — picked
+ * per locale. Short words are glued to the next one with  .
+ */
+export const about = {
+  "about.meta.title": "About",
+  "about.meta.description": "Why Synapth exists and what we believe: one catalogue of skills and MCP servers for AI agents.",
+
+  "about.hero.beta": "open beta",
+  "about.hero.skills": "{n} skill|{n} skills",
+  "about.hero.mcp": "{n} MCP",
+  "about.hero.title": "Where agents find their *skills*.",
+  "about.hero.lead": "Synapth collects skills and MCP servers in one place and connects them to your agent with one command — no hand-edited configs.",
+  "about.hero.primary": "Open the catalogue",
+  "about.hero.secondary": "How it works",
+  "about.hero.secondaryMeta": "2 min",
+  "about.hero.fineprint": "free / no card / open-source skills",
+
+  "about.graph.agent": "agent: {name}",
+  "about.graph.summary": "{skills} skills · {mcp} mcp",
+  "about.graph.status": "connected",
+  "about.graph.skill": "skill",
+  "about.graph.mcp": "mcp",
+  "about.graph.event": "+ {type} {name}",
+  "about.graph.ms": "{ms} ms",
+  "about.graph.describe": "Diagram: an agent in the centre with skills and MCP servers wired to it. Every new connection is written to the log under it.",
+
+  "about.quote.eyebrow": "why",
+  "about.quote.text": "The best skill is the one you didn't write *twice*.",
+
+  "about.manifest.eyebrow": "manifesto",
+  "about.manifest.title": "What we *believe*.",
+  "about.manifest.lead": "Skills and MCP servers are scattered across thousands of repositories: no versions, no clear permissions, often no author in sight. Synapth exists to put them in one place and show all of that before you install.",
+
+  "about.p1.title": "A skill works in *any* agent",
+  "about.p1.body": "Open formats — SKILL.md and MCP. No lock-in to one vendor: Claude Code today, Cursor tomorrow.",
+  "about.p2.title": "Every version is *readable*",
+  "about.p2.body": "Each entry keeps its source and a change history. What moved between versions is visible line by line.",
+  "about.p3.title": "Permissions show *before* install",
+  "about.p3.body": "You see what an MCP server asks for — reading, writing, the network — before it touches your machine. The scanner flags the odd ones.",
+  "about.p3.requested": "requested",
+  "about.p3.denied": "not asked",
+  "about.p4.title": "Authors matter more than the *catalogue*",
+  "about.p4.body": "Every skill carries its author's name and a link to them. The catalogue is just the place where their work is easier to find.",
+  "about.p4.caption": "repositories updated per week · last 12",
+  "about.p5.title": "We count *installs*, not views",
+  "about.p5.body": "Popularity means installs, not page opens. The number below is honest, with one caveat.",
+  "about.p5.label": "installs, all time",
+  "about.p5.note": "* including installs that were later removed",
+
+  "about.cta.title": "Connect your first skill in a *minute*.",
+  "about.cta.primary": "Open the catalogue",
+  "about.cta.secondary": "Publish a skill",
 } as const;

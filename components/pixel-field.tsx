@@ -122,6 +122,15 @@ export function PixelField() {
       const ctx2 = ctx!;
       const w = canvas!.width / dpr;
       const h = canvas!.height / dpr;
+      // A page with its own opaque background (the /about ribbons) mutes the field: nothing to draw under it.
+      if (document.querySelector("[data-pixel-mute]")) {
+        ctx2.setTransform(1, 0, 0, 1, 0, 0);
+        ctx2.clearRect(0, 0, canvas!.width, canvas!.height);
+        energy.fill(0);
+        hot = false;
+        raf = reduced ? 0 : requestAnimationFrame(draw);
+        return;
+      }
       const zones = glowZones();
 
       // Wave layer, flat inside glow zones, cut to the dot grid.

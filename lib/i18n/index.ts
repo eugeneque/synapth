@@ -10,10 +10,10 @@
  */
 
 import { DEFAULT_LOCALE, type Locale } from "./locales";
-import { UI, FAQ, type UiKey, type FaqKey } from "./messages";
+import { UI, FAQ, ABOUT, type UiKey, type FaqKey, type AboutKey } from "./messages";
 
 export * from "./locales";
-export type { UiKey, FaqKey };
+export type { UiKey, FaqKey, AboutKey };
 
 export type Params = Record<string, string | number>;
 
@@ -68,6 +68,11 @@ export function uiTranslator(locale: Locale): Translator<UiKey> {
 /** UI + docs strings, for server components that render the FAQ. */
 export function fullTranslator(locale: Locale): Translator<UiKey | FaqKey> {
   return createTranslator<UiKey | FaqKey>(locale, { ...UI[locale], ...FAQ[locale] }, { ...UI[DEFAULT_LOCALE], ...FAQ[DEFAULT_LOCALE] });
+}
+
+/** The /about manifesto: server-side only, its islands get the dictionary as props. */
+export function aboutTranslator(locale: Locale): Translator<AboutKey> {
+  return createTranslator(locale, ABOUT[locale], ABOUT[DEFAULT_LOCALE]);
 }
 
 export function uiMessages(locale: Locale): Record<UiKey, string> {

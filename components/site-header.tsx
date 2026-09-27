@@ -49,7 +49,7 @@ export async function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="container flex h-16 items-center justify-between gap-4">
-        <div className="flex items-center gap-6">
+        <div className="flex shrink-0 items-center gap-6">
           <Link href="/" aria-label="Synapth" className="flex items-center">
             <LogoWordmark className="h-7" />
           </Link>
