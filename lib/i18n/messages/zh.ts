@@ -1666,8 +1666,12 @@ export const about: AboutMessages = {
   "about.graph.ms": "{ms} ms",
   "about.graph.describe": "示意图：智能体位于中心，技能和 MCP 服务器连接到它。每一次新连接都会写入下方日志。",
 
-  "about.quote.eyebrow": "为什么",
-  "about.quote.text": "最好的技能，是你不必*重写*的那一个。",
+  "about.quote.eyebrow": "为什么？",
+  "about.quote.r1": "技能散落在成千上万个仓库里",
+  "about.quote.r2": "权限要装完才看得到",
+  "about.quote.r3": "换一个智能体就得从头配置",
+  "about.quote.text": "智能体会变，*技能*会留下。",
+  "about.quote.lead": "Synapth 以开放格式保存技能和 MCP 服务器，并在安装前完成扫描。更换智能体时，`synapth migrate` 会把项目知识——AGENTS.md ⇄ CLAUDE.md、MCP 服务器、命令和技能——在 Codex 与 Claude Code 之间双向迁移。",
 
   "about.manifest.eyebrow": "宣言",
   "about.manifest.title": "我们*相信*什么。",

@@ -20,3 +20,4 @@ tsconfig.tsbuildinfo
 .next-profile/
 .next-sec/
 .next-verify/
+public/cli/

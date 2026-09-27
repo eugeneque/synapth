@@ -1692,8 +1692,12 @@ export const about = {
   "about.graph.ms": "{ms} ms",
   "about.graph.describe": "Diagram: an agent in the centre with skills and MCP servers wired to it. Every new connection is written to the log under it.",
 
-  "about.quote.eyebrow": "why",
-  "about.quote.text": "The best skill is the one you didn't write *twice*.",
+  "about.quote.eyebrow": "why?",
+  "about.quote.r1": "skills are scattered across thousands of repos",
+  "about.quote.r2": "permissions show up only after install",
+  "about.quote.r3": "switching agents means setting up from scratch",
+  "about.quote.text": "Agents change. *Skills* stay.",
+  "about.quote.lead": "Synapth keeps skills and MCP servers in open formats and scans them before install. When you switch agents, `synapth migrate` moves the project's knowledge — AGENTS.md ⇄ CLAUDE.md, MCP servers, commands and skills — from Codex to Claude Code and back.",
 
   "about.manifest.eyebrow": "manifesto",
   "about.manifest.title": "What we *believe*.",

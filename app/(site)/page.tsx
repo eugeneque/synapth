@@ -198,8 +198,14 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 4 — The lime flash and the quote. */}
-      <FlashQuote quote={a.t("about.quote.text")} eyebrow={a.t("about.quote.eyebrow")} />
+      {/* 4 — The lime flash: why Synapth exists, answered with the quote and the migration CLI. */}
+      <FlashQuote
+        eyebrow={a.t("about.quote.eyebrow")}
+        reasons={[a.t("about.quote.r1"), a.t("about.quote.r2"), a.t("about.quote.r3")]}
+        quote={a.t("about.quote.text")}
+        lead={a.t("about.quote.lead")}
+        command="synapth migrate --from codex"
+      />
 
       {/* 5 — Manifesto (`/about` redirects here). */}
       <section id="manifesto" className="about-section container scroll-mt-16">

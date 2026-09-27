@@ -1666,8 +1666,12 @@ export const about: AboutMessages = {
   "about.graph.ms": "{ms} мс",
   "about.graph.describe": "Схема: агент у центрі, до нього підключені скіли й MCP-сервери. Кожне нове підключення записується в лог під схемою.",
 
-  "about.quote.eyebrow": "навіщо",
-  "about.quote.text": "Найкраща навичка — та, яку не довелося писати *вдруге*.",
+  "about.quote.eyebrow": "навіщо?",
+  "about.quote.r1": "навички розкидані по тисячах репозиторіїв",
+  "about.quote.r2": "права видно лише після встановлення",
+  "about.quote.r3": "новий агент — налаштування з нуля",
+  "about.quote.text": "Агенти змінюються. *Навички* лишаються.",
+  "about.quote.lead": "Synapth зберігає навички та MCP-сервери у відкритих форматах і перевіряє їх до встановлення. А коли ви змінюєте агента, `synapth migrate` переносить знання проєкту — AGENTS.md ⇄ CLAUDE.md, MCP-сервери, команди й скіли — з Codex у Claude Code і назад.",
 
   "about.manifest.eyebrow": "маніфест",
   "about.manifest.title": "У що ми *віримо*.",
