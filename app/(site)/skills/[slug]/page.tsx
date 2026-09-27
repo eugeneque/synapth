@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Boxes, Code2, Eye, ExternalLink, KeyRound, Plus, ShieldQuestion, Terminal } from "lucide-react";
+import { Boxes, Code2, Eye, ExternalLink, History, KeyRound, Plus, Terminal } from "lucide-react";
 import { skillRepository, hydratePrompt } from "@/cortex/repository";
 import { auth } from "@/cortex/auth";
 import { getAuthorRef } from "@/cortex/account";
@@ -31,6 +31,7 @@ import { can } from "@/types/auth";
 import { safeExternalHref } from "@/lib/url-safety";
 import { listSkillsets } from "@/cortex/skillsets";
 import { SkillsetAvatar } from "@/components/skillset-avatar";
+import { PermissionsPanel } from "@/components/permissions-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function SkillPage({ params }: Params) {
   const skill = (await skillRepository.bySlug(slug)) ?? (await skillRepository.byId(slug));
   if (!skill) notFound();
   const [i18n, session] = await Promise.all([getI18n(), auth()]);
-  const { t } = i18n;
+  const { t, n } = i18n;
   const viewerId = session?.user?.id ?? null;
   const [watch, comments, viewer, role, review, inSkillsets] = await Promise.all([
     watchSummary(skill.id, viewerId),
@@ -57,6 +58,7 @@ export default async function SkillPage({ params }: Params) {
     pendingRequestFor(skill.id),
     listSkillsets({ skillId: skill.id, sort: "popular", limit: 6 }),
   ]);
+  const versionCount = (await skillRepository.versions(skill.id)).length;
 
   // Quarantined entries are hidden from everyone but staff (ТЗ §2, stage 6).
   if (skill.securityLevel === "Quarantine" && !(role && can(role, "catalog.moderate"))) notFound();
@@ -96,7 +98,12 @@ export default async function SkillPage({ params }: Params) {
           <div className="flex min-w-0 flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <SecurityBadge level={skill.securityLevel} solid />
-              <Badge variant="chip" className="text-moss">v{skill.version}</Badge>
+              <Link href={`/skills/${skill.slug}/versions`} title={t("versions.title")} className="inline-flex items-center gap-1.5 rounded-full transition-colors hover:text-synapse">
+                <Badge variant="chip" className="text-moss">v{skill.version}</Badge>
+                <span className="label-mono-sm inline-flex items-center gap-1 normal-case tracking-normal hover:text-synapse">
+                  <History className="h-3.5 w-3.5" /> {n("skill.versionsLink", versionCount)}
+                </span>
+              </Link>
               <Badge variant="chip">{skill.category}</Badge>
               {skill.source?.license && <Badge variant="chip">{t("skill.license", { license: skill.source.license })}</Badge>}
               {repoHref && (
@@ -133,7 +140,7 @@ export default async function SkillPage({ params }: Params) {
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 bg-surface-low/60 p-4 sm:grid-cols-4">
-          <Stat label={t("skill.installs")} value={formatCompact(skill.downloadsCount)} unit={`+${formatCompact(skill.stats.installVelocity7d)}/7d`} />
+          <Stat label={t("skill.installs")} value={formatCompact(skill.downloadsCount)} unit={t("skill.installsWeek", { n: formatCompact(skill.stats.installVelocity7d) })} />
           <Stat label={t("skill.sandboxScore")} value={String(scan.score)} unit="/100" muted />
           <Stat label={t("skill.retention")} value={String(Math.round(skill.stats.retentionRate * 100))} unit="%" />
           <Stat label={t("skill.githubStars")} value={formatCompact(skill.githubStars)} muted />
@@ -175,6 +182,8 @@ export default async function SkillPage({ params }: Params) {
         <aside className="flex flex-col gap-6 lg:col-span-4">
           <ScanReportView report={scan} />
 
+          <PermissionsPanel skill={skill} />
+
           <InstallPanel skill={full} />
 
           <Panel title={t("skill.entryPoint")} icon={<Terminal className="h-4 w-4 shrink-0 text-synapse" />} corners bodyClassName="p-4 text-sm">
@@ -182,7 +191,6 @@ export default async function SkillPage({ params }: Params) {
               {ep.type === "mcp-stdio" ? `${ep.command} ${(ep.args ?? []).join(" ")}` : ep.type === "prompt" ? t("skill.promptOnly") : ep.url}
             </code>
             <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
-              <p className="flex items-center gap-1.5"><ShieldQuestion className="h-3.5 w-3.5" /> {t("skill.permissions", { list: skill.manifest.permissions?.length ? skill.manifest.permissions.join(", ") : t("common.none") })}</p>
               {skill.manifest.requiredEnv?.length ? (
                 <p className="flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5" /> {t("skill.env", { list: skill.manifest.requiredEnv.join(", ") })}</p>
               ) : null}

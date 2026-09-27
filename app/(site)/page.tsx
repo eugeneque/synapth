@@ -10,13 +10,16 @@ import { GhostText } from "@/components/about/ghost-text";
 import { Scramble } from "@/components/about/scramble";
 import { SynapseGraph, type GraphEntry, type GraphIcon } from "@/components/about/synapse-graph";
 import { FlashQuote } from "@/components/about/flash-quote";
-import { Manifesto, Reveal, type Principle } from "@/components/about/manifesto";
+import { Manifesto, Reveal, type DiffPreview, type PermissionsPreview, type Principle } from "@/components/about/manifesto";
 import { AboutCta } from "@/components/about/about-cta";
-import { skillRepository } from "@/cortex/repository";
+import { skillRepository, type VersionChange } from "@/cortex/repository";
 import { INSTALL_TARGETS } from "@/axon/install";
 import { getI18n, getLocale } from "@/cortex/locale";
 import { aboutTranslator, LOCALE_META } from "@/lib/i18n";
 import { formatCompact, slugify } from "@/lib/utils";
+import { diffLines } from "@/lib/diff";
+import { manifestText } from "@/lib/skill-versions";
+import type { UiKey } from "@/lib/i18n";
 import { isListed } from "@/types/trust";
 import type { Skill } from "@/types/skill";
 import "./home.css";
@@ -58,22 +61,65 @@ function graphEntries(all: Skill[]): GraphEntry[] {
   return [...pick(false, 4), ...pick(true, 3)];
 }
 
+/** Longest line in the bento mini-visuals before it is cut. */
+const VIZ_LINE = 40;
+const clip = (text: string) => (text.length > VIZ_LINE ? `${text.slice(0, VIZ_LINE - 1)}…` : text);
+
+/** 02 — the latest real change (changed lines only), else the first lines of the most installed entry's first version. */
+function diffPreview(change: VersionChange | null, top: Skill | undefined, first: string): DiffPreview | null {
+  if (change) {
+    const changed = diffLines(manifestText(change.before.manifest), manifestText(change.after.manifest)).filter((l) => l.op !== "equal" && l.text.trim());
+    if (changed.length) {
+      return {
+        header: `${change.skill.slug} · v${change.before.version} → v${change.after.version}`,
+        lines: changed.slice(0, 4).map((l) => ({ mark: l.op === "add" ? "+" : "−", text: clip(l.text.trim()) })),
+      };
+    }
+  }
+  if (!top) return null;
+  return { header: `${top.slug} · v${top.version} · ${first}`, lines: manifestText(top.manifest).split("\n").slice(0, 3).map((text) => ({ mark: " ", text: clip(text) })) };
+}
+
+const PREVIEW_PERMISSIONS = [
+  ["filesystem:read", "read"],
+  ["filesystem:write", "write"],
+  ["network", "network"],
+  ["shell", "shell"],
+] as const;
+
+/** 03 — the most installed listed entry whose permissions were read from its manifest or code, with the source of each. */
+function permissionsPreview(ranked: Skill[], via: (key: UiKey) => string): PermissionsPreview | null {
+  const skill = ranked.find((s) => (s.manifest.permissionSource === "declared" || s.manifest.permissionSource === "detected") && s.manifest.permissionEvidence?.length);
+  if (!skill) return null;
+  const granted = new Set(skill.manifest.permissions ?? []);
+  return {
+    name: skill.slug,
+    rows: PREVIEW_PERMISSIONS.map(([permission, id]) => {
+      const evidence = skill.manifest.permissionEvidence?.find((e) => e.permission === permission);
+      return { id, on: granted.has(permission), via: evidence ? via(`perm.via.${evidence.via}`) : null };
+    }),
+  };
+}
+
 /**
  * The home page: the hands hero, then the manifesto (formerly /about) —
  * how it works with the live synapse graph, the lime flash quote, the
  * principles bento — and the catalogue's trending row before the CTA.
  */
 export default async function HomePage() {
-  const [all, trending, { t }, locale] = await Promise.all([
+  const [all, trending, { t }, locale, change] = await Promise.all([
     skillRepository.all().then((all) => all.filter((s) => isListed(s.securityLevel))),
     skillRepository.search("", { sort: "trending", limit: 6 }),
     getI18n(),
     getLocale(),
+    skillRepository.latestChange(),
   ]);
   const a = aboutTranslator(locale);
   const targets = INSTALL_TARGETS.map((target) => t(`install.target.${target.id}`));
 
   const installs = all.reduce((n, s) => n + s.downloadsCount, 0);
+  const installsWeek = all.reduce((n, s) => n + s.stats.installVelocity7d, 0);
+  const byReach = [...all].sort((x, y) => y.downloadsCount - x.downloadsCount || y.githubStars - x.githubStars);
   const verified = all.filter((s) => s.securityLevel === "Verified").length;
   const sandboxed = all.filter((s) => s.securityLevel === "Sandbox").length;
   const languages = new Set(all.map((s) => s.source?.language).filter(Boolean)).size;
@@ -225,12 +271,16 @@ export default async function HomePage() {
           data={{
             // Real install targets; `curl` is the plain-HTTP path any agent can use.
             targets: INSTALL_TARGETS.map((target) => (target.id === "curl" ? "any-agent/http" : target.id)),
+            diff: diffPreview(change, byReach[0], a.t("about.p2.first")),
+            permissions: permissionsPreview(byReach, (key) => t(key)),
+            permissionsPending: a.t("about.p3.pending"),
             requested: a.t("about.p3.requested"),
             denied: a.t("about.p3.denied"),
             bars,
             barsCaption: a.t("about.p4.caption"),
             installs,
             installsLabel: a.t("about.p5.label"),
+            installsWeek: a.t("about.p5.week", { n: formatCompact(installsWeek) }),
             installsNote: a.t("about.p5.note"),
             numberLocale: LOCALE_META[locale].htmlLang,
           }}

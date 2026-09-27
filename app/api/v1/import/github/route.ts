@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { importAllFromGithub, createGithubFetcher, createMockFetcher } from "@/lib/github-parser";
 import { scanSkill, assertInstallable } from "@/lib/sandbox-scanner";
-import { auditRepository } from "@/cortex/repo-audit";
+import { applyAudit, auditRepository } from "@/cortex/repo-audit";
 import { skillRepository } from "@/cortex/repository";
 import { resolveCaller } from "@/cortex/api-keys";
 import { UnauthorizedError } from "@/cortex/auth";
@@ -38,7 +38,7 @@ export const POST = withErrors(async (request: Request) => {
   // Supply-chain snapshot (DP-*, ST-04): one per repository, shared by every skill it contains.
   const audit = await auditRepository(imported[0].ref, fetcher, [...new Set(imported.map((r) => r.manifestPath.split("/").slice(0, -1).join("/")))], { online: !body.mock, maxRegistryLookups: 5 });
   const results = imported.map((r) => {
-    const input = r.input.source ? { ...r.input, source: { ...r.input.source, audit } } : r.input;
+    const input = applyAudit(r.input, r.manifestPath, audit);
     return { ...r, input, scan: scanSkill({ manifest: input.manifest, securityLevel: "Community", source: input.source ?? null }, { reviewed: false }) };
   });
   const result = results[0];

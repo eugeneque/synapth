@@ -15,7 +15,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import { createGithubFetcher, importAllFromGithub, toRepoMeta, githubApiFetch, githubErrorMessage, rateLimitReset, GithubParseError, type GithubAuth, type GithubRepoJson, type RepoFetcher, type RepoMeta } from "@/lib/github-parser";
 import { scanSkill, type ScanReport } from "@/lib/sandbox-scanner";
-import { auditRepository } from "@/cortex/repo-audit";
+import { applyAudit, auditRepository } from "@/cortex/repo-audit";
 import { skillRepository } from "@/cortex/repository";
 import { resolveGithubToken } from "@/cortex/github-token";
 import { isServerless } from "@/cortex/db";
@@ -331,7 +331,7 @@ export async function processRepo(candidate: RepoCandidate, fetcher: RepoFetcher
       ? await auditRepository(results[0].ref, fetcher, [...new Set(results.map((r) => r.manifestPath.split("/").slice(0, -1).join("/")))], { online: opts.dependencyAudit ?? defaultDependencyAudit() })
       : null;
     for (const r of results) {
-      const input = r.input.source ? { ...r.input, source: { ...r.input.source, audit } } : r.input;
+      const input = applyAudit(r.input, r.manifestPath, audit);
       const scan = scanSkill({ manifest: input.manifest, securityLevel: "Community", source: input.source ?? null }, { reviewed: false });
       // Never republish leaked credentials or manifests the pipeline rejected; everything else lands with the level the scanner assigned.
       if (scan.outcome === "Rejected" || scan.findings.some((f) => f.blocksPublication)) continue;

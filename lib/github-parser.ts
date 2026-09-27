@@ -17,9 +17,10 @@
  * `createMockFetcher()` for tests and the no-database demo.
  */
 
-import type { GithubSource, JsonSchema, SkillCategory, SkillCreateInput, SkillEntrypoint, SkillManifest, ToolDefinition } from "@/types/skill";
+import { SKILL_PERMISSIONS, type GithubSource, type JsonSchema, type SkillCategory, type SkillCreateInput, type SkillEntrypoint, type SkillManifest, type SkillPermission, type ToolDefinition } from "@/types/skill";
 import { parseFrontmatter, str, strList } from "@/lib/frontmatter";
 import { slugify } from "@/lib/utils";
+import { ASSUMED_LOCAL_SERVER, permissionsFromAllowedTools, permissionsFromTools, withPermissions, type ToolLike } from "@/lib/permissions";
 
 export interface RepoRef {
   owner: string;
@@ -334,6 +335,14 @@ export function createMockFetcher(): RepoFetcher {
         ],
       }),
       "README.md": "# postgres-mcp\n\nAn MCP server for Postgres.",
+      "package.json": JSON.stringify({ name: "@acme/postgres-mcp", version: "1.4.0", dependencies: { "@modelcontextprotocol/sdk": "1.12.0", pg: "8.13.1" } }),
+      "src/index.ts": [
+        'import { Server } from "@modelcontextprotocol/sdk/server/index.js";',
+        'import pg from "pg";',
+        "",
+        "const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });",
+        "// Every query runs inside a READ ONLY transaction.",
+      ].join("\n"),
     },
     "acme/weather-tool": {
       "tool.json": JSON.stringify({
@@ -364,7 +373,7 @@ export function createMockFetcher(): RepoFetcher {
       "README.md": "# Skills\n\nA collection of agent skills.",
       "skills/pdf/SKILL.md": "---\nname: pdf\ndescription: Read, merge and fill PDF files.\nlicense: MIT\n---\n\n# PDF\n\nUse pypdf for merging.",
       "skills/xlsx/SKILL.md": "---\nname: xlsx\ndescription: >\n  Create and edit spreadsheets\n  with formulas.\n---\n\n# XLSX\n\nUse openpyxl.",
-      "skills/pdf/scripts/merge.py": "print('hi')",
+      "skills/pdf/scripts/merge.py": "import sys\nfrom pypdf import PdfWriter\n\nwriter = PdfWriter()\nfor path in sys.argv[2:]:\n    writer.append(path)\nwith open(sys.argv[1], \"wb\") as out:\n    writer.write(out)\n",
     },
   };
   const meta: Record<string, RepoMeta> = {
@@ -404,7 +413,7 @@ interface McpServerJson {
   args?: string[];
   env?: Record<string, string>;
   url?: string;
-  tools?: Array<{ name: string; description?: string; inputSchema?: JsonSchema; parameters?: JsonSchema }>;
+  tools?: Array<{ name: string; description?: string; inputSchema?: JsonSchema; parameters?: JsonSchema; annotations?: ToolLike["annotations"] }>;
   version?: string;
   // MCP registry `server.json`
   packages?: Array<{ registry_type?: string; registryType?: string; identifier?: string; name?: string; runtime_hint?: string; environment_variables?: Array<{ name: string }>; environmentVariables?: Array<{ name: string }> }>;
@@ -420,6 +429,14 @@ interface ToolJson {
   method?: "GET" | "POST";
   parameters?: JsonSchema;
   version?: string;
+}
+
+function hostOf(url: string) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url.slice(0, 60);
+  }
 }
 
 function toolsFrom(raw: McpServerJson["tools"]): ToolDefinition[] {
@@ -458,6 +475,13 @@ function mapMcpServer(raw: McpServerJson, fallbackName: string, warnings: string
 
   const tools = toolsFrom(raw.tools);
   if (!tools.length) warnings.push("No tools declared in the manifest; the agent discovers them at runtime via MCP `tools/list`.");
+  // A remote server is reached over the network; a local one runs as the user and is refined by the crawler's code analysis.
+  const evidence = [...permissionsFromTools((raw.tools ?? []).filter((t) => t && typeof t.name === "string"))];
+  if (entrypoint.type === "mcp-sse") evidence.push({ permission: "network", via: "entrypoint", detail: `remote server ${hostOf(entrypoint.url)}` });
+  if (entrypoint.type === "mcp-stdio" && /^(ba|z|da|k|c)?sh$|^(cmd|powershell|pwsh)(\.exe)?$/i.test(entrypoint.command.split(/[\\/]/).pop() ?? "")) {
+    evidence.push({ permission: "shell", via: "entrypoint", detail: `launched by ${entrypoint.command}` });
+  }
+  const perms = entrypoint.type === "mcp-sse" ? withPermissions("detected", evidence) : withPermissions("assumed", evidence, ASSUMED_LOCAL_SERVER);
 
   return {
     schemaVersion: 1,
@@ -466,7 +490,7 @@ function mapMcpServer(raw: McpServerJson, fallbackName: string, warnings: string
     category: "MCP",
     tools,
     entrypoint,
-    permissions: entrypoint.type === "mcp-sse" ? ["network"] : ["shell", "network"],
+    ...perms,
     requiredEnv,
   };
 }
@@ -479,8 +503,16 @@ function mapTool(raw: ToolJson): SkillManifest {
     category: "Tool",
     tools: [{ name: raw.name.replace(/[^a-zA-Z0-9_-]/g, "_"), description: raw.description ?? "", parameters: raw.parameters ?? { type: "object", properties: {} } }],
     entrypoint: { type: "http", url: raw.url, method: raw.method ?? "POST" },
-    permissions: ["network"],
+    ...withPermissions("detected", [{ permission: "network", via: "entrypoint", detail: `HTTP ${raw.method ?? "POST"} ${hostOf(raw.url)}` }]),
   };
+}
+
+/** A native manifest: its `permissions` are the author's word; provenance fields from the file are not trusted. */
+function declaredManifest(json: SkillManifest): SkillManifest {
+  const { permissionEvidence: _e, permissionSource: _s, ...rest } = json;
+  if (!Array.isArray(rest.permissions)) return { ...rest, ...withPermissions("detected", []) };
+  const permissions = rest.permissions.filter((p): p is SkillPermission => (SKILL_PERMISSIONS as readonly string[]).includes(p));
+  return { ...rest, ...withPermissions("declared", permissions.map((permission) => ({ permission, via: "manifest" as const, detail: "synapth.json" }))) };
 }
 
 /** Back-compat shim used by tests and older callers. */
@@ -506,7 +538,8 @@ function mapSkillMarkdown(text: string, fallbackName: string): { manifest: Skill
       systemPrompt: body,
       tools: [],
       entrypoint: { type: "prompt" },
-      permissions: allowedTools.some((t) => /bash|shell|exec/i.test(t)) ? ["shell"] : [],
+      // `allowed-tools` is what the agent grants the skill; without it the skill is instructions only (scripts are read by the crawler).
+      ...(allowedTools.length ? withPermissions("declared", permissionsFromAllowedTools(allowedTools)) : withPermissions("detected", [])),
     },
     tags: [...strList(data, "tags"), ...strList(data, "keywords")],
     license: str(data, "license") ?? null,
@@ -543,7 +576,7 @@ function mapReadme(readme: string, meta: RepoMeta, ref: RepoRef): SkillManifest 
     category: isMcp ? "MCP" : "Prompt",
     tools: [],
     entrypoint,
-    permissions: isMcp ? ["shell", "network"] : [],
+    ...(isMcp ? withPermissions("assumed", [], ASSUMED_LOCAL_SERVER) : withPermissions("detected", [])),
   };
 }
 
@@ -642,7 +675,7 @@ export async function importAllFromGithub(url: string, fetcher: RepoFetcher = cr
         case "synapth.json": {
           const json = JSON.parse(text) as SkillManifest & { version?: string };
           version = json.version ?? version;
-          manifest = json.schemaVersion === 1 ? json : mapMcpServer(json as unknown as McpServerJson, ref.repo, warnings);
+          manifest = json.schemaVersion === 1 ? declaredManifest(json) : mapMcpServer(json as unknown as McpServerJson, ref.repo, warnings);
           break;
         }
         default: {
