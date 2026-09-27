@@ -27,34 +27,47 @@ printf 'SYNAPTH_IMAGE=%s\nSYNAPTH_MIGRATOR_IMAGE=%s\n' "$app_image" "$migrator_i
 
 rollback() {
   if [ -n "$previous_images" ] && [ -f "$previous_images" ]; then
-    echo "New application did not become healthy; restoring the previous image" >&2
+    echo "Deployment did not become healthy; restoring the previous application image" >&2
     cp "$previous_images" .images.env
     "${compose[@]}" up -d --no-deps app
   fi
 }
 trap rollback ERR
 
-"${compose[@]}" pull app migrate
+"${compose[@]}" pull app migrate pgadmin
 "${compose[@]}" up -d db
 "${compose[@]}" run --rm migrate
-"${compose[@]}" up -d --no-deps app
+"${compose[@]}" up -d --no-deps app pgadmin
 
-container_id=$("${compose[@]}" ps -q app)
-for _ in $(seq 1 45); do
-  health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")
-  if [ "$health" = "healthy" ]; then
-    trap - ERR
-    [ -z "$previous_images" ] || rm -f "$previous_images"
-    echo "Synapth is healthy on $app_image"
-    exit 0
+wait_for_healthy() {
+  local service=$1 attempts=$2 container_id health
+  container_id=$("${compose[@]}" ps -q "$service")
+  if [ -z "$container_id" ]; then
+    echo "$service container was not created" >&2
+    return 1
   fi
-  if [ "$health" = "unhealthy" ] || [ "$health" = "exited" ] || [ "$health" = "dead" ]; then
-    "${compose[@]}" logs --tail=150 app >&2
-    exit 1
-  fi
-  sleep 2
-done
 
-"${compose[@]}" logs --tail=150 app >&2
-echo "Timed out waiting for the application health check" >&2
-exit 1
+  for _ in $(seq 1 "$attempts"); do
+    health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")
+    if [ "$health" = "healthy" ]; then
+      echo "$service is healthy"
+      return 0
+    fi
+    if [ "$health" = "unhealthy" ] || [ "$health" = "exited" ] || [ "$health" = "dead" ]; then
+      "${compose[@]}" logs --tail=150 "$service" >&2
+      return 1
+    fi
+    sleep 2
+  done
+
+  "${compose[@]}" logs --tail=150 "$service" >&2
+  echo "Timed out waiting for $service health check" >&2
+  return 1
+}
+
+wait_for_healthy app 45
+wait_for_healthy pgadmin 90
+
+trap - ERR
+[ -z "$previous_images" ] || rm -f "$previous_images"
+echo "Synapth is healthy on $app_image; pgAdmin is healthy"
