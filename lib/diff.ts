@@ -10,9 +10,27 @@ export interface DiffLine {
   text: string;
 }
 
+/** Above this many LCS cells the middle is shown as a plain replacement instead of an optimal diff. */
+const MAX_CELLS = 4_000_000;
+
 export function diffLines(before: string, after: string): DiffLine[] {
-  const a = before.length ? before.split("\n") : [];
-  const b = after.length ? after.split("\n") : [];
+  const all = { a: before.length ? before.split("\n") : [], b: after.length ? after.split("\n") : [] };
+  // Unchanged head and tail are common (a prompt edited in one place): keep them out of the O(n·m) table.
+  let head = 0;
+  while (head < all.a.length && head < all.b.length && all.a[head] === all.b[head]) head++;
+  let tail = 0;
+  while (tail < all.a.length - head && tail < all.b.length - head && all.a[all.a.length - 1 - tail] === all.b[all.b.length - 1 - tail]) tail++;
+  const prefix = all.a.slice(0, head).map((text): DiffLine => ({ op: "equal", text }));
+  const suffix = all.a.slice(all.a.length - tail).map((text): DiffLine => ({ op: "equal", text }));
+  const a = all.a.slice(head, all.a.length - tail);
+  const b = all.b.slice(head, all.b.length - tail);
+  if ((a.length + 1) * (b.length + 1) > MAX_CELLS) {
+    return [...prefix, ...a.map((text): DiffLine => ({ op: "remove", text })), ...b.map((text): DiffLine => ({ op: "add", text })), ...suffix];
+  }
+  return [...prefix, ...lcsDiff(a, b), ...suffix];
+}
+
+function lcsDiff(a: string[], b: string[]): DiffLine[] {
   const n = a.length;
   const m = b.length;
 

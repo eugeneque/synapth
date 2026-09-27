@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Heart, User } from "lucide-react";
+import { Heart, LogOut, User } from "lucide-react";
 import { auth } from "@/cortex/auth";
 import { getProfile } from "@/cortex/account";
 import { getI18n } from "@/cortex/locale";
@@ -8,10 +8,12 @@ import { Logo, LogoWordmark } from "@/components/logo";
 import { SiteMenu } from "@/components/site-menu";
 import { NotificationBell } from "@/components/notification-center";
 import { UserHoverCard } from "@/components/user-hover-card";
+import { SignOutButton } from "@/components/sign-out-button";
 
 /**
  * Header: logo, the menu + search bar (one mega panel, `SiteMenu`) stretched across the middle,
- * and the user block. Everything else — sections, docs, language, sign-out — lives in the panel.
+ * and the user block (favorites, bell, avatar, sign-out). Everything else — sections, docs,
+ * language — lives in the panel.
  */
 export async function SiteHeader() {
   const [session, { t }] = await Promise.all([auth(), getI18n()]);
@@ -47,6 +49,9 @@ export async function SiteHeader() {
               </Link>
               <NotificationBell />
               {profile?.handle ? <UserHoverCard handle={profile.handle}>{avatarLink}</UserHoverCard> : avatarLink}
+              <SignOutButton label={t("header.signOut")} className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-low text-muted-foreground transition-all hover:border-danger/40 hover:text-danger active:scale-95 disabled:opacity-60">
+                <LogOut className="h-4 w-4" />
+              </SignOutButton>
             </>
           ) : (
             <>

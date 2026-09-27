@@ -10,13 +10,19 @@
 
 import { DEPENDENCY_FILES, scanDependencies } from "@/lib/dependency-scanner";
 import type { RepoFetcher, RepoRef } from "@/lib/github-parser";
-import type { RepositoryAudit } from "@/types/skill";
+import { codeFilesFor, permissionsFromCode, permissionsFromDependencies, refinePermissions, type CodeAnalysis } from "@/lib/permissions";
+import type { RepositoryAudit, SkillCreateInput } from "@/types/skill";
 import { auditDependencies, type AuditOptions } from "@/cortex/dependency-audit";
 
 const IGNORED = /(^|\/)(node_modules|\.git|vendor|dist|build|\.venv|venv|__pycache__|test|tests|fixtures|examples?)\//i;
 const BINARY = /\.(exe|dll|so|dylib|elf|msi|appimage)$/i;
 /** Probed when the tree is unavailable (no token): the manifests that matter most. */
 const PROBE_WITHOUT_TREE = ["package.json", "package-lock.json", "requirements.txt", "pyproject.toml"];
+/** Source files read per manifest directory and per repository for permission detection. */
+const CODE_FILES_PER_DIR = 8;
+const CODE_FILES_PER_REPO = 30;
+/** Only the head of a huge (usually generated) file is scanned. */
+const CODE_FILE_CAP = 200_000;
 
 export interface RepoAuditOptions extends AuditOptions {
   /** Query OSV and the registries (network). */
@@ -60,5 +66,37 @@ export async function auditRepository(ref: RepoRef, fetcher: RepoFetcher, dirs: 
     packages: packages.length,
     binaries: (tree ?? []).filter((p) => BINARY.test(p) && !IGNORED.test(p)).slice(0, 20),
     findings,
+    permissions: await detectPermissions(ref, fetcher, tree, [...wanted].filter((d) => dirs.includes(d)), files),
   };
+}
+
+/**
+ * Permission evidence next to each manifest: source files of that directory
+ * (a server's code, a skill's scripts) and its dependency manifests. Without a
+ * tree (no token) only dependencies count, and a guessed list stays a guess.
+ */
+async function detectPermissions(ref: RepoRef, fetcher: RepoFetcher, tree: string[] | null, dirs: string[], depFiles: Record<string, string>): Promise<Record<string, CodeAnalysis>> {
+  const out: Record<string, CodeAnalysis> = {};
+  let budget = CODE_FILES_PER_REPO;
+  for (const dir of dirs) {
+    const paths = tree ? codeFilesFor(tree, dir, Math.min(CODE_FILES_PER_DIR, budget)) : [];
+    budget -= paths.length;
+    const texts = await Promise.all(paths.map((p) => fetcher.readFile(ref, p).catch(() => null)));
+    const code: Record<string, string> = {};
+    paths.forEach((p, i) => {
+      if (texts[i] !== null) code[p] = texts[i]!.slice(0, CODE_FILE_CAP);
+    });
+    const prefix = dir ? `${dir}/` : "";
+    const deps = Object.fromEntries(Object.entries(depFiles).filter(([p]) => p.split("/").slice(0, -1).join("/") === dir || (!p.includes("/") && !prefix)));
+    out[dir] = { files: Object.keys(code), evidence: [...permissionsFromCode(code), ...permissionsFromDependencies(deps)] };
+  }
+  return out;
+}
+
+/** An imported entry with the repository audit attached and its permissions refined by the code next to its manifest. */
+export function applyAudit(input: SkillCreateInput, manifestPath: string, audit: RepositoryAudit | null): SkillCreateInput {
+  if (!audit) return input;
+  const dir = manifestPath.split("/").slice(0, -1).join("/");
+  const manifest = refinePermissions(input.manifest, audit.permissions?.[dir]);
+  return input.source ? { ...input, manifest, source: { ...input.source, audit } } : { ...input, manifest };
 }
