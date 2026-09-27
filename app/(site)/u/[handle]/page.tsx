@@ -10,6 +10,7 @@ import { evaluateBadges, listBadges } from "@/cortex/badges";
 import { impulseSummary, listComments, listPosts } from "@/cortex/social";
 import { friendState, friendStates, listFriends, listRequests } from "@/cortex/friends";
 import { getI18n } from "@/cortex/locale";
+import { getProStatuses } from "@/cortex/subscription-store";
 import { ActivityHeatmap, HeatmapLegend, bucketActivity } from "@/components/activity-heatmap";
 import { BadgeList } from "@/components/badge-list";
 import { publicRole } from "@/types/auth";
@@ -19,6 +20,7 @@ import { FriendsCard } from "@/components/friends-card";
 import { ProfileMoreMenu, type ProfileMoreItem } from "@/components/profile-more-menu";
 import { CountUp } from "@/components/count-up";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
 import { ProfileDetails } from "@/components/profile-details";
 import { Panel } from "@/components/panel";
 import { PostFeed } from "@/components/post-feed";
@@ -61,7 +63,7 @@ export default async function UserProfilePage({ params }: Params) {
 
   // Social layer: impulses, posts with their threads, achievements (evaluated lazily so seeded data catches up).
   await evaluateBadges(profile.id);
-  const [impulses, posts, badges, viewer, canModerate, friends, relation, requests] = await Promise.all([
+  const [impulses, posts, badges, viewer, canModerate, friends, relation, requests, proStatuses] = await Promise.all([
     impulseSummary(profile.id, viewerId),
     listPosts(profile.id, { viewerId }),
     listBadges(profile.id),
@@ -71,7 +73,9 @@ export default async function UserProfilePage({ params }: Params) {
     friendState(profile.id, viewerId),
     // Pending requests are the owner's business only; the friend list itself is public.
     isOwner ? listRequests(profile.id) : Promise.resolve(null),
+    getProStatuses([profile.id]),
   ]);
+  const pro = proStatuses.get(profile.id) ?? null;
   // Each friend row carries the viewer's own relation to that person (the owner sees "friends" everywhere).
   const states = await friendStates(
     friends.map((f) => f.id),
@@ -210,6 +214,7 @@ export default async function UserProfilePage({ params }: Params) {
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="font-display text-3xl font-medium tracking-tight sm:text-4xl">{name}</h1>
                   {profile.verified && <VerifiedMark size="lg" />}
+                  {pro && <ProMark since={pro.since} size="lg" />}
                   {verified > 0 && <ShieldCheck className="h-5 w-5 text-muted-foreground" aria-label={t("author.verifiedCreator")} />}
                 </div>
                 {headline && <p className="mt-1.5 text-base text-foreground/90">{headline}</p>}

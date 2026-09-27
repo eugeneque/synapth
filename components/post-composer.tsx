@@ -19,6 +19,7 @@ import { ImageError, prepareImage } from "@/axon/image";
 import { discardPostPhoto, publishPost, uploadPostPhoto } from "@/app/(site)/social-actions";
 import { Avatar } from "@/components/avatar";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
 import { mentionAtCaret } from "@/lib/post-body";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
@@ -287,6 +288,7 @@ export function PostComposer({ viewer, handle, onPublished }: { viewer: AuthorRe
                       <span className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
                         {p.name || p.handle}
                         {p.verified && <VerifiedMark size="sm" />}
+                        {p.pro && <ProMark since={p.pro.since} size="sm" />}
                       </span>
                       <span className="block truncate font-mono text-[11px] text-muted-foreground">@{p.handle}</span>
                     </span>

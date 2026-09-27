@@ -28,7 +28,7 @@ export interface ProviderOption {
 interface Props {
   currentPlan: PlanId;
   /** Null without a live subscription. */
-  subscription: { period: BillingPeriod; seats: number; cancelAtPeriodEnd: boolean; pendingPlan: PlanId | null } | null;
+  subscription: { period: BillingPeriod; seats: number; cancelAtPeriodEnd: boolean; pendingPlan: PlanId | null; granted: boolean } | null;
   rubProviders: ProviderOption[];
   usdProviders: ProviderOption[];
   initialPlan: PlanId | null;
@@ -148,14 +148,15 @@ export function BillingPanel({ currentPlan, subscription, rubProviders, usdProvi
               <p className="text-sm">
                 {t("billing.total")} <span className="font-semibold">{formatMinor(total, "RUB", locale)}</span> <span className="text-xs text-muted-foreground">/ {t(`pro.period.${period}`)}</span>
               </p>
-              <Button onClick={() => go(() => checkoutAction({ kind: "subscription", plan, period, seats, method, provider }))} disabled={pending || (plan === currentPlan && subscription?.period === period && (!spec.perSeat || subscription.seats === seats))}>
+              <Button onClick={() => go(() => checkoutAction({ kind: "subscription", plan, period, seats, method, provider }))} disabled={pending || (plan === currentPlan && !subscription?.granted && subscription?.period === period && (!spec.perSeat || subscription.seats === seats))}>
                 {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />} {t("billing.pay")}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">{t("billing.change.note")}</p>
           </>
         )}
-        {subscription && (
+        {subscription?.granted && <p className="border-t border-border pt-3 text-xs text-muted-foreground">{t("billing.granted")}</p>}
+        {subscription && !subscription.granted && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
             <span>{subscription.cancelAtPeriodEnd ? t("billing.willEnd") : subscription.pendingPlan ? t("billing.pendingPlan", { plan: t(`pro.plan.${subscription.pendingPlan}`) }) : t("billing.autoRenew")}</span>
             <Button size="sm" variant={subscription.cancelAtPeriodEnd ? "mono" : "destructive"} onClick={toggleCancel} disabled={pending}>

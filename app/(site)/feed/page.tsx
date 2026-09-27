@@ -10,6 +10,7 @@ import { HomeFeed } from "@/components/home-feed";
 import { Avatar } from "@/components/avatar";
 import { FriendButton } from "@/components/friend-button";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
 import { FEED_TABS, type FeedTab } from "@/types/feed";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +76,7 @@ export default async function FeedPage({ searchParams }: Props) {
                             {s.name || s.handle}
                           </Link>
                           {s.verified && <VerifiedMark size="sm" />}
+                          {s.pro && <ProMark since={s.pro.since} size="sm" />}
                         </div>
                         <span className="label-mono-sm block truncate normal-case tracking-normal">{s.mutual ? n("feed.suggest.mutual", s.mutual) : t("feed.suggest.popular")}</span>
                       </div>

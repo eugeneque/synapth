@@ -18,6 +18,7 @@ import type { InstallTarget } from "@/axon/install";
 import { toUserRole, type UserRole } from "@/types/auth";
 import { AVATAR_IMAGE, COVER_IMAGE, OCCUPATIONS, dataUrlBytes, isImageDataUrl, isOccupation, type Occupation } from "@/types/profile";
 import { httpUrlSchema, isHttpUrl } from "@/lib/url-safety";
+import { getProStatuses } from "@/cortex/subscription-store";
 import type { AuthorRef } from "@/types/social";
 import type { UserVerification } from "@/types/verification";
 
@@ -241,14 +242,15 @@ export async function getAuthorRefs(ids: Iterable<string>): Promise<Map<string, 
   const unique = [...new Set(ids)];
   const out = new Map<string, AuthorRef>();
   if (!unique.length) return out;
+  const pro = await getProStatuses(unique);
   if (!hasDatabase) {
     for (const u of memoryUsers) {
-      if (unique.includes(u.id)) out.set(u.id, { id: u.id, name: u.name, handle: u.handle, image: u.image, occupation: extras.get(u.id)?.occupation ?? null, verified: memoryVerified.has(u.id) });
+      if (unique.includes(u.id)) out.set(u.id, { id: u.id, name: u.name, handle: u.handle, image: u.image, occupation: extras.get(u.id)?.occupation ?? null, verified: memoryVerified.has(u.id), pro: pro.get(u.id) ?? null });
     }
     return out;
   }
   const rows = await prisma.user.findMany({ where: { id: { in: unique } }, select: { id: true, name: true, handle: true, image: true, occupation: true, verifiedAt: true } });
-  for (const r of rows) out.set(r.id, { id: r.id, name: r.name ?? "", handle: r.handle ?? "", image: r.image, occupation: isOccupation(r.occupation) ? r.occupation : null, verified: Boolean(r.verifiedAt) });
+  for (const r of rows) out.set(r.id, { id: r.id, name: r.name ?? "", handle: r.handle ?? "", image: r.image, occupation: isOccupation(r.occupation) ? r.occupation : null, verified: Boolean(r.verifiedAt), pro: pro.get(r.id) ?? null });
   return out;
 }
 
@@ -287,7 +289,8 @@ export async function searchProfiles(rawQuery: string, limit = 40): Promise<Prof
       // Handle prefix matches first, then name order.
       .sort((a, b) => Number(b.u.handle.toLowerCase().startsWith(q)) - Number(a.u.handle.toLowerCase().startsWith(q)) || a.u.name.localeCompare(b.u.name))
       .slice(0, take);
-    return hits.map(({ u, x }) => ({ id: u.id, name: u.name, handle: u.handle, image: u.image, occupation: x?.occupation ?? null, verified: memoryVerified.has(u.id), bio: x?.bio ?? "" }));
+    const pro = await getProStatuses(hits.map(({ u }) => u.id));
+    return hits.map(({ u, x }) => ({ id: u.id, name: u.name, handle: u.handle, image: u.image, occupation: x?.occupation ?? null, verified: memoryVerified.has(u.id), pro: pro.get(u.id) ?? null, bio: x?.bio ?? "" }));
   }
   const contains = { contains: q, mode: "insensitive" as const };
   const rows = await prisma.user.findMany({
@@ -296,7 +299,8 @@ export async function searchProfiles(rawQuery: string, limit = 40): Promise<Prof
     take,
     select: { id: true, name: true, handle: true, image: true, occupation: true, verifiedAt: true, bio: true },
   });
+  const pro = await getProStatuses(rows.map((r) => r.id));
   return rows
-    .map((r) => ({ id: r.id, name: r.name ?? "", handle: r.handle ?? "", image: r.image, occupation: isOccupation(r.occupation) ? r.occupation : null, verified: Boolean(r.verifiedAt), bio: r.bio ?? "" }))
+    .map((r) => ({ id: r.id, name: r.name ?? "", handle: r.handle ?? "", image: r.image, occupation: isOccupation(r.occupation) ? r.occupation : null, verified: Boolean(r.verifiedAt), pro: pro.get(r.id) ?? null, bio: r.bio ?? "" }))
     .sort((a, b) => (q ? Number(b.handle.toLowerCase().startsWith(q)) - Number(a.handle.toLowerCase().startsWith(q)) : 0));
 }

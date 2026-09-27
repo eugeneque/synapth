@@ -3,8 +3,8 @@
 /**
  * Server actions for the review flow: any user files a moderation request;
  * staff re-run the scanner, close requests with a verdict and toggle
- * `Verified` (moderators and admins); admins manage roles and the
- * platform-developer flag. Permission checks
+ * `Verified` (moderators and admins); admins manage roles, the
+ * platform-developer flag and granted Pro. Permission checks
  * live in `cortex/roles.ts` and read the stored role, so a stale JWT never
  * grants anything.
  */
@@ -15,6 +15,7 @@ import { enforceRateLimit } from "@/cortex/rate-limit";
 import { decideModeration, requestModeration, rescanForReview, setVerification } from "@/cortex/moderation";
 import { setUserRole, type DirectoryUser } from "@/cortex/roles";
 import { setDeveloper } from "@/cortex/developers";
+import { grantPro, revokePro, type ProGrantState } from "@/cortex/pro-grants";
 import type { ScanReport } from "@/lib/sandbox-scanner";
 import type { ModerationStatus, ModerationVerdict } from "@/types/moderation";
 import type { SecurityLevel } from "@/types/skill";
@@ -95,5 +96,17 @@ export async function changeDeveloper(userId: string, developer: boolean): Promi
     revalidatePath("/dashboard/admin/users");
     if (updated.handle) revalidatePath(`/u/${updated.handle}`);
     return updated;
+  });
+}
+
+/** Admin: grant Pro for `months` (extends a live grant), or `null` to end a grant now. */
+export async function changeProGrant(userId: string, handle: string, months: number | null): Promise<StaffActionResult<ProGrantState>> {
+  return run(async () => {
+    const user = await requireUser();
+    enforceRateLimit("write", `user:${user.id}`);
+    const state = months === null ? await revokePro(user.id, userId) : await grantPro(user.id, userId, Number(months));
+    revalidatePath("/dashboard/admin/users");
+    if (handle) revalidatePath(`/u/${handle}`);
+    return state;
   });
 }
