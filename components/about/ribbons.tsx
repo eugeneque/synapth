@@ -1,14 +1,17 @@
 "use client";
 
 /**
- * Ribbons — the /about background. A fullscreen WebGL fragment shader draws
+ * Ribbons — the home page background below the hands hero. A fullscreen WebGL fragment shader draws
  * 3–5 long, curved trails of light (lime → blue, additive, with fine fibres
  * inside) that loop every 24 s and drift at 0.3× the scroll. On top sit a 1px
  * dot grid and a vignette. Reduced motion renders one still frame; without
  * WebGL an SVG approximation of the same frame is shown instead.
  *
- * It paints the page background itself, so it marks the page `data-pixel-mute`
- * and the global PixelField stops drawing underneath.
+ * With `after` (an element id — the hands hero on the home page) the layer
+ * stays transparent while that element fills the screen, so the global
+ * PixelField keeps working there, and fades in as it scrolls away. Once fully
+ * opaque it sets `data-pixel-mute` and PixelField stops drawing underneath;
+ * the shader loop only runs while the layer is visible.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -100,13 +103,44 @@ function StaticRibbons() {
   );
 }
 
-export function Ribbons() {
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+export function Ribbons({ after }: { after?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
+
+  // Visibility of the whole layer, driven by the scroll position of `after`.
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+    const anchor = after ? document.getElementById(after) : null;
+    const update = () => {
+      let level = 1;
+      if (anchor) {
+        const vh = window.innerHeight;
+        // Anchor bottom at 60% of the viewport → 0, at 10% → 1.
+        level = clamp01((vh * 0.6 - anchor.getBoundingClientRect().bottom) / (vh * 0.5));
+      }
+      layer.style.opacity = String(level);
+      layer.dataset.level = String(level);
+      if (level >= 0.99) layer.setAttribute("data-pixel-mute", "");
+      else layer.removeAttribute("data-pixel-mute");
+      layer.dispatchEvent(new Event("ribbons:level"));
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [after]);
 
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas) return;
+    const layer = layerRef.current;
+    if (!canvas || !layer) return;
     const gl = canvas.getContext("webgl", { antialias: false, alpha: false, powerPreference: "low-power" });
     if (!gl) {
       setFallback(true);
@@ -140,6 +174,8 @@ export function Ribbons() {
     const still = reducedMotion();
     const mobile = window.matchMedia("(max-width: 767px)");
     let raf = 0;
+    /** Reduced motion: the one still frame has been painted. */
+    let drawn = false;
     const t0 = performance.now();
 
     function resize() {
@@ -150,7 +186,11 @@ export function Ribbons() {
       gl!.viewport(0, 0, canvas!.width, canvas!.height);
     }
 
+    const hidden = () => layer!.dataset.level === "0";
+
     function frame(now: number) {
+      raf = 0;
+      if (hidden()) return; // resumed by the level event
       gl!.uniform2f(uRes, canvas!.width, canvas!.height);
       // Reduced motion: always the same frame, no parallax.
       gl!.uniform1f(uTime, still ? 7.5 : (now - t0) / 1000);
@@ -158,12 +198,16 @@ export function Ribbons() {
       // Phones get half the trails.
       gl!.uniform1f(uCount, mobile.matches ? 2 : 4);
       gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+      drawn = true;
       if (!still) raf = requestAnimationFrame(frame);
     }
 
     const start = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(frame);
+    };
+    const onLevel = () => {
+      if (!raf && !hidden() && !document.hidden && !(still && drawn)) start();
     };
     const onResize = () => {
       resize();
@@ -178,8 +222,10 @@ export function Ribbons() {
     start();
     window.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVisibility);
+    layer.addEventListener("ribbons:level", onLevel);
     return () => {
       cancelAnimationFrame(raf);
+      layer.removeEventListener("ribbons:level", onLevel);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
@@ -187,7 +233,7 @@ export function Ribbons() {
   }, []);
 
   return (
-    <div className="about-bg" aria-hidden="true" data-pixel-mute="">
+    <div ref={layerRef} className="about-bg" aria-hidden="true" style={{ opacity: after ? 0 : 1 }}>
       {fallback ? <StaticRibbons /> : <canvas ref={ref} className="absolute inset-0 h-full w-full" />}
       <div className="about-dots" />
       <div className="about-vignette" />

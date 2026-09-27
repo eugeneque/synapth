@@ -58,7 +58,7 @@ export function plain(text: string) {
 
 interface Props {
   text: string;
-  as?: "h1" | "h2" | "h3" | "p" | "blockquote";
+  as?: "h1" | "h2" | "h3" | "p" | "span" | "blockquote";
   className?: string;
   /** Extra delay before the first letter, ms. */
   delay?: number;

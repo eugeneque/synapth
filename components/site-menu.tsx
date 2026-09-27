@@ -51,7 +51,7 @@ const SECTIONS: { key: string; href: string; icon: LucideIcon; match: (p: string
   { key: "favorites", href: "/favorites", icon: Heart, match: (p) => p.startsWith("/favorites") },
   { key: "docs", href: "/faq", icon: BookOpen, match: (p) => p.startsWith("/faq") },
   { key: "pro", href: "/pro", icon: Sparkles, match: (p) => p.startsWith("/pro") },
-  { key: "about", href: "/about", icon: Info, match: (p) => p.startsWith("/about") },
+  { key: "about", href: "/#manifesto", icon: Info, match: () => false },
 ];
 
 const DEVELOPER_LINKS: { key: UiKey; href: string }[] = [

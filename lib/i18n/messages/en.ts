@@ -139,7 +139,7 @@ export const ui = {
   // ---- home ---------------------------------------------------------------
   "home.hero.indexed": "{n} skills in the catalogue",
   "home.hero.title1": "New connections",
-  "home.hero.title2": "for your agents.",
+  "home.hero.title2": "for your *agents*.",
   "home.hero.lead": "Skills, tools and MCP servers — indexed from GitHub, sandbox-scanned and installable in one click into Cursor, Claude Desktop, Claude Code or any agent over HTTP.",
   "home.hero.hint": "move the cursor between the hands",
 
@@ -154,51 +154,14 @@ export const ui = {
   "home.stats.targets": "Install targets",
 
   "home.mech.label": "How it works",
-  "home.mech.title": "From repository to agent in three steps.",
-  "home.mech.lead": "A repository never reaches your agent directly: Synapth parses the manifest, runs it through the security scanner and only then emits a config your client understands.",
-  "home.step1.tag": "Step 1",
   "home.step1.title": "Crawl & parse",
-  "home.step1.body": "GitHub repositories with `synapth.json`, `mcp-server.json` or a `SKILL.md` are discovered by topic and filename, then normalised into one manifest.",
-  "home.step2.tag": "Step 2",
   "home.step2.title": "Security scan",
-  "home.step2.body": "Every surface — prompt, tool schemas, README, entrypoint — runs through the static scanner. Risky patterns mean *Sandbox*; a clean pass means *Community*. *Verified* only comes from a human review.",
-  "home.step3.tag": "Step 3",
   "home.step3.title": "Client config",
-  "home.step3.body": "The manifest becomes the exact JSON for Cursor or Claude Desktop, a `claude mcp add` one-liner, or a minified context blob for agents calling the API.",
 
-  "home.trending.title": "Trending in the catalogue",
+  "home.trending.title": "Trending in the *catalogue*",
   "home.trending.browseAll": "Browse all {n}",
 
-  "home.pillars.label": "What you get",
-  "home.pillars.title": "One catalogue, every skill checked.",
-  "home.pillars.lead": "Built for agent stacks where a stray prompt injection or an unmetered tool loop is not an acceptable failure mode.",
-  "home.pillar1.tag": "Catalogue",
-  "home.pillar1.title": "One catalogue",
-  "home.pillar1.browse": "Browse packages →",
-  "home.pillar1.body": "One index for MCP servers, prompts and HTTP tools. Full-text search with operators (`category:MCP lang:python stars:>100`), facets over language, author and tags, and a ranking that mixes install velocity, stars and retention.",
-  "home.pillar1.mcp": "MCP servers",
-  "home.pillar1.prompts": "Prompts",
-  "home.pillar1.tools": "Tools",
-  "home.pillar2.tag": "Security",
-  "home.pillar2.title": "Security scanner",
-  "home.pillar2.foot1": "Static analysis",
-  "home.pillar2.foot2": "Verified = human review",
-  "home.pillar2.body": "Every manifest is scanned before it can be installed. The scanner never grants Verified on its own.",
-  "home.pillar2.rules": "Rules",
-  "home.pillar2.surfaces": "Surfaces",
-  "home.pillar2.sandbox": "Sandbox",
-  "home.pillar2.flagged": "{n} flagged",
-  "home.pillar2.verified": "Verified",
-  "home.pillar2.reviewed": "{n} reviewed",
 
-  "home.cta.label": "Get started",
-  "home.cta.title": "Connect your agent to the catalogue.",
-  "home.cta.lead": "Point your agent at the catalogue, or publish your own skill from a GitHub repository — parsed, scanned and listed in under a minute.",
-  "home.cta.terminal": "bash",
-  "home.cta.c1": "# Search the catalogue as an agent",
-  "home.cta.c2": "# Fetch one skill with its manifest",
-  "home.cta.c3": "> 200 OK · manifest · install snippets",
-  "terminal.copyInstall": "Copy install command",
 
   // ---- explore ------------------------------------------------------------
   "explore.index": "{n} skills in the catalogue",
@@ -562,37 +525,6 @@ export const ui = {
   "cp.rejected": "Rejected",
   "cp.skillsFromGithub": "Skills from GitHub",
 
-  "home.pulse.label": "Interactive request",
-  "home.pulse.title": "Fire a real agent request",
-  "home.pulse.lead": "The button below calls the public gateway exactly the way an agent does and lights each node as the payload comes back.",
-  "home.pulse.placeholder": "What should the agent look for? e.g. postgres",
-  "home.pulse.fire": "Fire synaptic pulse",
-  "home.pulse.firing": "Firing…",
-  "home.pulse.node": "Node {n}",
-  "home.pulse.node1.title": "Agent prompt",
-  "home.pulse.node2.title": "Catalogue search",
-  "home.pulse.node2.idle": "waiting for a pulse",
-  "home.pulse.node2.value": "{n} matches · {ms}ms",
-  "home.pulse.node3.title": "Sandbox scan",
-  "home.pulse.node3.idle": "badge of the top hit",
-  "home.pulse.node3.empty": "no hits to scan",
-  "home.pulse.node4.title": "Agent context",
-  "home.pulse.node4.idle": "system prompt + tool schemas",
-  "home.pulse.node4.value": "{tools} tools · {bytes} KB",
-  "home.pulse.stdout": "Request log",
-  "home.pulse.status.standby": "Standby",
-  "home.pulse.status.live": "Live",
-  "home.pulse.status.done": "200 OK",
-  "home.pulse.status.error": "Error",
-  "home.pulse.log.init": "> Gateway ready. Type a query and fire a pulse.",
-  "home.pulse.log.idle": "> Every line below is a real response from /api/v1/skills.",
-  "home.pulse.log.prompt": "> prompt: \"{q}\"",
-  "home.pulse.log.search": "> 200 OK · {n} matches in {ms}ms",
-  "home.pulse.log.scan": "> top hit: {name} · {level}",
-  "home.pulse.log.noHits": "> no skills matched — try another query",
-  "home.pulse.log.context": "> agent context: {tools} tool schemas · {chars} chars of system prompt",
-  "home.pulse.log.done": "> done in {ms}ms — paste the same request into your agent",
-  "home.pulse.log.error": "> request failed: {error}",
 
   "console.nav.label": "Control plane",
   "console.nav.publish": "Publishing & keys",
@@ -1740,23 +1672,15 @@ stars:>100            minimum GitHub stars
 } as const;
 
 /**
- * The /about manifesto. Kept out of `ui` so the client bundle does not carry
+ * The home page manifesto (formerly /about). Kept out of `ui` so the client bundle does not carry
  * it; the page hands the active dictionary to its client islands as props.
  * Every title (H1/H2/card) has exactly one *em* word — the serif accent — picked
  * per locale. Short words are glued to the next one with  .
  */
 export const about = {
-  "about.meta.title": "About",
-  "about.meta.description": "Why Synapth exists and what we believe: one catalogue of skills and MCP servers for AI agents.",
 
-  "about.hero.beta": "open beta",
-  "about.hero.skills": "{n} skill|{n} skills",
-  "about.hero.mcp": "{n} MCP",
   "about.hero.title": "Where agents find their *skills*.",
   "about.hero.lead": "Synapth collects skills and MCP servers in one place and connects them to your agent with one command — no hand-edited configs.",
-  "about.hero.primary": "Open the catalogue",
-  "about.hero.secondary": "How it works",
-  "about.hero.secondaryMeta": "2 min",
   "about.hero.fineprint": "free / no card / open-source skills",
 
   "about.graph.agent": "agent: {name}",
@@ -1794,4 +1718,6 @@ export const about = {
   "about.cta.title": "Connect your first skill in a *minute*.",
   "about.cta.primary": "Open the catalogue",
   "about.cta.secondary": "Publish a skill",
+
+  "about.trending.eyebrow": "trending",
 } as const;

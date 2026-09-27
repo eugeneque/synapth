@@ -15,7 +15,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${APP_URL}/search`, changeFrequency: "hourly", priority: 0.9 },
     { url: `${APP_URL}/skillsets`, changeFrequency: "daily", priority: 0.8 },
     { url: `${APP_URL}/faq`, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${APP_URL}/about`, changeFrequency: "monthly", priority: 0.5 },
     ...skills.map((s) => ({ url: `${APP_URL}/skills/${s.slug}`, lastModified: new Date(s.updatedAt), changeFrequency: "daily" as const, priority: 0.8 })),
     ...skillsets.map((s) => ({ url: `${APP_URL}/skillsets/${s.slug}`, lastModified: new Date(s.updatedAt), changeFrequency: "weekly" as const, priority: 0.7 })),
     ...authors.map((a) => ({ url: `${APP_URL}/authors/${encodeURIComponent(a)}`, changeFrequency: "weekly" as const, priority: 0.6 })),
