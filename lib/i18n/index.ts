@@ -70,7 +70,7 @@ export function fullTranslator(locale: Locale): Translator<UiKey | FaqKey> {
   return createTranslator<UiKey | FaqKey>(locale, { ...UI[locale], ...FAQ[locale] }, { ...UI[DEFAULT_LOCALE], ...FAQ[DEFAULT_LOCALE] });
 }
 
-/** The /about manifesto: server-side only, its islands get the dictionary as props. */
+/** The home page manifesto (formerly /about): server-side only, its islands get the dictionary as props. */
 export function aboutTranslator(locale: Locale): Translator<AboutKey> {
   return createTranslator(locale, ABOUT[locale], ABOUT[DEFAULT_LOCALE]);
 }

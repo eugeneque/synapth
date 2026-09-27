@@ -14,8 +14,9 @@
  * Decorative: the whole graph is aria-hidden, `describe` carries its meaning.
  */
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { Database, Github, MessageSquare } from "lucide-react";
+import { createElement, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import Link from "next/link";
+import { Database, Github, Globe, MessageSquare, Server } from "lucide-react";
 import { Scramble } from "./scramble";
 import { fill, finePointerDesktop, reducedMotion } from "./motion";
 import { cn } from "@/lib/utils";
@@ -32,34 +33,62 @@ export interface GraphCopy {
 }
 
 type Kind = "skill" | "mcp";
+export type GraphIcon = "github" | "database" | "browser" | "chat" | "server";
 
-interface Node {
+/** A catalogue entry wired to the agent; names and versions are never translated. */
+export interface GraphEntry {
   name: string;
   version: string;
   kind: Kind;
+  icon?: GraphIcon;
+  href?: string;
+}
+
+interface Node extends GraphEntry {
   x: number;
   y: number;
-  icon?: typeof Github;
   /** Dropped on phones (< 768 px), leaving five satellites. */
   desktopOnly?: boolean;
 }
 
-// Illustrative agent; names and versions are never translated.
+const ICONS: Record<GraphIcon, typeof Github> = { github: Github, database: Database, browser: Globe, chat: MessageSquare, server: Server };
+
 const W = 800;
 const H = 480;
 const CX = 400;
 const CY = 240;
-const NODES: Node[] = [
-  { name: "pdf-reading", version: "1.4.2", kind: "skill", x: 150, y: 96 },
-  { name: "github-mcp", version: "0.9.1", kind: "mcp", x: 640, y: 92, icon: Github },
-  { name: "web-search", version: "2.1.0", kind: "skill", x: 650, y: 262 },
-  { name: "postgres-mcp", version: "1.2.0", kind: "mcp", x: 585, y: 404, icon: Database },
-  { name: "summarize", version: "0.6.3", kind: "skill", x: 205, y: 398 },
-  { name: "code-review", version: "1.0.4", kind: "skill", x: 96, y: 250, desktopOnly: true },
-  { name: "slack-mcp", version: "0.4.0", kind: "mcp", x: 398, y: 52, icon: MessageSquare, desktopOnly: true },
+/** Seven fixed slots around the agent: skills take the round ones, MCP servers the rest. */
+const SKILL_SLOTS = [
+  { x: 150, y: 96 },
+  { x: 650, y: 262 },
+  { x: 205, y: 398 },
+  { x: 96, y: 250, desktopOnly: true },
 ];
-const SKILLS = NODES.filter((n) => n.kind === "skill").length;
-const MCPS = NODES.length - SKILLS;
+const MCP_SLOTS = [
+  { x: 640, y: 92 },
+  { x: 585, y: 404 },
+  { x: 398, y: 52, desktopOnly: true },
+];
+
+/** Used when the catalogue is too small to fill the graph (fresh install, tests). */
+export const FALLBACK_ENTRIES: GraphEntry[] = [
+  { name: "pdf-reading", version: "1.4.2", kind: "skill" },
+  { name: "web-search", version: "2.1.0", kind: "skill" },
+  { name: "summarize", version: "0.6.3", kind: "skill" },
+  { name: "code-review", version: "1.0.4", kind: "skill" },
+  { name: "github-mcp", version: "0.9.1", kind: "mcp", icon: "github" },
+  { name: "postgres-mcp", version: "1.2.0", kind: "mcp", icon: "database" },
+  { name: "slack-mcp", version: "0.4.0", kind: "mcp", icon: "chat" },
+];
+
+function place(entries: GraphEntry[]): Node[] {
+  const skills = entries.filter((e) => e.kind === "skill").slice(0, SKILL_SLOTS.length);
+  const mcps = entries.filter((e) => e.kind === "mcp").slice(0, MCP_SLOTS.length);
+  // Interleave so the assembly alternates shapes around the ring.
+  const order = [skills[0] && { ...skills[0], ...SKILL_SLOTS[0] }, mcps[0] && { ...mcps[0], ...MCP_SLOTS[0] }, skills[1] && { ...skills[1], ...SKILL_SLOTS[1] }, mcps[1] && { ...mcps[1], ...MCP_SLOTS[1] }, skills[2] && { ...skills[2], ...SKILL_SLOTS[2] }, skills[3] && { ...skills[3], ...SKILL_SLOTS[3] }, mcps[2] && { ...mcps[2], ...MCP_SLOTS[2] }];
+  return order.filter(Boolean) as Node[];
+}
+
 
 /** Horizontal S-curve from the satellite into the agent. */
 function linkPath(n: Node) {
@@ -84,7 +113,10 @@ function clock(d = new Date()) {
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-export function SynapseGraph({ copy, agentName }: { copy: GraphCopy; agentName: string }) {
+export function SynapseGraph({ copy, agentName, entries }: { copy: GraphCopy; agentName: string; entries: GraphEntry[] }) {
+  const [NODES] = useState(() => place(entries.length >= 5 ? entries : FALLBACK_ENTRIES));
+  const SKILLS = NODES.filter((n) => n.kind === "skill").length;
+  const MCPS = NODES.length - SKILLS;
   const cardRef = useRef<HTMLDivElement>(null);
   const chipRef = useRef<HTMLDivElement>(null);
   const linkRefs = useRef<(SVGPathElement | null)[]>([]);
@@ -110,7 +142,7 @@ export function SynapseGraph({ copy, agentName }: { copy: GraphCopy; agentName: 
     setStill(rm);
     const now = Date.now();
     setLog(
-      [NODES[4], NODES[1], NODES[0]].map((n, i) => ({ id: ++seq.current, time: clock(new Date(now - (i + 1) * 2100)), kind: n.kind, name: n.name, ms: [42, 61, 38][i] })),
+      [NODES[4] ?? NODES[0], NODES[1], NODES[0]].map((n, i) => ({ id: ++seq.current, time: clock(new Date(now - (i + 1) * 2100)), kind: n.kind, name: n.name, ms: [42, 61, 38][i] })),
     );
     const id = requestAnimationFrame(() => setAssembled(true));
     const done = window.setTimeout(() => setSettled(true), 150 + NODES.length * 120 + 700);
@@ -118,7 +150,7 @@ export function SynapseGraph({ copy, agentName }: { copy: GraphCopy; agentName: 
       cancelAnimationFrame(id);
       window.clearTimeout(done);
     };
-  }, []);
+  }, [NODES]);
 
   // Impulse loop.
   useEffect(() => {
@@ -192,7 +224,7 @@ export function SynapseGraph({ copy, agentName }: { copy: GraphCopy; agentName: 
       window.clearTimeout(flashTimer);
       cancelAnimationFrame(raf);
     };
-  }, [assembled, still, push]);
+  }, [assembled, still, push, NODES]);
 
   // Tilt after the pointer, desktop only.
   const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -264,7 +296,7 @@ export function SynapseGraph({ copy, agentName }: { copy: GraphCopy; agentName: 
 
           {/* Satellites. */}
           {NODES.map((n, i) => {
-            const Icon = n.icon;
+            const Icon = n.icon ? ICONS[n.icon] : undefined;
             return (
               <div
                 key={n.name}
@@ -273,24 +305,28 @@ export function SynapseGraph({ copy, agentName }: { copy: GraphCopy; agentName: 
                 onPointerEnter={() => setHover(i)}
                 onPointerLeave={() => setHover(null)}
               >
-                <div
-                  className={cn(
-                    "about-mono flex items-center gap-2 whitespace-nowrap border bg-[hsl(var(--card)/0.9)] px-2 py-1 text-[10px] text-[var(--text)] sm:px-2.5 sm:py-1.5 sm:text-[11px] shadow-[0_6px_18px_-8px_rgba(0,0,0,0.8)] transition-[opacity,transform,border-color] duration-500 [transition-timing-function:var(--ease)] md:text-[12px]",
-                    n.kind === "skill" ? "rounded-full" : "rounded-[6px]",
-                    lit(i) && !still ? "border-[hsl(var(--synapse)/0.6)]" : "border-[var(--line)]",
-                    assembled || still ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
-                  )}
-                  style={{ transitionDelay: assembled && !settled && !still ? `${150 + i * 120}ms` : "0ms" }}
-                >
-                  {Icon ? (
+                {createElement(
+                  n.href ? Link : "div",
+                  {
+                    // The graph is decorative (aria-hidden), so its links stay out of the tab order; the catalogue has the real ones.
+                    ...(n.href ? { href: n.href, tabIndex: -1 } : {}),
+                    className: cn(
+                      "about-mono flex items-center gap-2 whitespace-nowrap border bg-[hsl(var(--card)/0.9)] px-2 py-1 text-[10px] text-[var(--text)] sm:px-2.5 sm:py-1.5 sm:text-[11px] shadow-[0_6px_18px_-8px_rgba(0,0,0,0.8)] transition-[opacity,transform,border-color] duration-500 [transition-timing-function:var(--ease)] md:text-[12px]",
+                      n.kind === "skill" ? "rounded-full" : "rounded-[6px]",
+                      lit(i) && !still ? "border-[hsl(var(--synapse)/0.6)]" : "border-[var(--line)] hover:border-[var(--line-hi)]",
+                      assembled || still ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
+                    ),
+                    style: { transitionDelay: assembled && !settled && !still ? `${150 + i * 120}ms` : "0ms" },
+                  } as never,
+                  Icon ? (
                     <span className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-white/[0.06]">
                       <Icon className="h-3 w-3" strokeWidth={1.75} />
                     </span>
                   ) : (
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--text-2)]" />
-                  )}
-                  {n.name}
-                </div>
+                  ),
+                  n.name,
+                )}
                 {hover === i && (
                   <div className="about-mono pointer-events-none absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-[var(--line)] bg-[hsl(var(--background)/0.95)] px-2 py-1 text-[11px] text-[var(--text-2)] animate-fade-in">
                     {n.name} · v{n.version} · {n.kind === "skill" ? copy.skill : copy.mcp}

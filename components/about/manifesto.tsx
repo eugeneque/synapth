@@ -107,7 +107,7 @@ function Visual({ kind, data, live, big }: { kind: VisualKind; data: VisualData;
     case "permissions":
       return <PermissionsVisual requested={data.requested} denied={data.denied} />;
     case "bars":
-      return <BarsVisual bars={data.bars} caption={data.barsCaption} />;
+      return <BarsVisual bars={data.bars} caption={data.barsCaption} locale={data.numberLocale} />;
     case "count":
       return <CountVisual live={live} value={data.installs} label={data.installsLabel} note={data.installsNote} locale={data.numberLocale} />;
   }
@@ -202,13 +202,20 @@ function PermissionsVisual({ requested, denied }: { requested: string; denied: s
 }
 
 /** 04 — twelve thin bars, one per week; the current week is lime. */
-function BarsVisual({ bars, caption }: { bars: number[]; caption: string }) {
+function BarsVisual({ bars, caption, locale }: { bars: number[]; caption: string; locale: string }) {
   const max = Math.max(1, ...bars);
+  const peak = bars.indexOf(max);
   return (
     <div>
-      <div className="flex h-28 items-end gap-2">
+      <div className="flex h-32 items-end gap-2 pt-5">
         {bars.map((v, i) => (
-          <div key={i} className="flex h-full flex-1 items-end">
+          <div key={i} className="relative flex h-full flex-1 items-end">
+            {/* The peak carries its number, so the scale reads without an axis. */}
+            {i === peak && v > 0 && (
+              <span className={cn("viz-pop absolute -top-5 font-mono text-[11px] text-[var(--text-2)] [font-variant-numeric:tabular-nums]", i === bars.length - 1 ? "right-0" : "left-0")} style={{ transitionDelay: "700ms" }}>
+                {new Intl.NumberFormat(locale).format(v)}
+              </span>
+            )}
             <div
               className={cn("viz-bar w-full max-w-[10px] rounded-[2px]", i === bars.length - 1 ? "bg-[var(--accent)]" : "bg-white/20")}
               style={{ height: `${Math.max(3, (v / max) * 100)}%`, transitionDelay: `${i * 60}ms` }}

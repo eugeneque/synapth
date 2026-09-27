@@ -1,8 +1,9 @@
 /*
- * /about — the manifesto page. A deliberate exception to design.md §1 ("no glass,
- * no gradient light"): light ribbons behind frosted cards, one serif accent word
- * per title. Everything is scoped under `.about`; colours come from the brand
- * tokens so the lime is the same signal as everywhere else.
+ * Home page — the hands hero and the manifesto below it. A deliberate exception
+ * to design.md §1 ("no glass, no gradient light"): light ribbons behind frosted
+ * cards, one serif accent word per title. Everything is scoped under `.about`
+ * (the manifesto's original name); colours come from the brand tokens so the
+ * lime is the same signal as everywhere else.
  */
 
 .about {
@@ -33,6 +34,15 @@
 .about-h1 {
   font-weight: 600;
   font-size: clamp(44px, 4.6vw + 16px, 76px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+/* Centred hero title over the hands: Inter 600 up to 88px (Space Grotesk has no Cyrillic). */
+.home-h1 {
+  font-weight: 600;
+  font-size: clamp(44px, 5.4vw + 12px, 88px);
   line-height: 1.02;
   letter-spacing: -0.03em;
   text-wrap: balance;
