@@ -14,7 +14,7 @@ import { axon, type SearchResponse } from "@/axon/client";
 import { useI18n } from "@/axon/i18n";
 import { rich } from "@/lib/i18n/rich";
 import { cn } from "@/lib/utils";
-import { SECURITY_LEVELS, type SecurityLevel, type SkillCategory, type SkillSource, type SortMode } from "@/types/skill";
+import { PUBLIC_SECURITY_LEVELS, type SecurityLevel, type SkillCategory, type SkillSource, type SortMode } from "@/types/skill";
 
 interface Props {
   initial: SearchResponse;
@@ -38,7 +38,7 @@ const PAGE = 24;
 /** Operators the query parser understands; one click appends them to the search line. */
 const OPERATORS = ["category:MCP", "is:verified", "lang:python", "stars:>100"];
 
-const LEVEL_VARIANT: Record<SecurityLevel, "verified" | "community" | "sandbox"> = { Verified: "verified", Community: "community", Sandbox: "sandbox" };
+const LEVEL_VARIANT: Record<SecurityLevel, "verified" | "community" | "sandbox"> = { Gov: "verified", Verified: "verified", Community: "community", Sandbox: "sandbox", Quarantine: "sandbox" };
 
 /**
  * Client half of the catalogue: one search line, category segments, and
@@ -178,7 +178,7 @@ export function SkillStorefront({ initial, initialSort, initialCategory, initial
             <FacetGroup
               title={t("sf.securityGrade")}
               icon={<ShieldCheck className="h-4 w-4" />}
-              options={[...SECURITY_LEVELS].reverse().map((l) => ({ value: l, label: t(`level.${l}.label`), tag: <Badge variant={LEVEL_VARIANT[l]}>{levelCounts[l] ?? 0}</Badge> }))}
+              options={[...PUBLIC_SECURITY_LEVELS].reverse().map((l) => ({ value: l, label: t(`level.${l}.label`), tag: <Badge variant={LEVEL_VARIANT[l]}>{levelCounts[l] ?? 0}</Badge> }))}
               active={level}
               onToggle={(v) => setLevel((v as SecurityLevel) ?? null)}
             />

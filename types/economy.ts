@@ -8,6 +8,8 @@ export const MICROS_PER_USD = 1_000_000;
 
 export type LedgerEntryType =
   | "topup" // user added funds
+  | "hold" // price reserved when a paid call opens
+  | "release" // hold returned when the call closes (before the charge, or instead of it)
   | "charge" // caller paid for an execution
   | "earning" // creator received their share
   | "platform_fee" // Synapth share
@@ -51,9 +53,14 @@ export interface UsageEvent {
   priceMicros: number;
   platformFeeMicros: number;
   creatorShareMicros: number;
+  /** Key that made the call; null for sessions. */
+  apiKeyId: string | null;
   latencyMs: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  /** Upstream HTTP status and response size (author quality monitoring). */
+  httpStatus: number | null;
+  responseBytes: number | null;
   /** SHA-256 of the input payload; the payload itself is never stored. */
   inputHash: string;
   createdAt: string;

@@ -7,7 +7,7 @@ import { auth } from "@/cortex/auth";
 import { getAuthorRef } from "@/cortex/account";
 import { listComments, watchSummary } from "@/cortex/social";
 import { getI18n } from "@/cortex/locale";
-import { scanManifest } from "@/lib/sandbox-scanner";
+import { scanSkill } from "@/lib/sandbox-scanner";
 import { formatCompact, timeAgo } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,12 +58,14 @@ export default async function SkillPage({ params }: Params) {
     listSkillsets({ skillId: skill.id, sort: "popular", limit: 6 }),
   ]);
 
-  const scan = scanManifest(skill.manifest, { reviewed: skill.securityLevel === "Verified" });
+  // Quarantined entries are hidden from everyone but staff (ТЗ §2, stage 6).
+  if (skill.securityLevel === "Quarantine" && !(role && can(role, "catalog.moderate"))) notFound();
+  const scan = scanSkill(skill);
   const ep = skill.manifest.entrypoint;
   const readme = await skillRepository.readme(skill.id);
   const full = await hydratePrompt(skill);
   const siblings = skill.source
-    ? (await skillRepository.all()).filter((s) => s.id !== skill.id && s.source?.fullName === skill.source?.fullName).slice(0, 4)
+    ? (await skillRepository.all()).filter((s) => s.id !== skill.id && s.securityLevel !== "Quarantine" && s.source?.fullName === skill.source?.fullName).slice(0, 4)
     : [];
   const readmeBase = skill.source ? `https://github.com/${skill.source.fullName}/blob/${skill.source.defaultBranch}/${skill.source.manifestPath.split("/").slice(0, -1).join("/")}` : null;
   const owner = skill.source?.owner ?? skill.authorName;

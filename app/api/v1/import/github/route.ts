@@ -5,7 +5,8 @@
 
 import { z } from "zod";
 import { importAllFromGithub, createGithubFetcher, createMockFetcher } from "@/lib/github-parser";
-import { scanManifest, assertInstallable } from "@/lib/sandbox-scanner";
+import { scanSkill, assertInstallable } from "@/lib/sandbox-scanner";
+import { auditRepository } from "@/cortex/repo-audit";
 import { skillRepository } from "@/cortex/repository";
 import { resolveCaller } from "@/cortex/api-keys";
 import { UnauthorizedError } from "@/cortex/auth";
@@ -33,19 +34,27 @@ export const POST = withErrors(async (request: Request) => {
   const body = bodySchema.parse(await request.json());
   const fetcher = body.mock ? createMockFetcher() : createGithubFetcher({ token: resolveGithubToken() ?? undefined });
 
-  const results = await importAllFromGithub(body.url, fetcher);
+  const imported = await importAllFromGithub(body.url, fetcher);
+  // Supply-chain snapshot (DP-*, ST-04): one per repository, shared by every skill it contains.
+  const audit = await auditRepository(imported[0].ref, fetcher, [...new Set(imported.map((r) => r.manifestPath.split("/").slice(0, -1).join("/")))], { online: !body.mock, maxRegistryLookups: 5 });
+  const results = imported.map((r) => {
+    const input = r.input.source ? { ...r.input, source: { ...r.input.source, audit } } : r.input;
+    return { ...r, input, scan: scanSkill({ manifest: input.manifest, securityLevel: "Community", source: input.source ?? null }, { reviewed: false }) };
+  });
   const result = results[0];
-  const scan = scanManifest(result.input.manifest);
+  const scan = result.scan;
 
   if (body.dryRun) return json({ import: result, scan, skill: null, found: results.length });
 
   assertInstallable(scan);
 
-  // A collection publishes every skill it contains; the response carries the first one.
+  // A collection publishes every skill it contains; the response carries the first one. Rejected entries stay out.
   const owner = result.ref.owner;
   const authorId = results.length > 1 || result.input.origin === "github" ? githubAuthorId(owner) : caller.userId;
   const counts = await skillRepository.upsertMany(
-    results.map((r) => ({ input: r.input, authorId, authorName: owner, securityLevel: scanManifest(r.input.manifest).level })),
+    results
+      .filter((r) => r.scan.outcome !== "Rejected" && !r.scan.findings.some((f) => f.blocksPublication))
+      .map((r) => ({ input: r.input, authorId, authorName: owner, securityLevel: r.scan.level })),
   );
   const skill = await skillRepository.bySlug(result.input.slug!);
   return json({ import: result, scan, skill, found: results.length, ...counts }, { status: 201 });

@@ -23,7 +23,7 @@ export function trendingScore(skill: Skill): number {
   const stars = Math.log10(1 + skill.githubStars); // 0..~5
   const retention = skill.stats.retentionRate * 2; // 0..2
   const freshness = recencyBoost(skill.updatedAt); // 0..1
-  const trust = skill.securityLevel === "Verified" ? 1 : skill.securityLevel === "Community" ? 0.6 : 0.2;
+  const trust = skill.securityLevel === "Verified" || skill.securityLevel === "Gov" ? 1 : skill.securityLevel === "Community" ? 0.6 : skill.securityLevel === "Sandbox" ? 0.2 : 0;
   return velocity + stars + retention + freshness + trust;
 }
 

@@ -247,7 +247,7 @@ export function parseQuery(q: string): ParsedQuery {
         case "is":
         case "level": {
           const v = val.toLowerCase();
-          parsed.filters.securityLevel = v === "verified" ? "Verified" : v === "community" ? "Community" : v === "sandbox" ? "Sandbox" : undefined;
+          parsed.filters.securityLevel = v === "verified" ? "Verified" : v === "community" ? "Community" : v === "sandbox" ? "Sandbox" : v === "gov" ? "Gov" : undefined;
           if (v === "free" || v === "paid") parsed.filters.price = v;
           break;
         }
@@ -444,7 +444,7 @@ export function search(index: SearchIndex, q: string, options: SearchOptions = {
       const skill = index.skills[doc];
       const base = scores.get(doc)?.score ?? 0;
       const exactName = skill.name.toLowerCase() === q.trim().toLowerCase() ? 25 : 0;
-      const prior = 1 + 0.12 * Math.log10(1 + skill.githubStars) + (skill.securityLevel === "Verified" ? 0.15 : skill.securityLevel === "Sandbox" ? -0.3 : 0);
+      const prior = 1 + 0.12 * Math.log10(1 + skill.githubStars) + (skill.securityLevel === "Verified" || skill.securityLevel === "Gov" ? 0.15 : skill.securityLevel === "Sandbox" ? -0.3 : 0);
       return { doc, score: (base + exactName) * prior };
     })
     .sort((a, b) => {
@@ -496,7 +496,7 @@ function bucketize(values: Iterable<string | null | undefined>, top: number): Fa
 export function computeFacets(skills: Skill[]): SearchResult["facets"] {
   return {
     category: bucketize(skills.map((s) => s.category), 3),
-    securityLevel: bucketize(skills.map((s) => s.securityLevel), 3),
+    securityLevel: bucketize(skills.map((s) => s.securityLevel), 4),
     language: bucketize(skills.map((s) => s.source?.language), 10),
     tags: bucketize(skills.flatMap((s) => s.tags.filter((t) => !["mcp", "prompt", "tool"].includes(t))), 15),
     author: bucketize(skills.map((s) => s.source?.owner ?? s.authorName), 10),

@@ -252,6 +252,18 @@ export async function getAuthorRefs(ids: Iterable<string>): Promise<Map<string, 
   return out;
 }
 
+/** Batch lookup by handle (case-insensitive) for @mentions; keys are lowercased handles, unknown ones are skipped. */
+export async function getAuthorRefsByHandles(handles: Iterable<string>): Promise<Map<string, AuthorRef>> {
+  const wanted = [...new Set([...handles].map((h) => h.toLowerCase()))].filter((h) => h && !h.startsWith("gh-")).slice(0, 100);
+  const out = new Map<string, AuthorRef>();
+  if (!wanted.length) return out;
+  let ids: string[];
+  if (!hasDatabase) ids = memoryUsers.filter((u) => wanted.includes(u.handle.toLowerCase())).map((u) => u.id);
+  else ids = (await prisma.user.findMany({ where: { OR: wanted.map((h) => ({ handle: { equals: h, mode: "insensitive" as const } })) }, select: { id: true } })).map((r) => r.id);
+  for (const ref of (await getAuthorRefs(ids)).values()) out.set(ref.handle.toLowerCase(), ref);
+  return out;
+}
+
 export async function getAuthorRef(id: string): Promise<AuthorRef | null> {
   return (await getAuthorRefs([id])).get(id) ?? null;
 }

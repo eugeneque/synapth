@@ -22,6 +22,7 @@ import type { ImageError } from "@/axon/image";
 import { OCCUPATIONS } from "@/types/profile";
 import { AvatarPicker, CoverPicker } from "@/components/image-picker";
 import { SignOutButton } from "@/components/sign-out-button";
+import { McpPromoCard } from "@/components/mcp-promo-card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
@@ -129,6 +130,7 @@ export function SettingsForm({ profile, catalogue, verification, verified }: Pro
             {t("settings.rail.publish")} →
           </Link>
         </div>
+        <McpPromoCard />
       </aside>
 
       <div className="flex min-w-0 flex-col gap-6">

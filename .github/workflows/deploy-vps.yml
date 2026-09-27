@@ -1,0 +1,119 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vps-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DEPLOY_PATH: /opt/synapth
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Use Node.js 22
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      app-image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.app.outputs.digest }}
+      migrator-image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.migrator.outputs.digest }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish application
+        id: app
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          build-args: NEXT_PUBLIC_APP_URL=https://synapth.localhost8081.ru
+          cache-from: type=gha,scope=application
+          cache-to: type=gha,mode=max,scope=application
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      - name: Build and publish migrator
+        id: migrator
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: migrator
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-migrator
+          cache-from: type=gha,scope=migrator
+          cache-to: type=gha,mode=max,scope=migrator
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: vps-production
+    permissions:
+      contents: read
+    steps:
+      - name: Check out deployment files
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          sparse-checkout: deploy/vps
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 0700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 0600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 0644 ~/.ssh/known_hosts
+      - name: Install deployment files
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          scp -P "$VPS_PORT" deploy/vps/compose.yaml "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/compose.yaml.new"
+          scp -P "$VPS_PORT" deploy/vps/deploy.sh "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/deploy.sh.new"
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "mv '$DEPLOY_PATH/compose.yaml.new' '$DEPLOY_PATH/compose.yaml' && mv '$DEPLOY_PATH/deploy.sh.new' '$DEPLOY_PATH/deploy.sh' && chmod 0644 '$DEPLOY_PATH/compose.yaml' && chmod 0755 '$DEPLOY_PATH/deploy.sh'"
+      - name: Deploy application
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          APP_IMAGE: ${{ needs.publish.outputs.app-image }}
+          MIGRATOR_IMAGE: ${{ needs.publish.outputs.migrator-image }}
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "'$DEPLOY_PATH/deploy.sh' '$APP_IMAGE' '$MIGRATOR_IMAGE'"

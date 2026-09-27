@@ -217,7 +217,11 @@ export function AsciiHands({ className }: { className?: string }) {
     }
 
     function draw() {
-      if (!geo) return;
+      if (!geo) {
+        // Nothing to draw until the artwork has loaded; release the loop so `kick()` can restart it.
+        raf = 0;
+        return;
+      }
       frame++;
       const t = performance.now() / 1000;
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -367,6 +371,7 @@ export function AsciiHands({ className }: { className?: string }) {
       art = analyse(img);
       resize();
       canvas.style.opacity = "1";
+      kick();
     };
     img.src = ART_SRC;
 

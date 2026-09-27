@@ -45,7 +45,8 @@ function prisma(args, input) {
  * permission, so its holders become plain users and the enum value is renamed
  * in place to `moderator` — a removal would need --accept-data-loss.
  * Idempotent; a fresh database has no "UserRole" type yet and skips it.
- * Also drops award rows and notifications of the retired `platform-admin` badge.
+ * Also drops award rows and notifications of retired badges (anything not in `BADGES`, types/badges.ts)
+ * and collapses post reactions to one per (post, user).
  */
 const PRE_PUSH_SQL = `
 DO $$
@@ -57,14 +58,31 @@ BEGIN
   END IF;
 END $$;
 
--- The public "platform-admin" badge was retired (admins are not revealed on profiles).
+-- Retired badges: "platform-admin" (admins are not revealed on profiles) and the pre-2026-09
+-- catalogue that the current achievement set replaced.
 DO $$
+DECLARE retired text[] := ARRAY['platform-admin', 'verified-publisher', 'mcp-author', 'prompt-author', 'tool-author',
+  'github-importer', 'conversationalist', 'magnet', 'curator', 'early-adopter'];
 BEGIN
   IF to_regclass('"UserBadge"') IS NOT NULL THEN
-    DELETE FROM "UserBadge" WHERE "badgeId" = 'platform-admin';
+    DELETE FROM "UserBadge" WHERE "badgeId" = ANY(retired);
   END IF;
   IF to_regclass('"Notification"') IS NOT NULL THEN
-    DELETE FROM "Notification" WHERE "kind" = 'badge' AND "subject"->>'badgeId' = 'platform-admin';
+    DELETE FROM "Notification" WHERE "kind" = 'badge' AND "subject"->>'badgeId' = ANY(retired);
+  END IF;
+END $$;
+
+-- Post reactions went from one row per (post, user, emoji) to one per (post, user): keep each
+-- user's latest emoji, then narrow the primary key. Skipped once the key has two columns.
+DO $$
+BEGIN
+  IF to_regclass('"PostReaction"') IS NOT NULL AND EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('"PostReaction"') AND contype = 'p' AND array_length(conkey, 1) = 3
+  ) THEN
+    DELETE FROM "PostReaction" a USING "PostReaction" b
+    WHERE a."postId" = b."postId" AND a."userId" = b."userId"
+      AND (a."createdAt" < b."createdAt" OR (a."createdAt" = b."createdAt" AND a."emoji" > b."emoji"));
+    ALTER TABLE "PostReaction" DROP CONSTRAINT "PostReaction_pkey", ADD CONSTRAINT "PostReaction_pkey" PRIMARY KEY ("postId", "userId");
   END IF;
 END $$;
 

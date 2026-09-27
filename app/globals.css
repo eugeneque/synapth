@@ -304,3 +304,67 @@
     transform: scaleX(1);
   }
 }
+
+/*
+ * Code blocks in posts (components/post-content.tsx): highlight.js scope
+ * classes emitted by cortex/post-content.ts. Muted, on-brand palette — the
+ * synapse green is kept for keywords only.
+ */
+.code-tokens {
+  color: hsl(var(--foreground) / 0.88);
+  tab-size: 2;
+}
+.code-tokens .hljs-comment,
+.code-tokens .hljs-quote,
+.code-tokens .hljs-meta {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+.code-tokens .hljs-keyword,
+.code-tokens .hljs-selector-tag,
+.code-tokens .hljs-doctag,
+.code-tokens .hljs-section {
+  color: hsl(var(--synapse));
+}
+.code-tokens .hljs-built_in,
+.code-tokens .hljs-type,
+.code-tokens .hljs-class,
+.code-tokens .hljs-title.class_ {
+  color: hsl(190 70% 66%);
+}
+.code-tokens .hljs-title,
+.code-tokens .hljs-title.function_,
+.code-tokens .hljs-selector-id,
+.code-tokens .hljs-selector-class {
+  color: hsl(40 90% 68%);
+}
+.code-tokens .hljs-string,
+.code-tokens .hljs-regexp,
+.code-tokens .hljs-addition,
+.code-tokens .hljs-template-tag,
+.code-tokens .hljs-template-variable {
+  color: hsl(var(--secondary-tone));
+}
+.code-tokens .hljs-number,
+.code-tokens .hljs-literal,
+.code-tokens .hljs-symbol,
+.code-tokens .hljs-bullet {
+  color: hsl(20 85% 68%);
+}
+.code-tokens .hljs-attr,
+.code-tokens .hljs-attribute,
+.code-tokens .hljs-variable,
+.code-tokens .hljs-params,
+.code-tokens .hljs-property,
+.code-tokens .hljs-name {
+  color: hsl(265 60% 76%);
+}
+.code-tokens .hljs-deletion {
+  color: hsl(var(--danger));
+}
+.code-tokens .hljs-emphasis {
+  font-style: italic;
+}
+.code-tokens .hljs-strong {
+  font-weight: 600;
+}

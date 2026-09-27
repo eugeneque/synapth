@@ -13,7 +13,8 @@
  *
  * With an empty query the list is a "what's popular" mix. The `source`
  * filter mirrors the search page: `github` keeps only crawled entries (people
- * and skillsets live on Synapth), `synapth` drops crawled entries.
+ * and skillsets live on Synapth), `synapth` drops crawled entries. A `tab`
+ * other than `all` (the header menu's filter chips) returns that kind only.
  */
 
 import { searchProfiles } from "@/cortex/account";
@@ -22,7 +23,7 @@ import { listSkillsets } from "@/cortex/skillsets";
 import { safeImageSrc } from "@/lib/url-safety";
 import { skillSource, type Skill, type SkillSource } from "@/types/skill";
 import type { SkillsetSummary } from "@/types/skillset";
-import { GLOBAL_SEARCH_LIMIT, type GlobalHit } from "@/types/search";
+import { GLOBAL_SEARCH_LIMIT, type GlobalHit, type SearchTab } from "@/types/search";
 
 export function skillHit(s: Skill): GlobalHit {
   return { kind: "skill", id: s.id, slug: s.slug, name: s.name, category: s.category, description: s.description, authorName: s.authorName, image: safeImageSrc(s.source?.avatarUrl) ?? null, securityLevel: s.securityLevel, downloads: s.downloadsCount, source: skillSource(s) };
@@ -32,10 +33,13 @@ export function skillsetHit(s: SkillsetSummary): GlobalHit {
   return { kind: "skillset", id: s.id, slug: s.slug, name: s.name, summary: s.summary, avatar: s.avatar, author: s.author, verified: s.verified, entries: s.counts.MCP + s.counts.Prompt + s.counts.Tool };
 }
 
-export async function globalSearch(rawQuery: string, { limit = GLOBAL_SEARCH_LIMIT, source }: { limit?: number; source?: SkillSource } = {}): Promise<GlobalHit[]> {
+export async function globalSearch(rawQuery: string, { limit = GLOBAL_SEARCH_LIMIT, source, tab = "all" }: { limit?: number; source?: SkillSource; tab?: SearchTab } = {}): Promise<GlobalHit[]> {
   const raw = rawQuery.trim().slice(0, 120);
-  const peopleOnly = raw.startsWith("@");
   const q = raw.replace(/^@+/, "");
+  if (tab === "skills") return (await skillRepository.search(q, { limit, sort: q ? "relevance" : "trending", source })).hits.map((h) => skillHit(h.skill));
+  // People and skillsets live on Synapth only.
+  if (tab === "skillsets") return source === "github" ? [] : (await listSkillsets({ q, sort: "popular", limit })).map(skillsetHit);
+  const peopleOnly = tab === "people" || raw.startsWith("@");
   const needle = q.toLowerCase();
   const withPeople = source !== "github";
   const withSets = source !== "github" && !peopleOnly;

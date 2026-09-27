@@ -17,6 +17,8 @@ import { notifySkillUpdated } from "@/cortex/social";
 import { sortSkills } from "@/cortex/ranking";
 import { buildIndex, search, suggest, type SearchIndex, type SearchOptions, type SearchResult, type Suggestion } from "@/cortex/search";
 import { slugify } from "@/lib/utils";
+import { inheritLevel } from "@/lib/sandbox-scanner";
+import { isListed } from "@/types/trust";
 import { usdToMicros, microsToUsd } from "@/types/economy";
 import { skillSource, type Paginated, type Skill, type SkillCreateInput, type SkillManifest, type SkillQuery, type SecurityLevel } from "@/types/skill";
 
@@ -96,7 +98,8 @@ class IndexCache {
   async get(repo: SkillRepository): Promise<SearchIndex> {
     const stamp = await repo.version();
     if (!this.index || stamp !== this.stamp) {
-      this.index = buildIndex(await repo.all());
+      // Quarantined entries never reach search, suggestions or agents.
+      this.index = buildIndex((await repo.all()).filter((s) => isListed(s.securityLevel)));
       this.stamp = stamp;
     }
     return this.index;
@@ -137,7 +140,7 @@ function toSkill(input: SkillCreateInput, id: string, slug: string, authorId: st
     authorName,
     version: input.version,
     category: input.category,
-    securityLevel: existing?.securityLevel === "Verified" ? "Verified" : securityLevel,
+    securityLevel: inheritLevel(existing ? { level: existing.securityLevel, manifest: existing.manifest } : null, { manifest: trimManifest(input.manifest), scanned: securityLevel }),
     downloadsCount: existing?.downloadsCount ?? 0,
     githubStars: input.githubStars ?? existing?.githubStars ?? 0,
     pricePerCall: input.pricePerCall,
@@ -266,7 +269,7 @@ class FileSkillRepository implements SkillRepository {
       if (query.sort === "hidden-gems") items = sortSkills(items, "hidden-gems");
       return { items, total: res.total, limit: res.limit, offset: res.offset };
     }
-    const filtered = this.skills.filter((s) => matchesQuery(s, query));
+    const filtered = this.skills.filter((s) => isListed(s.securityLevel) && matchesQuery(s, query));
     const sort = query.sort === "relevance" ? "trending" : (query.sort ?? "trending");
     return paginate(sortSkills(filtered, sort), query);
   }
@@ -428,7 +431,7 @@ class PrismaSkillRepository implements SkillRepository {
     for (const { input, authorId, authorName, securityLevel } of items) {
       const slug = input.slug ?? slugify(`${authorName}-${input.name}`);
       await prisma.user.upsert({ where: { id: authorId }, create: { id: authorId, name: authorName, handle: authorId.replace(/^gh:/, "gh-").toLowerCase(), role: "user" }, update: {} });
-      const existing = await prisma.skill.findUnique({ where: { slug }, select: { id: true, securityLevel: true, version: true, name: true, authorId: true } });
+      const existing = await prisma.skill.findUnique({ where: { slug }, select: { id: true, securityLevel: true, version: true, name: true, authorId: true, manifest: true } });
       if (existing && existing.authorId !== authorId) {
         skipped += 1;
         continue;
@@ -447,7 +450,7 @@ class PrismaSkillRepository implements SkillRepository {
         readme: input.readme ?? null,
       };
       if (existing) {
-        const level = existing.securityLevel === "Verified" ? "Verified" : securityLevel;
+        const level = inheritLevel({ level: existing.securityLevel, manifest: existing.manifest as unknown as SkillManifest }, { manifest: input.manifest, scanned: securityLevel });
         await prisma.skill.update({ where: { id: existing.id }, data: { ...data, securityLevel: level } });
         updated += 1;
         if (existing.version !== input.version) await announceRelease({ id: existing.id, slug, name: input.name, version: input.version, securityLevel: level, authorId }, existing.version);
@@ -469,7 +472,7 @@ class PrismaSkillRepository implements SkillRepository {
     // refreshed by the stats cron — the interface does not change.
     const where: Prisma.SkillWhereInput = {
       ...(query.category ? { category: query.category } : {}),
-      ...(query.securityLevel ? { securityLevel: query.securityLevel } : {}),
+      securityLevel: query.securityLevel && query.securityLevel !== "Quarantine" ? query.securityLevel : { not: "Quarantine" },
       ...(query.source ? { origin: query.source === "github" ? "github" : { not: "github" } } : {}),
       ...(query.q
         ? {

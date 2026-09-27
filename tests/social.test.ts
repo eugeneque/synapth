@@ -35,25 +35,26 @@ test("impulses: one per pair, toggled, never to yourself, and the receiver is no
   assert.equal((await listNotifications(DEMO)).total, 1);
 });
 
-test("reactions: toggled per (user, emoji), only the allowed set, tallied in palette order, gone with the post", async () => {
+test("reactions: one per (user, post) — another emoji replaces it, the same one withdraws it; only the allowed set, gone with the post", async () => {
   const post = await createPost(DEMO, "Reactions please");
   await assert.rejects(toggleReaction(KITE, post.id, "💩"));
   await assert.rejects(toggleReaction(KITE, "post_missing", "👍"), NotFoundError);
 
   await toggleReaction(KITE, post.id, "🔥");
   await toggleReaction(ACME, post.id, "🔥");
+  // Picking a different emoji moves KITE's single reaction instead of adding a second one.
   const mine = await toggleReaction(KITE, post.id, "👍");
   assert.deepEqual(mine, [
     { emoji: "👍", count: 1, mine: true },
-    { emoji: "🔥", count: 2, mine: true },
+    { emoji: "🔥", count: 1, mine: false },
   ]);
   assert.deepEqual((await listPosts(DEMO, { viewerId: ACME }))[0].reactions, [
     { emoji: "👍", count: 1, mine: false },
-    { emoji: "🔥", count: 2, mine: true },
+    { emoji: "🔥", count: 1, mine: true },
   ]);
 
-  // Toggling again withdraws; a zero tally disappears from the list.
-  assert.deepEqual(await toggleReaction(KITE, post.id, "👍"), [{ emoji: "🔥", count: 2, mine: true }]);
+  // The same emoji again withdraws; a zero tally disappears from the list.
+  assert.deepEqual(await toggleReaction(KITE, post.id, "👍"), [{ emoji: "🔥", count: 1, mine: false }]);
   // Reactions are not worth a notification.
   assert.equal((await listNotifications(DEMO)).total, 0);
 
@@ -153,20 +154,21 @@ test("badges: auto criteria award once, notify, and manual grants need an admin"
   const fresh = (await evaluateBadges(KITE)).map((b) => b.badgeId);
   assert.ok(fresh.includes("first-post"));
   assert.ok(fresh.includes("first-skill"), "kite owns seeded skills");
-  assert.ok(!fresh.includes("conversationalist"));
+  assert.ok(!fresh.includes("skillmaster"));
   assert.deepEqual(await evaluateBadges(KITE), []);
   const system = await listNotifications(KITE, { channel: "system" });
   assert.equal(system.items.length, fresh.length);
   assert.ok(system.items.every((n) => n.kind === "badge"));
 
-  // Acme owns seeded skills (MCP + Prompt + Tool, one Verified) → publisher badges.
+  // Acme's seeded Postgres MCP has 48k installs → both install badges; nobody has 25 skills or a verified "five" set.
   const acme = (await evaluateBadges(ACME)).map((b) => b.badgeId);
-  assert.ok(acme.includes("first-skill") && acme.includes("verified-publisher") && acme.includes("mcp-author"));
+  assert.ok(acme.includes("first-skill") && acme.includes("goat") && acme.includes("community-pride"));
+  assert.ok(!acme.includes("skillmaster") && !acme.includes("five") && !acme.includes("veteran"));
 
   for (let i = 0; i < 5; i++) await toggleImpulse(`usr_fan_${i}`, DEMO);
   assert.equal((await socialSignals(DEMO)).impulsesReceived, 5);
   assert.ok((await evaluateBadges(DEMO)).some((b) => b.badgeId === "resonance"));
 
   // KITE has role "user"; the seeded demo operator is the only admin.
-  await assert.rejects(grantBadge(KITE, DEMO, "early-adopter"), BadgeGrantError);
+  await assert.rejects(grantBadge(KITE, DEMO, "veteran"), BadgeGrantError);
 });

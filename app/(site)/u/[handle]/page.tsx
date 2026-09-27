@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { cn, formatCompact } from "@/lib/utils";
 import type { Comment } from "@/types/social";
 import { safeExternalHref, safeImageSrc } from "@/lib/url-safety";
+import { isListed } from "@/types/trust";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ export default async function UserProfilePage({ params }: Params) {
   const profile = await getProfileByHandle(handle);
   if (!profile) notFound();
 
-  const [all, i18n, session] = await Promise.all([skillRepository.all(), getI18n(), auth()]);
+  const [all, i18n, session] = await Promise.all([skillRepository.all().then((list) => list.filter((s) => isListed(s.securityLevel))), getI18n(), auth()]);
   const { t, n, locale } = i18n;
   const name = profile.name || profile.handle;
   const viewerId = session?.user?.id ?? null;
@@ -313,7 +314,7 @@ export default async function UserProfilePage({ params }: Params) {
                 label: t("profile.badges.title"),
                 icon: <Award className="h-3.5 w-3.5 text-synapse" />,
                 count: badges.length,
-                content: badges.length > 0 ? <BadgeList badges={badges} t={t} className="stagger" /> : <p className="text-xs leading-relaxed text-muted-foreground">{t("profile.badge.none")}</p>,
+                content: badges.length > 0 ? <BadgeList badges={badges} t={t} locale={locale} className="stagger" /> : <p className="text-xs leading-relaxed text-muted-foreground">{t("profile.badge.none")}</p>,
               },
             ]}
           />

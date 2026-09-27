@@ -424,6 +424,7 @@ const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString
 export const seedPosts = [
   { id: "post_acme_1", authorId: "usr_acme", body: "Postgres MCP v1.4.2 is out: EXPLAIN is now allowed in read-only mode and the row cap is enforced server-side. Would love feedback from anyone running it under Claude Code.", createdAt: hoursAgo(5) },
   { id: "post_nimbus_1", authorId: "usr_nimbus", body: "Headless Browser: `browser_read` now strips nav chrome before returning text — about 40% fewer tokens per page in our benchmarks.", createdAt: hoursAgo(30) },
+  { id: "post_kite_1", authorId: "usr_kite", body: "Wiring @acme's Postgres MCP into a read-only agent — the whole config:\n\n```\n{\n  \"mcpServers\": {\n    \"postgres\": { \"command\": \"npx\", \"args\": [\"-y\", \"@acme/postgres-mcp\", \"--read-only\"] }\n  }\n}\n```\n\nand the smoke test: `SELECT 1` through the agent.", createdAt: hoursAgo(12) },
   { id: "post_demo_1", authorId: "usr_demo", body: "Trying the new profile pages. Send an impulse to say hi 👋", createdAt: hoursAgo(50) },
 ];
 

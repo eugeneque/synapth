@@ -1,3 +1,5 @@
+import type { ScanFinding } from "@/lib/sandbox-scanner";
+
 /**
  * Core domain model of Synapth.
  *
@@ -9,12 +11,16 @@ export const SKILL_CATEGORIES = ["MCP", "Prompt", "Tool"] as const;
 export type SkillCategory = (typeof SKILL_CATEGORIES)[number];
 
 /**
- * Security badge assigned by the Cortex sandbox scanner.
- *  - Sandbox:   scan found risky patterns; can only run in an isolated sandbox.
- *  - Community: scan is clean, but the manifest was not reviewed by a human.
- *  - Verified:  clean scan + reviewed + publisher identity confirmed.
+ * Trust level of a catalogue entry (full ladder in `types/trust.ts`).
+ *  - Quarantine: a trap fired or explicit malware was found; hidden everywhere.
+ *  - Sandbox:    scan found high/critical findings; never executed through the gateway.
+ *  - Community:  medium findings at most, not reviewed by a human.
+ *  - Verified:   clean scan + moderator review; never set by the scanner alone.
+ *  - Gov:        Verified + the GV-* criteria, granted by a gov-moderator.
  */
-export const SECURITY_LEVELS = ["Sandbox", "Community", "Verified"] as const;
+export const SECURITY_LEVELS = ["Quarantine", "Sandbox", "Community", "Verified", "Gov"] as const;
+/** Levels a visitor can filter by: quarantined entries are never listed. */
+export const PUBLIC_SECURITY_LEVELS = ["Sandbox", "Community", "Verified", "Gov"] as const;
 export type SecurityLevel = (typeof SECURITY_LEVELS)[number];
 
 /** Minimal JSON Schema subset used for tool parameters (matches what LLM APIs accept). */
@@ -119,6 +125,20 @@ export interface GithubSource {
   pushedAt: string;
   /** When Cortex last fetched this repo. */
   crawledAt: string;
+  /** Supply-chain snapshot taken at import (DP-* and ST-04 findings); absent for old imports. */
+  audit?: RepositoryAudit | null;
+}
+
+/** What the crawler learned about the repository beyond the manifest (ТЗ §2, stages 1 and 4). */
+export interface RepositoryAudit {
+  auditedAt: string;
+  /** Dependency manifests and lock files found next to the skill. */
+  files: string[];
+  lockfiles: string[];
+  packages: number;
+  /** Executable binaries found in the tree. */
+  binaries: string[];
+  findings: ScanFinding[];
 }
 
 export interface Skill {

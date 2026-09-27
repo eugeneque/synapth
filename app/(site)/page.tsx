@@ -13,13 +13,14 @@ import { INSTALL_TARGETS } from "@/axon/install";
 import { getI18n } from "@/cortex/locale";
 import { rich } from "@/lib/i18n/rich";
 import { formatCompact } from "@/lib/utils";
+import { isListed } from "@/types/trust";
 
 export const dynamic = "force-dynamic";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export default async function HomePage() {
-  const [all, trending, { t }] = await Promise.all([skillRepository.all(), skillRepository.search("", { sort: "trending", limit: 6 }), getI18n()]);
+  const [all, trending, { t }] = await Promise.all([skillRepository.all().then((all) => all.filter((s) => isListed(s.securityLevel))), skillRepository.search("", { sort: "trending", limit: 6 }), getI18n()]);
   const targets = INSTALL_TARGETS.map((target) => t(`install.target.${target.id}`));
 
   const installs = all.reduce((n, s) => n + s.downloadsCount, 0);

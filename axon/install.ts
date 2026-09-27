@@ -302,3 +302,26 @@ export function skillsetInstall(set: { slug: string; name: string }, skills: Ski
   const body = [...header, "", ...steps, "", ...footer].join("\n") + "\n";
   return { target, command: `curl -fsSL ${shellQuote(skillsetScriptUrl(set.slug, target))} | sh`, commandLanguage: "bash", body, bodyLanguage: "bash", included, skipped, env: envList };
 }
+
+// ---------------------------------------------------------------------------
+// Connecting an agent to Synapth itself (ТЗ FR-AI-02)
+// ---------------------------------------------------------------------------
+
+/** Remote MCP endpoint (Streamable HTTP) of this instance. */
+export const synapthMcpUrl = (base = APP_URL) => `${base.replace(/\/$/, "")}/mcp`;
+
+/**
+ * Ready-to-paste commands that connect a client to `synapth-mcp` with the
+ * key filled in. Claude Desktop only launches stdio servers, so it goes
+ * through `mcp-remote`.
+ */
+export function connectSnippets(key: string, base = APP_URL): Record<InstallTarget, Pick<InstallSnippet, "language" | "code">> {
+  const url = synapthMcpUrl(base);
+  const header = `X-Synapth-Key: ${key}`;
+  return {
+    "claude-code": { language: "bash", code: `claude mcp add --transport http synapth ${url} --header ${shellQuote(header)}` },
+    cursor: { language: "json", code: JSON.stringify({ mcpServers: { synapth: { url, headers: { "X-Synapth-Key": key } } } }, null, 2) },
+    "claude-desktop": { language: "json", code: JSON.stringify({ mcpServers: { synapth: { command: "npx", args: ["-y", "mcp-remote", url, "--header", `X-Synapth-Key:${key}`] } } }, null, 2) },
+    curl: { language: "bash", code: `curl -s ${shellQuote(`${base.replace(/\/$/, "")}/api/v1/agent/search?q=postgres`)} -H ${shellQuote(header)}` },
+  };
+}

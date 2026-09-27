@@ -1,20 +1,16 @@
 /**
- * POST /api/v1/skills/:id/execute — pay-per-task gateway.
- *
- * 1. resolve caller (session or X-Synapth-Key)
- * 2. open execution: reserve price from caller's wallet
- * 3. forward to the skill's HTTP entrypoint (or run the prompt-only "execution")
- * 4. close execution: pay the creator + platform, or refund on failure
+ * POST /api/v1/skills/:id/execute — pay-per-call gateway (ТЗ §5.2).
+ * Headers: `X-Synapth-Key` (scope skills:execute), optional `Idempotency-Key`.
+ * The work — checks, hold, upstream, settle/release — is `cortex/gateway.ts`.
  */
 
+import { NextResponse } from "next/server";
 import { z } from "zod";
-import { skillRepository } from "@/cortex/repository";
-import { billing } from "@/cortex/billing";
-import { resolveCaller } from "@/cortex/api-keys";
-import { UnauthorizedError } from "@/cortex/auth";
-import { json, withErrors } from "@/lib/api";
+import { executeSkill } from "@/cortex/gateway";
+import { agentCaller, agentErrorBody } from "@/cortex/agent-http";
+import { AgentError } from "@/cortex/agent";
 import { enforceRequestLimit } from "@/cortex/rate-limit";
-import { BlockedUrlError, safeFetch } from "@/cortex/ssrf";
+import type { Caller } from "@/cortex/api-keys";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,72 +22,19 @@ const bodySchema = z.object({
   input: z.unknown().default({}),
 });
 
-/**
- * The entrypoint URL comes from a publisher-controlled manifest, so the hop
- * goes through `safeFetch`: public hosts only, every redirect re-validated,
- * body capped. Upstream bodies are never echoed back — a 500 page from an
- * internal service is exactly what an SSRF probe wants to read.
- */
-async function forwardToSkill(url: string, method: "GET" | "POST", tool: string | null, input: unknown, signal: AbortSignal): Promise<unknown> {
-  const res = await safeFetch(url, {
-    method,
-    headers: { "Content-Type": "application/json", "User-Agent": "synapth-gateway/0.1", Accept: "application/json" },
-    body: JSON.stringify({ tool, input }),
-    signal,
-    maxBytes: 256 * 1024,
-  });
-  if (!res.ok) throw new UpstreamError(`Upstream responded ${res.status}`);
+export async function POST(request: Request, { params }: Ctx) {
+  let caller: Caller | null = null;
   try {
-    return JSON.parse(res.text);
-  } catch {
-    return res.text;
-  }
-}
-
-class UpstreamError extends Error {
-  name = "UpstreamError";
-}
-
-export const POST = withErrors(async (request: Request, { params }: Ctx) => {
-  const caller = await resolveCaller(request);
-  if (!caller) throw new UnauthorizedError();
-  enforceRequestLimit("execute", request, caller.userId);
-
-  const { id } = await params;
-  const skill = (await skillRepository.byId(id)) ?? (await skillRepository.bySlug(id));
-  if (!skill) return json({ error: "Skill not found" }, { status: 404 });
-  if (skill.securityLevel === "Sandbox") return json({ error: "Sandbox-level skills cannot be executed through the gateway" }, { status: 403 });
-
-  const { tool, input } = bodySchema.parse(await request.json().catch(() => ({})));
-  if (tool && !skill.manifest.tools.some((t) => t.name === tool)) {
-    return json({ error: `Unknown tool "${tool}"`, tools: skill.manifest.tools.map((t) => t.name) }, { status: 400 });
-  }
-
-  const event = await billing.openExecution({ skill, callerId: caller.userId, toolName: tool, input });
-  const started = Date.now();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45_000);
-
-  try {
-    let result: unknown;
-    const ep = skill.manifest.entrypoint;
-    if (ep.type === "http") {
-      result = await forwardToSkill(ep.url, ep.method ?? "POST", tool, input, controller.signal);
-    } else if (ep.type === "prompt") {
-      // Prompt skills have nothing to run server-side: the "execution" hands back the prompt.
-      result = { systemPrompt: skill.manifest.systemPrompt };
-    } else {
-      return json({ error: "MCP skills run on the agent side; install them instead of executing through the gateway", install: true }, { status: 400 });
-    }
-    const receipt = await billing.closeExecution(event.id, { status: "succeeded", latencyMs: Date.now() - started });
-    return json({ receipt, result });
+    caller = await agentCaller(request);
+    if (!caller) throw new AgentError("unauthorized", "execute needs an API key or a session");
+    enforceRequestLimit("execute", request, caller.userId);
+    const { id } = await params;
+    const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
+    if (!parsed.success) throw new AgentError("invalid_request", parsed.error.issues.map((i) => i.message).join("; "));
+    const res = await executeSkill(caller, id, parsed.data, { idempotencyKey: request.headers.get("idempotency-key") });
+    return NextResponse.json(res.body, { status: res.status, headers: res.replayed ? { "Idempotent-Replayed": "true" } : {} });
   } catch (err) {
-    const receipt = await billing.closeExecution(event.id, { status: "failed", latencyMs: Date.now() - started });
-    // Only our own, non-reflective messages reach the caller; the rest stays in the logs.
-    const safeMessage = err instanceof BlockedUrlError || err instanceof UpstreamError ? err.message : "Skill execution failed";
-    if (!(err instanceof BlockedUrlError || err instanceof UpstreamError)) console.error("execute failed", { skill: skill.id, err });
-    return json({ receipt, error: safeMessage }, { status: 502 });
-  } finally {
-    clearTimeout(timer);
+    const { status, body, retryAfter } = agentErrorBody(err, caller);
+    return NextResponse.json(body, { status, headers: retryAfter ? { "Retry-After": String(retryAfter) } : {} });
   }
-});
+}

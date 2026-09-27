@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Rocket, ShieldCheck, ShieldEllipsis, SlidersHorizontal, UserRound } from "lucide-react";
+import { Bell, CreditCard, Rocket, ShieldCheck, ShieldEllipsis, SlidersHorizontal, UserRound } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
@@ -16,6 +16,7 @@ import { can, type Permission, type UserRole } from "@/types/auth";
 const ITEMS: Array<{ key: UiKey; href: string | ((handle: string) => string); icon: typeof Rocket; match: (p: string) => boolean; requires?: Permission }> = [
   { key: "console.nav.settings", href: "/dashboard/settings", icon: SlidersHorizontal, match: (p) => p.startsWith("/dashboard/settings") },
   { key: "console.nav.publish", href: "/dashboard/developer", icon: Rocket, match: (p) => p.startsWith("/dashboard/developer") },
+  { key: "console.nav.billing", href: "/dashboard/billing", icon: CreditCard, match: (p) => p.startsWith("/dashboard/billing") },
   { key: "console.nav.notifications", href: "/dashboard/notifications", icon: Bell, match: (p) => p.startsWith("/dashboard/notifications") },
   // Staff section: moderation queue + account verification (tabs inside).
   { key: "console.nav.staff", href: "/dashboard/moderation", icon: ShieldCheck, match: (p) => p.startsWith("/dashboard/moderation") || p.startsWith("/dashboard/verification"), requires: "catalog.moderate" },

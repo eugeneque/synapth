@@ -21,6 +21,7 @@ import { SECURITY_LEVELS, SKILL_CATEGORIES, SKILL_SOURCES, skillSource, type Sec
 import { SEARCH_TABS, type SearchTab } from "@/types/search";
 import type { SkillsetSort } from "@/types/skillset";
 import type { SearchResponse } from "@/axon/client";
+import { isListed } from "@/types/trust";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -227,7 +228,7 @@ async function SkillsTab({ sp, q, source }: { sp: Search; q: string; source: Ski
 
   const [res, all, { t }] = await Promise.all([
     skillRepository.search(q, { category: category ?? undefined, language: language ?? undefined, author: author ?? undefined, securityLevel: level ?? undefined, source: source ?? undefined, sort: sort === "recent" ? "recent" : q ? "relevance" : "trending", limit: 24 }),
-    untouched ? skillRepository.all() : Promise.resolve([]),
+    untouched ? skillRepository.all().then((all) => all.filter((s) => isListed(s.securityLevel))) : Promise.resolve([]),
     getI18n(),
   ]);
   const page: SearchResponse = {
