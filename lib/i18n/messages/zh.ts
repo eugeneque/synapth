@@ -1,4 +1,4 @@
-import type { UiMessages, FaqMessages } from "./index";
+import type { UiMessages, FaqMessages, AboutMessages } from "./index";
 
 export const ui: UiMessages = {
   "common.free": "免费",
@@ -98,6 +98,8 @@ export const ui: UiMessages = {
   "menu.section.favorites.body": "你的合集、收藏与关注的条目",
   "menu.section.docs": "文档与常见问题",
   "menu.section.docs.body": "安装、发布、智能体 API",
+  "menu.section.about": "关于我们",
+  "menu.section.about.body": "我们为什么存在、相信什么",
   "menu.section.pro": "Synapth Pro",
   "menu.section.pro.body": "套餐、配额与本地部署许可",
 
@@ -119,6 +121,7 @@ export const ui: UiMessages = {
   "footer.manifest": "清单",
   "footer.overview": "概览",
   "footer.faq": "文档与常见问题",
+  "footer.about": "关于",
   "footer.badges": "徽章",
   "footer.status": "所有系统正常",
   "footer.toTop": "返回顶部",
@@ -1714,4 +1717,55 @@ stars:>100            最少 GitHub 星标
   "faq.next.publish.tag": "发布",
   "faq.next.publish.title": "发布你的第一个技能",
   "faq.next.publish.body": "在「发布与密钥」中粘贴仓库 URL；解析器和扫描器会完成其余工作。",
+};
+
+export const about: AboutMessages = {
+  "about.meta.title": "关于我们",
+  "about.meta.description": "Synapth 为什么存在、我们相信什么：一个面向 AI 智能体的技能与 MCP 服务器目录。",
+
+  "about.hero.beta": "open beta",
+  "about.hero.skills": "{n} 个技能",
+  "about.hero.mcp": "{n} 个 MCP",
+  "about.hero.title": "智能体在这里找到*技能*。",
+  "about.hero.lead": "Synapth 把技能和 MCP 服务器汇集到一处，一条命令就能接入你的智能体——无需手动改配置。",
+  "about.hero.primary": "打开目录",
+  "about.hero.secondary": "工作原理",
+  "about.hero.secondaryMeta": "2 分钟",
+  "about.hero.fineprint": "免费 / 无需银行卡 / 技能开源",
+
+  "about.graph.agent": "agent: {name}",
+  "about.graph.summary": "{skills} 技能 · {mcp} mcp",
+  "about.graph.status": "已连接",
+  "about.graph.skill": "skill",
+  "about.graph.mcp": "mcp",
+  "about.graph.event": "+ {type} {name}",
+  "about.graph.ms": "{ms} ms",
+  "about.graph.describe": "示意图：智能体位于中心，技能和 MCP 服务器连接到它。每一次新连接都会写入下方日志。",
+
+  "about.quote.eyebrow": "为什么",
+  "about.quote.text": "最好的技能，是你不必*重写*的那一个。",
+
+  "about.manifest.eyebrow": "宣言",
+  "about.manifest.title": "我们*相信*什么。",
+  "about.manifest.lead": "技能和 MCP 服务器散落在成千上万个仓库里：没有版本，权限不清，常常看不到作者。Synapth 的存在，是为了把它们放到一处，并在安装之前把这些都展示出来。",
+
+  "about.p1.title": "技能能在*任何*智能体中运行",
+  "about.p1.body": "开放格式——SKILL.md 与 MCP。不绑定任何一家厂商：今天 Claude Code，明天 Cursor。",
+  "about.p2.title": "每个版本都*可读*",
+  "about.p2.body": "每个条目都保留源码和变更历史。版本之间改了什么，逐行可见。",
+  "about.p3.title": "安装*之前*就能看到权限",
+  "about.p3.body": "在 MCP 服务器接触你的机器之前，就能看到它要什么——读取、写入、网络。可疑之处由扫描器标出。",
+  "about.p3.requested": "已请求",
+  "about.p3.denied": "未请求",
+  "about.p4.title": "作者比*目录*更重要",
+  "about.p4.body": "每个技能都标明作者并链接到作者。目录只是让他们的作品更容易被找到的地方。",
+  "about.p4.caption": "每周更新的仓库 · 近 12 周",
+  "about.p5.title": "我们统计*安装*，而不是浏览",
+  "about.p5.body": "热度指的是安装次数，而不是页面打开次数。下面的数字是诚实的，只有一个附注。",
+  "about.p5.label": "累计安装",
+  "about.p5.note": "* 包含之后被移除的安装",
+
+  "about.cta.title": "一分钟接入你的第一个*技能*。",
+  "about.cta.primary": "打开目录",
+  "about.cta.secondary": "发布技能",
 };

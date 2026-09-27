@@ -29,6 +29,7 @@ const GROUPS: { title: UiKey; links: { key: UiKey; href: string }[] }[] = [
     links: [
       { key: "footer.overview", href: "/" },
       { key: "footer.faq", href: "/faq" },
+      { key: "footer.about", href: "/about" },
       { key: "footer.security", href: "/faq#install" },
       { key: "footer.badges", href: "/faq#install-badges" },
       { key: "footer.pricing", href: "/pro" },

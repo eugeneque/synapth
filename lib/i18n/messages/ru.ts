@@ -1,4 +1,4 @@
-import type { UiMessages, FaqMessages } from "./index";
+import type { UiMessages, FaqMessages, AboutMessages } from "./index";
 
 export const ui: UiMessages = {
   "common.free": "Бесплатно",
@@ -98,6 +98,8 @@ export const ui: UiMessages = {
   "menu.section.favorites.body": "Ваши наборы, сохранённое и отслеживаемое",
   "menu.section.docs": "Документация",
   "menu.section.docs.body": "Установка, публикация, API для агентов",
+  "menu.section.about": "О нас",
+  "menu.section.about.body": "Зачем Synapth и во что мы верим",
   "menu.section.pro": "Synapth Pro",
   "menu.section.pro.body": "Тарифы, квоты и лицензии On-prem",
 
@@ -119,6 +121,7 @@ export const ui: UiMessages = {
   "footer.manifest": "Манифест",
   "footer.overview": "Обзор",
   "footer.faq": "Документация",
+  "footer.about": "О нас",
   "footer.badges": "Бейджи",
   "footer.status": "Все системы в норме",
   "footer.toTop": "Наверх",
@@ -1714,4 +1717,55 @@ stars:>100            минимум звёзд GitHub
   "faq.next.publish.tag": "Публикация",
   "faq.next.publish.title": "Опубликовать первый навык",
   "faq.next.publish.body": "Вставьте URL репозитория в разделе «Публикация и ключи»; парсер и сканер сделают остальное.",
+};
+
+export const about: AboutMessages = {
+  "about.meta.title": "О нас",
+  "about.meta.description": "Зачем существует Synapth и во что мы верим: один каталог скиллов и MCP-серверов для AI-агентов.",
+
+  "about.hero.beta": "open beta",
+  "about.hero.skills": "{n} скилл|{n} скилла|{n} скиллов|{n} скилла",
+  "about.hero.mcp": "{n} MCP",
+  "about.hero.title": "Здесь агенты находят *навыки*.",
+  "about.hero.lead": "Synapth собирает скиллы и MCP-серверы в одном месте и подключает их к агенту одной командой — без ручной правки конфигов.",
+  "about.hero.primary": "Открыть каталог",
+  "about.hero.secondary": "Как это устроено",
+  "about.hero.secondaryMeta": "2 мин",
+  "about.hero.fineprint": "бесплатно / без карты / открытый исходник скиллов",
+
+  "about.graph.agent": "агент: {name}",
+  "about.graph.summary": "{skills} скиллов · {mcp} mcp",
+  "about.graph.status": "подключён",
+  "about.graph.skill": "скилл",
+  "about.graph.mcp": "mcp",
+  "about.graph.event": "+ {type} {name}",
+  "about.graph.ms": "{ms} мс",
+  "about.graph.describe": "Схема: агент в центре, к нему подключены скиллы и MCP-серверы. Каждое новое подключение записывается в лог под схемой.",
+
+  "about.quote.eyebrow": "зачем",
+  "about.quote.text": "Лучший навык — тот, который не пришлось писать *заново*.",
+
+  "about.manifest.eyebrow": "манифест",
+  "about.manifest.title": "Во что мы *верим*.",
+  "about.manifest.lead": "Скиллы и MCP-серверы разбросаны по тысячам репозиториев: без версий, без понятных прав, часто без имени автора. Synapth появился, чтобы собрать их в одном месте и показать всё это до установки.",
+
+  "about.p1.title": "Навык работает в *любом* агенте",
+  "about.p1.body": "Открытые форматы — SKILL.md и MCP. Никакой привязки к одному вендору: сегодня Claude Code, завтра Cursor.",
+  "about.p2.title": "Каждую версию можно *прочитать*",
+  "about.p2.body": "У каждой записи есть исходник и история изменений. Что поменялось между версиями, видно построчно.",
+  "about.p3.title": "Права видны *до* установки",
+  "about.p3.body": "Видно, что просит MCP-сервер — чтение, запись, сеть, — ещё до того, как он попадёт на вашу машину. Подозрительное отмечает сканер.",
+  "about.p3.requested": "запрошено",
+  "about.p3.denied": "нет",
+  "about.p4.title": "Авторы важнее *каталога*",
+  "about.p4.body": "У каждого скилла есть имя автора и ссылка на него. Каталог — просто место, где их работу легче найти.",
+  "about.p4.caption": "обновления репозиториев по неделям · 12 нед.",
+  "about.p5.title": "Считаем *установки*, не просмотры",
+  "about.p5.body": "Популярность — это установки, а не открытия страницы. Число ниже честное, с одной оговоркой.",
+  "about.p5.label": "установок за всё время",
+  "about.p5.note": "* включая удалённые установки",
+
+  "about.cta.title": "Подключите первый навык за *минуту*.",
+  "about.cta.primary": "Открыть каталог",
+  "about.cta.secondary": "Опубликовать скилл",
 };

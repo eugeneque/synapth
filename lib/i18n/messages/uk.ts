@@ -1,4 +1,4 @@
-import type { UiMessages, FaqMessages } from "./index";
+import type { UiMessages, FaqMessages, AboutMessages } from "./index";
 
 export const ui: UiMessages = {
   "common.free": "Безкоштовно",
@@ -98,6 +98,8 @@ export const ui: UiMessages = {
   "menu.section.favorites.body": "Ваші набори, збережене й відстежуване",
   "menu.section.docs": "Документація",
   "menu.section.docs.body": "Встановлення, публікація, API для агентів",
+  "menu.section.about": "Про нас",
+  "menu.section.about.body": "Навіщо Synapth і у що ми віримо",
   "menu.section.pro": "Synapth Pro",
   "menu.section.pro.body": "Тарифи, квоти та ліцензії On-prem",
 
@@ -119,6 +121,7 @@ export const ui: UiMessages = {
   "footer.manifest": "Маніфест",
   "footer.overview": "Огляд",
   "footer.faq": "Документація",
+  "footer.about": "Про нас",
   "footer.badges": "Бейджі",
   "footer.status": "Усі системи в нормі",
   "footer.toTop": "Нагору",
@@ -1714,4 +1717,55 @@ stars:>100            мінімум зірок GitHub
   "faq.next.publish.tag": "Публікація",
   "faq.next.publish.title": "Опублікувати першу навичку",
   "faq.next.publish.body": "Вставте URL репозиторію в розділі «Публікація та ключі»; парсер і сканер зроблять решту.",
+};
+
+export const about: AboutMessages = {
+  "about.meta.title": "Про нас",
+  "about.meta.description": "Навіщо існує Synapth і у що ми віримо: один каталог скілів і MCP-серверів для AI-агентів.",
+
+  "about.hero.beta": "open beta",
+  "about.hero.skills": "{n} скіл|{n} скіли|{n} скілів|{n} скіла",
+  "about.hero.mcp": "{n} MCP",
+  "about.hero.title": "Тут агенти знаходять *навички*.",
+  "about.hero.lead": "Synapth збирає скіли й MCP-сервери в одному місці та підключає їх до агента однією командою — без ручного редагування конфігів.",
+  "about.hero.primary": "Відкрити каталог",
+  "about.hero.secondary": "Як це влаштовано",
+  "about.hero.secondaryMeta": "2 хв",
+  "about.hero.fineprint": "безкоштовно / без картки / відкритий код скілів",
+
+  "about.graph.agent": "агент: {name}",
+  "about.graph.summary": "{skills} скілів · {mcp} mcp",
+  "about.graph.status": "підключено",
+  "about.graph.skill": "скіл",
+  "about.graph.mcp": "mcp",
+  "about.graph.event": "+ {type} {name}",
+  "about.graph.ms": "{ms} мс",
+  "about.graph.describe": "Схема: агент у центрі, до нього підключені скіли й MCP-сервери. Кожне нове підключення записується в лог під схемою.",
+
+  "about.quote.eyebrow": "навіщо",
+  "about.quote.text": "Найкраща навичка — та, яку не довелося писати *вдруге*.",
+
+  "about.manifest.eyebrow": "маніфест",
+  "about.manifest.title": "У що ми *віримо*.",
+  "about.manifest.lead": "Скіли й MCP-сервери розкидані по тисячах репозиторіїв: без версій, без зрозумілих прав, часто без імені автора. Synapth з’явився, щоб зібрати їх в одному місці й показати все це до встановлення.",
+
+  "about.p1.title": "Навичка працює в *будь-якому* агенті",
+  "about.p1.body": "Відкриті формати — SKILL.md і MCP. Жодної прив’язки до одного вендора: сьогодні Claude Code, завтра Cursor.",
+  "about.p2.title": "Кожну версію можна *прочитати*",
+  "about.p2.body": "У кожного запису є вихідний код та історія змін. Що змінилося між версіями, видно порядково.",
+  "about.p3.title": "Права видно *до* встановлення",
+  "about.p3.body": "Видно, що просить MCP-сервер — читання, запис, мережу, — ще до того, як він потрапить на вашу машину. Підозріле позначає сканер.",
+  "about.p3.requested": "запитано",
+  "about.p3.denied": "ні",
+  "about.p4.title": "Автори важливіші за *каталог*",
+  "about.p4.body": "У кожного скіла є ім’я автора й посилання на нього. Каталог — лише місце, де їхню роботу легше знайти.",
+  "about.p4.caption": "оновлення репозиторіїв по тижнях · 12 тиж.",
+  "about.p5.title": "Рахуємо *встановлення*, не перегляди",
+  "about.p5.body": "Популярність — це встановлення, а не відкриття сторінки. Число нижче чесне, з одним застереженням.",
+  "about.p5.label": "встановлень за весь час",
+  "about.p5.note": "* включно з видаленими встановленнями",
+
+  "about.cta.title": "Підключіть першу навичку за *хвилину*.",
+  "about.cta.primary": "Відкрити каталог",
+  "about.cta.secondary": "Опублікувати скіл",
 };

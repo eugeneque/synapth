@@ -1,0 +1,538 @@
+/*
+ * /about — the manifesto page. A deliberate exception to design.md §1 ("no glass,
+ * no gradient light"): light ribbons behind frosted cards, one serif accent word
+ * per title. Everything is scoped under `.about`; colours come from the brand
+ * tokens so the lime is the same signal as everywhere else.
+ */
+
+.about {
+  --bg: hsl(var(--background));
+  --surface: hsl(var(--card));
+  --line: rgba(255, 255, 255, 0.08);
+  --line-hi: rgba(255, 255, 255, 0.16);
+  --text: hsl(var(--foreground));
+  --text-2: hsl(var(--muted-foreground));
+  --accent: hsl(var(--synapse));
+  --accent-ink: hsl(var(--synapse-foreground));
+  --accent-soft: hsl(var(--synapse) / 0.12);
+  /* Ribbons only — never in UI. */
+  --glow-blue: #5aa9e6;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  overflow-x: clip;
+  color: var(--text);
+}
+
+.about :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- type ---------------------------------------------------------------- */
+
+.about-h1 {
+  font-weight: 600;
+  font-size: clamp(44px, 4.6vw + 16px, 76px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.about-h2 {
+  font-weight: 600;
+  font-size: clamp(34px, 2.6vw + 22px, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.about-h3 {
+  font-weight: 600;
+  font-size: clamp(24px, 0.6vw + 18px, 28px);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+}
+
+/* The one serif accent word per title: optically +4%, same colour. */
+.about em {
+  font-family: var(--font-serif), Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.04em;
+  letter-spacing: -0.01em;
+}
+
+/* Base styles use :where() so Tailwind size/colour utilities on the same element win. */
+:where(.about-body) {
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+:where(.about-mono) {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 768px) {
+  :where(.about-mono) {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :where(.about-body) {
+    font-size: 18px;
+  }
+}
+
+.about-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-2);
+}
+
+.about-eyebrow::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  flex: none;
+}
+
+/* ---- section rhythm ------------------------------------------------------ */
+
+.about-section {
+  padding-block: 96px;
+}
+
+@media (min-width: 1280px) {
+  .about-section {
+    padding-block: 160px;
+  }
+}
+
+/* ---- surfaces ------------------------------------------------------------ */
+
+.about-card {
+  position: relative;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, hsl(var(--card) / 0.78), hsl(var(--card) / 0.52));
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition: border-color 200ms var(--ease);
+}
+
+/* Spotlight: a lime glow (300px across) follows the pointer inside the card. */
+.about-card.spot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(150px circle at var(--mx, 50%) var(--my, 50%), hsl(var(--synapse) / 0.11), transparent 100%);
+  opacity: 0;
+  transition: opacity 200ms var(--ease);
+  pointer-events: none;
+}
+
+@media (min-width: 1280px) and (hover: hover) {
+  .about-card.spot:hover {
+    border-color: var(--line-hi);
+  }
+  .about-card.spot:hover::before {
+    opacity: 1;
+  }
+}
+
+:where(.about-chip) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding-inline: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: hsl(var(--card) / 0.6);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.about-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: about-pulse 2s ease-in-out infinite;
+}
+
+@keyframes about-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}
+
+/* ---- buttons ------------------------------------------------------------- */
+
+.about-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 44px;
+  padding-inline: 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition:
+    box-shadow 200ms var(--ease),
+    border-color 200ms var(--ease),
+    background-color 200ms var(--ease),
+    transform 200ms var(--ease);
+}
+
+.about-btn:active {
+  transform: scale(0.98);
+}
+
+.about-btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.about-btn-primary:hover {
+  box-shadow: 0 0 24px 4px var(--accent-soft);
+}
+
+.about-btn-secondary {
+  border: 1px solid var(--line);
+  background: hsl(var(--card) / 0.6);
+  color: var(--text);
+}
+
+.about-btn-secondary:hover {
+  border-color: var(--line-hi);
+}
+
+/* Buttons on the lime CTA plate. */
+.about-btn-ink {
+  background: var(--accent-ink);
+  color: var(--text);
+}
+
+.about-btn-ink:hover {
+  box-shadow: 0 8px 24px hsl(var(--synapse-foreground) / 0.35);
+}
+
+.about-btn-ink-outline {
+  border: 1px solid var(--accent-ink);
+  color: var(--accent-ink);
+}
+
+.about-btn-ink-outline:hover {
+  background: hsl(var(--synapse-foreground) / 0.08);
+}
+
+/* ---- background ---------------------------------------------------------- */
+
+.about-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  background: var(--bg);
+  pointer-events: none;
+}
+
+.about-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 0.8px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.about-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 70% at 50% 45%, transparent 45%, hsl(var(--background) / 0.85) 100%);
+}
+
+/* ---- ghost-trail headings (GhostText) ------------------------------------ */
+
+.ghost-w {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.gl {
+  display: inline-block;
+  position: relative;
+}
+
+.ghost:not(.is-in):not(.is-swap) .gl {
+  opacity: 0;
+}
+
+.ghost.is-in .gl {
+  animation: ghost-letter 700ms var(--ease) backwards;
+  animation-delay: calc(var(--d, 0ms) + var(--i) * 30ms);
+}
+
+.ghost.is-in .gl::before,
+.ghost.is-in .gl::after {
+  content: attr(data-c);
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  animation: ghost-up 700ms var(--ease) backwards;
+  animation-delay: calc(var(--d, 0ms) + var(--i) * 30ms);
+}
+
+.ghost.is-in .gl::after {
+  animation-name: ghost-down;
+}
+
+.ghost.is-swap .gl {
+  animation: ghost-swap 300ms var(--ease) backwards;
+  animation-delay: calc(var(--i) * 6ms);
+}
+
+@keyframes ghost-letter {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateY(0.3em);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+@keyframes ghost-up {
+  from {
+    opacity: 0.3;
+    transform: translateY(-0.15em);
+  }
+  to {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes ghost-down {
+  from {
+    opacity: 0.3;
+    transform: translateY(0.15em);
+  }
+  to {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes ghost-swap {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* ---- scramble + reveal --------------------------------------------------- */
+
+.scr {
+  transition: opacity 200ms var(--ease);
+}
+
+.scr:not(.is-in) {
+  opacity: 0;
+}
+
+.about-rise {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 500ms var(--ease),
+    transform 500ms var(--ease),
+    border-color 200ms var(--ease);
+}
+
+.about-rise.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+.about-fade {
+  opacity: 0;
+  transition: opacity 600ms var(--ease);
+}
+
+.about-fade.is-in {
+  opacity: 1;
+}
+
+/* ---- manifesto mini-visuals ---------------------------------------------- */
+
+.viz-wire {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 800ms var(--ease);
+}
+
+.viz-on .viz-wire {
+  stroke-dashoffset: 0;
+}
+
+.viz-pop {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 400ms var(--ease),
+    transform 400ms var(--ease);
+}
+
+.viz-on .viz-pop {
+  opacity: 1;
+  transform: none;
+}
+
+.viz-type {
+  display: block;
+  width: 0;
+  overflow: hidden;
+  white-space: pre;
+}
+
+.viz-on .viz-type {
+  animation: viz-type var(--dur, 600ms) steps(var(--n)) forwards;
+  animation-delay: var(--dl, 0ms);
+}
+
+@keyframes viz-type {
+  to {
+    width: calc(var(--n) * 1ch);
+  }
+}
+
+.viz-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  transition:
+    background-color 300ms var(--ease),
+    box-shadow 300ms var(--ease);
+}
+
+.viz-on .viz-led[data-on="true"] {
+  background: var(--accent);
+  box-shadow: 0 0 10px hsl(var(--synapse) / 0.5);
+}
+
+.viz-bar {
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 700ms var(--ease);
+}
+
+.viz-on .viz-bar {
+  transform: scaleY(1);
+}
+
+/* ---- final CTA ----------------------------------------------------------- */
+
+.about-cta-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 600ms var(--ease),
+    transform 600ms var(--ease);
+}
+
+.about-cta-panel :focus-visible {
+  outline-color: var(--accent-ink);
+}
+
+.about-cta-panel.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+.about-cta-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+.about-cta-panel.is-in::after {
+  animation: about-shine 900ms var(--ease) 600ms forwards;
+}
+
+@keyframes about-shine {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes about-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---- reduced motion: everything becomes a plain 150ms fade ---------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .about .ghost.is-in .gl,
+  .about .ghost.is-swap .gl {
+    animation: about-fade 150ms ease-out backwards !important;
+    animation-delay: 0ms !important;
+  }
+  .about .gl::before,
+  .about .gl::after {
+    content: none !important;
+  }
+  .about .about-rise,
+  .about .about-cta-panel,
+  .about .about-fade,
+  .about .scr {
+    transform: none !important;
+    transition: opacity 150ms ease-out !important;
+  }
+  .about .about-cta-panel::after {
+    display: none;
+  }
+  .about .about-pulse {
+    animation: none !important;
+  }
+}
