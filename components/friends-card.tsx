@@ -16,6 +16,7 @@ import { useI18n } from "@/axon/i18n";
 import { Avatar } from "@/components/avatar";
 import { FriendButton } from "@/components/friend-button";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
 import { cn } from "@/lib/utils";
 import type { AuthorRef, FriendState } from "@/types/social";
 
@@ -123,6 +124,7 @@ function PersonRow({ person, state }: { person: AuthorRef; state: FriendState })
             {name}
           </Link>
           {person.verified && <VerifiedMark size="sm" className="shrink-0" />}
+          {person.pro && <ProMark since={person.pro.since} size="sm" />}
         </div>
         <p className="truncate text-xs text-muted-foreground">{person.occupation ? t(`occupation.${person.occupation}`) : `@${person.handle}`}</p>
       </div>

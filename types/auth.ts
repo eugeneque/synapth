@@ -51,6 +51,8 @@ export const PERMISSIONS = [
   "users.verify",
   /** Open the admin panel (users & roles, crawler, run log). */
   "admin.access",
+  /** Hand out and take back Synapth Pro without a payment. */
+  "subscriptions.grant",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

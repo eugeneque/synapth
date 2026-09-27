@@ -295,6 +295,96 @@
   }
 }
 
+/* Pro mark (components/pro-mark.tsx): solid lime chip with a slow light sweep, the loudest thing in a name row. */
+.pro-mark {
+  color: hsl(var(--synapse-foreground));
+  background:
+    linear-gradient(110deg, transparent 30%, hsl(0 0% 100% / 0.55) 48%, transparent 66%) -150% 0 / 250% 100% no-repeat,
+    linear-gradient(135deg, hsl(var(--synapse)) 0%, hsl(76 100% 70%) 55%, hsl(var(--synapse-dim)) 100%);
+  box-shadow:
+    0 0 0 1px hsl(var(--synapse) / 0.55),
+    0 0 12px -1px hsl(var(--synapse) / 0.6);
+  animation:
+    pro-in 0.22s cubic-bezier(0.2, 0.8, 0.3, 1) both,
+    pro-sweep 4.5s ease-in-out 1s infinite;
+}
+@keyframes pro-in {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes pro-sweep {
+  0%,
+  70% {
+    background-position: -150% 0, 0 0;
+  }
+  100% {
+    background-position: 250% 0, 0 0;
+  }
+}
+
+/* Pro showcase on /pro (components/pricing-plans.tsx): an aurora frame that drifts slowly and brightens when open. */
+.pro-aurora {
+  background:
+    radial-gradient(60% 80% at 100% 0%, hsl(var(--synapse) / 0.55), transparent 60%),
+    radial-gradient(55% 70% at 0% 100%, hsl(165 85% 42% / 0.4), transparent 62%),
+    radial-gradient(45% 60% at 65% 110%, hsl(var(--synapse-dim) / 0.45), transparent 70%),
+    radial-gradient(40% 50% at 15% 0%, hsl(200 80% 45% / 0.25), transparent 70%),
+    hsl(var(--card));
+  background-size: 140% 140%;
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--synapse) / 0.35),
+    0 40px 120px -60px hsl(var(--synapse) / 0.7);
+  animation: aurora-drift 18s ease-in-out infinite alternate;
+  transition: box-shadow 0.4s ease;
+}
+.pro-aurora:hover,
+.pro-aurora-open {
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--synapse) / 0.6),
+    0 50px 140px -50px hsl(var(--synapse) / 0.85);
+}
+@keyframes aurora-drift {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 100% 100%;
+  }
+}
+/* Page titles on /pro: the one *word* per title is set in the serif italic, like the manifesto. */
+.pro-title em {
+  font-family: var(--font-serif), Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  color: hsl(var(--synapse));
+  letter-spacing: -0.01em;
+}
+
+/* «Trusted by» strip on /pro: two copies of the row slide by half their width, edges fade out. */
+.marquee {
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.marquee-track {
+  animation: marquee var(--marquee-duration, 40s) linear infinite;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 /* Featured slider: the active dot fills over the slide's lifetime (components/featured-slider.tsx). */
 @keyframes slider-progress {
   from {

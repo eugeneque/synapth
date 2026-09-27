@@ -428,6 +428,10 @@ model Subscription {
   provider           String
   /// Saved method at the provider (token id), for renewals. Never card data.
   paymentMethodId    String?
+  /// Start of the unbroken paid stretch («subscriber since»); null on rows older than the field → createdAt.
+  subscribedSince    DateTime?
+  /// Admin who granted the plan (provider = "grant").
+  grantedById        String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
