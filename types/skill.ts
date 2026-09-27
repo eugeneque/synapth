@@ -36,6 +36,18 @@ export interface JsonSchema {
   [keyword: string]: unknown;
 }
 
+export const SKILL_PERMISSIONS = ["filesystem:read", "filesystem:write", "shell", "network", "env", "clipboard"] as const;
+export type SkillPermission = (typeof SKILL_PERMISSIONS)[number];
+export type PermissionSource = "declared" | "detected" | "assumed";
+
+export interface PermissionEvidence {
+  permission: SkillPermission;
+  /** manifest — synapth.json; allowed-tools — SKILL.md frontmatter; tool — a declared tool; code — a source line; dependency — a package; entrypoint — how it runs. */
+  via: "manifest" | "allowed-tools" | "tool" | "code" | "dependency" | "entrypoint";
+  /** Short, human-readable: `src/index.ts:12 · fs.writeFile(`, `Bash(git:*)`, `axios`. */
+  detail: string;
+}
+
 /** One callable tool exposed by a skill — the shape an LLM sees in its tool list. */
 export interface ToolDefinition {
   name: string;
@@ -69,7 +81,16 @@ export interface SkillManifest {
   tools: ToolDefinition[];
   entrypoint: SkillEntrypoint;
   /** Capabilities the skill needs; used by the scanner and displayed to users. */
-  permissions?: Array<"network" | "filesystem:read" | "filesystem:write" | "shell" | "env" | "clipboard">;
+  permissions?: SkillPermission[];
+  /**
+   * Where `permissions` came from (`lib/permissions.ts`): written by the author
+   * (synapth.json, SKILL.md `allowed-tools`), found by the crawler in the code,
+   * dependencies and declared tools, or a conservative guess when nothing could
+   * be read. Absent on entries imported before provenance was tracked.
+   */
+  permissionSource?: PermissionSource;
+  /** Why each permission is listed — shown next to it on the skill page. */
+  permissionEvidence?: PermissionEvidence[];
   /** Environment variables the user must provide (names only — never values). */
   requiredEnv?: string[];
   /** Optional ordered execution flow rendered by the Prompt Visualizer. */
@@ -105,6 +126,14 @@ export const SKILL_SOURCES = ["github", "synapth"] as const;
 export type SkillSource = (typeof SKILL_SOURCES)[number];
 export const skillSource = (skill: { origin: SkillOrigin }): SkillSource => (skill.origin === "github" ? "github" : "synapth");
 
+/** One stored version of an entry (`SkillRepository.versions`, `lib/skill-versions.ts`). */
+export interface SkillVersionEntry {
+  /** Declared version, or `version+tag` when the manifest changed without a bump. */
+  version: string;
+  manifest: SkillManifest;
+  createdAt: string;
+}
+
 /** Snapshot of the GitHub repository a skill was imported from. */
 export interface GithubSource {
   owner: string;
@@ -138,6 +167,8 @@ export interface RepositoryAudit {
   packages: number;
   /** Executable binaries found in the tree. */
   binaries: string[];
+  /** Permission evidence per manifest directory ("" = root), from the code and dependencies next to it (`lib/permissions.ts`). */
+  permissions?: Record<string, { files: string[]; evidence: PermissionEvidence[] }>;
   findings: ScanFinding[];
 }
 

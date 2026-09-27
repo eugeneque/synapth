@@ -4,11 +4,12 @@
  * The POSIX script behind the one-liner `curl -fsSL … | sh`: every entry of
  * the set, installed for the chosen client (`skillsetInstall` in axon/install.ts
  * builds it, shell-quoting all manifest data). Sandbox entries are left out.
+ * Every entry the script sets up is counted as an install.
  */
 
 import { z } from "zod";
 import { hydratePrompt } from "@/cortex/repository";
-import { getSkillset, skillsetSkills } from "@/cortex/skillsets";
+import { getSkillset, recordSkillsetInstalls, skillsetSkills } from "@/cortex/skillsets";
 import { enforceRequestLimit } from "@/cortex/rate-limit";
 import { json, withErrors } from "@/lib/api";
 import { skillsetInstall } from "@/axon/install";
@@ -27,5 +28,6 @@ export const GET = withErrors(async (request: Request, { params }: Ctx) => {
   if (!set) return json({ error: "Skillset not found" }, { status: 404 });
   const skills = await Promise.all((await skillsetSkills(set)).map(hydratePrompt));
   const plan = skillsetInstall(set, skills, target);
+  await recordSkillsetInstalls(skills, plan.included.map((i) => i.slug), target);
   return new Response(plan.body, { headers: { "Content-Type": "text/x-shellscript; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 });

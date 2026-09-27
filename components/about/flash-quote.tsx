@@ -3,8 +3,9 @@
 /**
  * FlashQuote — the scroll-linked transition between the first screen and the
  * manifesto. The section is ~150vh of scroll with a pinned viewport:
- *   0–40%   a lime card grows to fill the screen (radius 20 → 0);
- *   40–60%  the quote, in accent-ink, sharpens out of a blur;
+ *   0–40%   a lime card — the question and the problems behind it — grows
+ *           to fill the screen (radius 20 → 0);
+ *   40–60%  the answer (quote, lead, CLI line), in accent-ink, sharpens out of a blur;
  *   60–100% the screen folds back into the front card of a stack of three
  *           (perspective 1200px, the two behind tilted and lifted), the dark
  *           background returns.
@@ -21,7 +22,18 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
-export function FlashQuote({ quote, eyebrow }: { quote: string; eyebrow: string }) {
+export interface FlashQuoteCopy {
+  /** The question on the resting card. */
+  eyebrow: string;
+  /** The problems listed under it, one line each. */
+  reasons: string[];
+  quote: string;
+  lead: string;
+  /** A terminal line shown under the lead. */
+  command: string;
+}
+
+export function FlashQuote({ eyebrow, reasons, quote, lead, command }: FlashQuoteCopy) {
   const sectionRef = useRef<HTMLElement>(null);
   const fillRef = useRef<HTMLDivElement>(null);
   const quoteRef = useRef<HTMLDivElement>(null);
@@ -105,13 +117,33 @@ export function FlashQuote({ quote, eyebrow }: { quote: string; eyebrow: string 
   }, []);
 
   const text = rich(quote, { codeClassName: "font-mono" });
+  const answer = (
+    <>
+      <blockquote className="about-h2">{text}</blockquote>
+      <p className="mx-auto mt-6 max-w-[56ch] text-[15px] leading-relaxed opacity-80 md:text-[17px]">{rich(lead, { codeClassName: "font-mono" })}</p>
+      <code className="about-mono mt-7 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--synapse-foreground)/0.25)] px-4 py-2">
+        <span className="opacity-50">$</span> {command}
+      </code>
+    </>
+  );
+  const problems = (
+    <ul className="mt-5 space-y-2">
+      {reasons.map((r, i) => (
+        <li key={r} className="about-mono flex gap-3 text-left">
+          <span className="opacity-45">{String(i + 1).padStart(2, "0")}</span>
+          <span>{r}</span>
+        </li>
+      ))}
+    </ul>
+  );
 
   if (plain) {
     return (
       <section className="about-section container">
         <figure className="mx-auto max-w-4xl rounded-[20px] bg-[var(--accent)] px-6 py-16 text-center text-[var(--accent-ink)] md:px-16 md:py-24">
-          <p className="about-mono mb-6 opacity-70">● {eyebrow}</p>
-          <blockquote className="about-h2">{text}</blockquote>
+          <p className="about-mono opacity-70">● {eyebrow}</p>
+          <div className="mx-auto mb-10 w-fit">{problems}</div>
+          {answer}
         </figure>
       </section>
     );
@@ -131,11 +163,16 @@ export function FlashQuote({ quote, eyebrow }: { quote: string; eyebrow: string 
           />
         ))}
         <div ref={fillRef} className="absolute inset-0 bg-[var(--accent)] will-change-[clip-path]" style={{ clipPath: "inset(40% 40% round 20px)" }} />
-        <div ref={labelRef} aria-hidden="true" className="about-mono pointer-events-none absolute text-[var(--accent-ink)]">
-          ● {eyebrow}
+        {/* The resting card: the question and what is broken today; screen readers read it before the answer. */}
+        <div ref={labelRef} aria-hidden="true" className="pointer-events-none absolute w-[min(420px,70vw)] px-6 text-[var(--accent-ink)] md:px-8">
+          <p className="about-mono">● {eyebrow}</p>
+          {problems}
         </div>
-        <div ref={quoteRef} className="relative mx-auto max-w-[760px] px-8 text-center text-[var(--accent-ink)] opacity-0 will-change-[filter,opacity,transform]">
-          <blockquote className="about-h2">{text}</blockquote>
+        <div ref={quoteRef} className="relative mx-auto max-w-[820px] px-8 text-center text-[var(--accent-ink)] opacity-0 will-change-[filter,opacity,transform]">
+          <p className="sr-only">
+            {eyebrow} {reasons.join("; ")}
+          </p>
+          {answer}
         </div>
       </div>
     </section>

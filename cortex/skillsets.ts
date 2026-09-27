@@ -561,3 +561,17 @@ export function resetSkillsetsForTests() {
   mem.favorites.length = 0;
   mem.images.length = 0;
 }
+
+/**
+ * Fetching the one-line install script installs every entry it sets up, so
+ * each one counts as an install (client = the target the script was built for).
+ * Counting never breaks the script download.
+ */
+export async function recordSkillsetInstalls(skills: Skill[], includedSlugs: string[], client: string): Promise<void> {
+  const wanted = new Set(includedSlugs);
+  await Promise.all(
+    skills
+      .filter((s) => wanted.has(s.slug))
+      .map((s) => skillRepository.recordInstall(s.id, client).catch((err) => console.error("[cortex] skillset install not counted", err))),
+  );
+}
