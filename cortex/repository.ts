@@ -603,9 +603,9 @@ class PrismaSkillRepository implements SkillRepository {
           prisma.$queryRaw<Array<{ id: string; manifest: Prisma.JsonValue; readme: string | null }>>`
             SELECT "id",
               CASE WHEN length("manifest"->>'systemPrompt') > ${README_EXCERPT}
-                THEN jsonb_set("manifest", '{systemPrompt}', to_jsonb(left("manifest"->>'systemPrompt', ${README_EXCERPT}))) || '{"systemPromptTruncated": true}'::jsonb
+                THEN jsonb_set("manifest", '{systemPrompt}', to_jsonb(left("manifest"->>'systemPrompt', ${README_EXCERPT}::int))) || '{"systemPromptTruncated": true}'::jsonb
                 ELSE "manifest" END AS "manifest",
-              left("readme", ${README_EXCERPT}) AS "readme"
+              left("readme", ${README_EXCERPT}::int) AS "readme"
             FROM "Skill"`,
           this.velocity(),
         ]);
@@ -686,25 +686,13 @@ class PrismaSkillRepository implements SkillRepository {
       const res = await this.search(query.q, { limit: query.limit, offset: query.offset, category: query.category, securityLevel: query.securityLevel, language: query.language, author: query.author, source: query.source, sort: query.sort === "recent" ? "recent" : "relevance" });
       return { items: res.hits.map((h) => h.skill), total: res.total, limit: res.limit, offset: res.offset };
     }
-    // Ranking formulas live in TS, so we filter in SQL and rank in memory.
+    // Ranking formulas live in TS, so the listing filters and ranks the shared
+    // snapshot in memory, like the file backend. A per-request query here pulled
+    // up to 5 000 full rows (prompts and READMEs included) for every page view.
     // At catalogue scale this becomes a materialised `trending_score` column
     // refreshed by the stats cron — the interface does not change.
-    const where: Prisma.SkillWhereInput = {
-      ...(query.category ? { category: query.category } : {}),
-      securityLevel: query.securityLevel && query.securityLevel !== "Quarantine" ? query.securityLevel : { not: "Quarantine" },
-      ...(query.source ? { origin: query.source === "github" ? "github" : { not: "github" } } : {}),
-      ...(query.q
-        ? {
-            OR: [
-              { name: { contains: query.q, mode: "insensitive" } },
-              { description: { contains: query.q, mode: "insensitive" } },
-              { tags: { has: query.q.toLowerCase() } },
-            ],
-          }
-        : {}),
-    };
-    const [rows, velocity] = await Promise.all([prisma.skill.findMany({ where, include: skillInclude, take: 5_000 }), this.velocity()]);
-    return paginate(sortSkills(rows.map((r) => toDomain(r, velocity)), query.sort === "relevance" ? "trending" : (query.sort ?? "trending")), query);
+    const filtered = (await this.all()).filter((s) => isListed(s.securityLevel) && matchesQuery(s, query));
+    return paginate(sortSkills(filtered, query.sort === "relevance" ? "trending" : (query.sort ?? "trending")), query);
   }
 
   async byId(id: string) {
