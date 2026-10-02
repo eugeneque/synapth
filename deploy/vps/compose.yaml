@@ -54,6 +54,10 @@ services:
       SYNAPTH_PLATFORM_FEE_PERCENT: ${SYNAPTH_PLATFORM_FEE_PERCENT:-15}
       SYNAPTH_CRON_SECRET: ${SYNAPTH_CRON_SECRET:?SYNAPTH_CRON_SECRET is required}
       SYNAPTH_AUTO_CRAWL: ${SYNAPTH_AUTO_CRAWL:-1}
+      # V8 heap cap below the container limit: the process fails inside its container instead of the kernel OOM-killing the host.
+      NODE_OPTIONS: --max-old-space-size=${SYNAPTH_HEAP_MB:-3072}
+    # A runaway app restarts this container instead of starving Postgres, sshd and journald.
+    mem_limit: ${SYNAPTH_MEMORY_LIMIT:-4g}
     expose:
       - "3000"
     volumes:

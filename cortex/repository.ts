@@ -107,18 +107,42 @@ function paginate<T>(items: T[], q: SkillQuery): Paginated<T> {
 // Search index cache (shared by both backends)
 // ---------------------------------------------------------------------------
 
+/**
+ * While a crawl writes, the catalogue version changes on every upsert. Without
+ * a floor every request rebuilt its own copy of the index (and of the whole
+ * catalogue) in parallel, which is how a long-lived server ran out of memory.
+ */
+const INDEX_MIN_REBUILD_MS = 60_000;
+
 class IndexCache {
   private index: SearchIndex | null = null;
   private stamp = "";
+  private builtAt = 0;
+  private pending: Promise<SearchIndex> | null = null;
+
+  constructor(private readonly minRebuildMs = 0) {}
 
   async get(repo: SkillRepository): Promise<SearchIndex> {
+    if (this.index && Date.now() - this.builtAt < this.minRebuildMs) return this.index;
     const stamp = await repo.version();
-    if (!this.index || stamp !== this.stamp) {
-      // Quarantined entries never reach search, suggestions or agents.
-      this.index = buildIndex((await repo.all()).filter((s) => isListed(s.securityLevel)));
-      this.stamp = stamp;
+    if (this.index && stamp === this.stamp) {
+      this.builtAt = Date.now();
+      return this.index;
     }
-    return this.index;
+    // One rebuild at a time; concurrent callers share it.
+    this.pending ??= (async () => {
+      try {
+        // Quarantined entries never reach search, suggestions or agents.
+        const index = buildIndex((await repo.all()).filter((s) => isListed(s.securityLevel)));
+        this.index = index;
+        this.stamp = stamp;
+        this.builtAt = Date.now();
+        return index;
+      } finally {
+        this.pending = null;
+      }
+    })();
+    return this.pending;
   }
 }
 
@@ -131,6 +155,9 @@ function trimManifest(manifest: SkillManifest): SkillManifest {
 /** Restores the full system prompt for API responses that inject it into an agent. */
 export async function hydratePrompt(skill: Skill): Promise<Skill> {
   if (!skill.manifest.systemPromptTruncated) return skill;
+  // The database keeps the whole manifest; the catalogue snapshot only an excerpt.
+  const row = hasDatabase ? await skillRepository.byId(skill.id) : null;
+  if (row && !row.manifest.systemPromptTruncated) return { ...skill, manifest: row.manifest };
   const full = await skillRepository.readme(skill.id);
   if (!full) return skill;
   return { ...skill, manifest: { ...skill.manifest, systemPrompt: full, systemPromptTruncated: false } };
@@ -474,6 +501,10 @@ class FileSkillRepository implements SkillRepository {
 // ---------------------------------------------------------------------------
 
 const skillInclude = { author: { select: { name: true, handle: true } }, stats: true } satisfies Prisma.SkillInclude;
+/** Floor between catalogue reloads in `PrismaSkillRepository.all()` (see `INDEX_MIN_REBUILD_MS`). */
+const SNAPSHOT_MIN_REFRESH_MS = 60_000;
+/** Reload an unchanged catalogue after this long anyway (stats, install velocity). */
+const SNAPSHOT_MAX_AGE_MS = 10 * 60_000;
 type SkillRow = Prisma.SkillGetPayload<{ include: typeof skillInclude }>;
 
 /** `velocity`: installs per skill over the last seven days (`PrismaSkillRepository.velocity`). */
@@ -509,7 +540,7 @@ function toDomain(row: SkillRow, velocity: Map<string, number> = new Map()): Ski
 }
 
 class PrismaSkillRepository implements SkillRepository {
-  private readonly cache = new IndexCache();
+  private readonly cache = new IndexCache(INDEX_MIN_REBUILD_MS);
 
   /** Install events inside the window, grouped by skill (indexed on skillId + createdAt). */
   private async velocity(ids?: string[]): Promise<Map<string, number>> {
@@ -549,10 +580,54 @@ class PrismaSkillRepository implements SkillRepository {
     return `db:${agg._count._all}:${agg._max.updatedAt?.getTime() ?? 0}`;
   }
 
+  /**
+   * The whole catalogue, shared by every caller until the version changes (and
+   * at most once per `SNAPSHOT_MIN_REFRESH_MS` while a crawl keeps changing it).
+   * Callers must treat the array as read-only. Full READMEs and system
+   * prompts stay in the database (~300 MB of the JSON the old query parsed):
+   * only excerpts are selected, as in the file backend; `hydratePrompt()`
+   * restores a prompt where it is needed.
+   */
   async all() {
-    const [rows, velocity] = await Promise.all([prisma.skill.findMany({ include: skillInclude }), this.velocity()]);
-    return rows.map((r) => toDomain(r, velocity));
+    if (this.snapshot && Date.now() - this.snapshotAt < SNAPSHOT_MIN_REFRESH_MS) return this.snapshot.skills;
+    const stamp = await this.version();
+    // Same catalogue: keep it, but not forever — install velocity moves without a version change.
+    if (this.snapshot?.stamp === stamp && Date.now() - this.snapshot.loadedAt < SNAPSHOT_MAX_AGE_MS) {
+      this.snapshotAt = Date.now();
+      return this.snapshot.skills;
+    }
+    this.loading ??= (async () => {
+      try {
+        const [rows, excerpts, velocity] = await Promise.all([
+          prisma.skill.findMany({ include: skillInclude, omit: { readme: true, manifest: true } }),
+          prisma.$queryRaw<Array<{ id: string; manifest: Prisma.JsonValue; readme: string | null }>>`
+            SELECT "id",
+              CASE WHEN length("manifest"->>'systemPrompt') > ${README_EXCERPT}
+                THEN jsonb_set("manifest", '{systemPrompt}', to_jsonb(left("manifest"->>'systemPrompt', ${README_EXCERPT}))) || '{"systemPromptTruncated": true}'::jsonb
+                ELSE "manifest" END AS "manifest",
+              left("readme", ${README_EXCERPT}) AS "readme"
+            FROM "Skill"`,
+          this.velocity(),
+        ]);
+        const byId = new Map(excerpts.map((r) => [r.id, r]));
+        const skills = rows.flatMap((row) => {
+          const ex = byId.get(row.id);
+          // A row inserted between the two queries is picked up by the next refresh.
+          return ex ? [toDomain({ ...row, manifest: ex.manifest, readme: ex.readme }, velocity)] : [];
+        });
+        this.snapshot = { stamp, skills, loadedAt: Date.now() };
+        this.snapshotAt = Date.now();
+        return skills;
+      } finally {
+        this.loading = null;
+      }
+    })();
+    return this.loading;
   }
+
+  private snapshot: { stamp: string; skills: Skill[]; loadedAt: number } | null = null;
+  private snapshotAt = 0;
+  private loading: Promise<Skill[]> | null = null;
 
   async readme(id: string) {
     const row = await prisma.skill.findUnique({ where: { id }, select: { readme: true } });
