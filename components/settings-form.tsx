@@ -3,8 +3,8 @@
 /**
  * SettingsForm — the "Account & Platform Settings" surface.
  *
- * Three numbered sections (identity with banner / avatar / occupation,
- * development environments, session) next to a config-sections rail, and a
+ * Numbered sections (identity with banner / avatar / occupation,
+ * development environments, Synapth CLI, verification, session) next to a config-sections rail, and a
  * sticky save bar that only appears when something differs from the
  * persisted profile. Images are prepared client-side (`axon/image.ts`) and
  * travel inside the same server action as the text fields.
@@ -12,7 +12,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, BadgeCheck, Briefcase, Check, ChevronDown, Globe, IdCard, Loader2, LogOut, MapPin, MonitorSmartphone, Save, ShieldCheck, Terminal, Undo2 } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Briefcase, Check, ChevronDown, Globe, IdCard, LogOut, MapPin, MonitorSmartphone, Save, ShieldCheck, Terminal, Undo2 } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { INSTALL_TARGETS, TARGET_COOKIE, type InstallTarget } from "@/axon/install";
@@ -26,6 +26,7 @@ import { McpPromoCard } from "@/components/mcp-promo-card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   profile: AccountProfile;
@@ -33,11 +34,15 @@ interface Props {
   /** The verification section body (`VerificationPanel`), rendered by the page with its server state. */
   verification: React.ReactNode;
   verified: boolean;
+  /** The Synapth CLI section body (`CliPanel`) and its badge: linked machines / plan cap. */
+  cli: React.ReactNode;
+  cliBadge: string;
 }
 
 const SECTIONS: Array<{ id: string; key: UiKey; icon: typeof IdCard }> = [
   { id: "identity", key: "settings.sec.identity", icon: IdCard },
   { id: "environments", key: "settings.sec.environments", icon: MonitorSmartphone },
+  { id: "cli", key: "settings.sec.cli", icon: Terminal },
   { id: "verification", key: "settings.sec.verification", icon: BadgeCheck },
   { id: "session", key: "settings.sec.session", icon: ShieldCheck },
 ];
@@ -56,7 +61,7 @@ function writeTargetCookie(target: InstallTarget | null) {
   document.cookie = target ? `${TARGET_COOKIE}=${target}; path=/; max-age=31536000; samesite=lax${secure}` : `${TARGET_COOKIE}=; path=/; max-age=0`;
 }
 
-export function SettingsForm({ profile, catalogue, verification, verified }: Props) {
+export function SettingsForm({ profile, catalogue, verification, verified, cli, cliBadge }: Props) {
   const { t } = useI18n();
   const { toast } = useToast();
   const [saved, setSaved] = useState<ProfileUpdate>(() => toUpdate(profile));
@@ -96,7 +101,6 @@ export function SettingsForm({ profile, catalogue, verification, verified }: Pro
     });
   }
 
-  const initial = (draft.name || profile.handle || "?").trim()[0]?.toUpperCase() ?? "?";
 
   return (
     <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -156,7 +160,7 @@ export function SettingsForm({ profile, catalogue, verification, verified }: Pro
             <div className="grid gap-5 sm:grid-cols-[96px_minmax(0,1fr)]">
               <div>
                 <p className="label-mono-sm mb-2">{t("settings.identity.avatar")}</p>
-                <AvatarPicker value={draft.image} onChange={(v) => set("image", v)} onError={imageError("image")} initial={initial} />
+                <AvatarPicker value={draft.image} onChange={(v) => set("image", v)} onError={imageError("image")} seed={profile.handle} />
                 <p className={cn("label-mono-sm mt-2 normal-case tracking-normal", error?.field === "image" && "text-danger")}>
                   {error?.field === "image" ? error.message : draft.image ? (draft.image.startsWith("data:") ? t("settings.identity.avatarUploaded") : t("settings.identity.avatarOauth")) : t("settings.identity.avatarHint")}
                 </p>
@@ -244,12 +248,23 @@ export function SettingsForm({ profile, catalogue, verification, verified }: Pro
           </div>
         </section>
 
-        {/* 03 Session & access. */}
-        {/* 03 Verification. */}
-        <section id="verification" className="scroll-mt-24 overflow-hidden rounded-xl border border-border bg-card">
+        {/* 03 Synapth CLI. */}
+        <section id="cli" className="scroll-mt-24 overflow-hidden rounded-xl border border-border bg-card">
           <header className="panel-head">
             <div className="flex items-center gap-3">
               <span className="label-mono-sm text-synapse">{t("settings.section", { n: "03" })}</span>
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">{t("cli.title")}</h2>
+            </div>
+            <Badge variant="chip">{cliBadge}</Badge>
+          </header>
+          <div className="p-5">{cli}</div>
+        </section>
+
+        {/* 04 Verification. */}
+        <section id="verification" className="scroll-mt-24 overflow-hidden rounded-xl border border-border bg-card">
+          <header className="panel-head">
+            <div className="flex items-center gap-3">
+              <span className="label-mono-sm text-synapse">{t("settings.section", { n: "04" })}</span>
               <h2 className="text-sm font-semibold tracking-tight text-foreground">{t("verify.title")}</h2>
             </div>
             <Badge variant={verified ? "synapse" : "chip"}>{t(verified ? "verify.badge.on" : "verify.badge.off")}</Badge>
@@ -257,10 +272,11 @@ export function SettingsForm({ profile, catalogue, verification, verified }: Pro
           <div className="p-5">{verification}</div>
         </section>
 
+        {/* 05 Session & access. */}
         <section id="session" className="scroll-mt-24 overflow-hidden rounded-xl border border-border bg-card">
           <header className="panel-head">
             <div className="flex items-center gap-3">
-              <span className="label-mono-sm text-synapse">{t("settings.section", { n: "04" })}</span>
+              <span className="label-mono-sm text-synapse">{t("settings.section", { n: "05" })}</span>
               <h2 className="text-sm font-semibold tracking-tight text-foreground">{t("settings.session.title")}</h2>
             </div>
             <Badge variant="synapse">
@@ -315,7 +331,7 @@ export function SettingsForm({ profile, catalogue, verification, verified }: Pro
               <Undo2 className="h-3.5 w-3.5" /> {t("settings.bar.reset")}
             </button>
             <button type="button" disabled={!dirty || pending} onClick={save} className="inline-flex h-9 items-center gap-2 rounded-lg bg-synapse px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-synapse-foreground shadow-glow transition-all hover:shadow-glow-lg disabled:opacity-50 disabled:shadow-none">
-              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} {t("settings.bar.save")}
+              {pending ? <Spinner size={14} /> : <Save className="h-3.5 w-3.5" />} {t("settings.bar.save")}
             </button>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { PixelField } from "@/components/pixel-field";
 import { I18nProvider } from "@/axon/i18n";
 import { ToastProvider } from "@/axon/toast";
+import { SoundBoot } from "@/axon/sound";
 import { ToastStack } from "@/components/toast-stack";
 import { getI18n, getLocale } from "@/cortex/locale";
 import { LOCALE_META, uiMessages } from "@/lib/i18n";
@@ -30,6 +31,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="flex min-h-screen flex-col font-sans">
         <I18nProvider locale={locale} messages={uiMessages(locale)}>
           <ToastProvider>
+            <SoundBoot />
             <PixelField />
             {children}
             <ToastStack />

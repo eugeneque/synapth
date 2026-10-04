@@ -39,6 +39,15 @@
       ],
       "port": 3300,
       "autoPort": true
+    },
+    {
+      "name": "synapth-dev-memory",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "DATABASE_URL= NETLIFY_DATABASE_URL= NEXT_PUBLIC_APP_URL=http://cli.localhost:3400 NEXT_DIST_DIR=.next-memory npx next dev -p 3400"
+      ],
+      "port": 3400
     }
   ]
 }

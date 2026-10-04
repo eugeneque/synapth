@@ -3,11 +3,11 @@
 /** RoleSelect — the admin's per-row role switch in /dashboard/admin/users. */
 
 import { useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { changeUserRole } from "@/app/(site)/moderation-actions";
 import { USER_ROLES, type UserRole } from "@/types/auth";
+import { Spinner } from "@/components/ui/spinner";
 
 export function RoleSelect({ userId, handle, initial, self }: { userId: string; handle: string; initial: UserRole; self: boolean }) {
   const { t } = useI18n();
@@ -31,7 +31,7 @@ export function RoleSelect({ userId, handle, initial, self }: { userId: string; 
 
   return (
     <div className="flex shrink-0 items-center gap-2">
-      {pending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+      {pending && <Spinner size={14} className="text-muted-foreground" />}
       <select
         value={role}
         disabled={pending || self}

@@ -72,6 +72,7 @@ export function PricingPlans({ current, signedIn }: { current: PlanId | null; si
                 <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{l.privatePacks === null ? t("pro.f.packsUnlimited") : n("pro.f.packs", l.privatePacks)}</li>
                 {l.ciRepos > 0 && <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{isUnlimited(l.ciRepos) ? t("pro.f.ciUnlimited") : n("pro.f.ciRepos", l.ciRepos)}</li>}
                 <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{n("pro.f.audit", l.auditDays)}</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{isUnlimited(l.cliInstallsPerDay) ? t("pro.f.cliUnlimited") : t(l.cliBulk ? "pro.f.cliBulk" : "pro.f.cli", { d: fmt(l.cliDevices), n: fmt(l.cliInstallsPerDay) })}</li>
                 {EXTRA[id].map((key) => (
                   <li key={key} className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{t(key)}</li>
                 ))}

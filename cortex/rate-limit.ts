@@ -55,6 +55,10 @@ export const RATE_LIMITS = {
   resolveTask: { limit: 20, windowMs: 60_000 },
   /** Checkout sessions opened with a payment provider. */
   checkout: { limit: 10, windowMs: 10 * 60_000 },
+  /** `synapth link`: link-key guesses per IP. */
+  cliLink: { limit: 10, windowMs: 10 * 60_000 },
+  /** Synapth CLI calls per linked device (plans add the daily install quota, cortex/cli.ts). */
+  cli: { limit: 120, windowMs: 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

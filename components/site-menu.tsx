@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowRight, BookOpen, Info, Blocks, ChevronDown, Github, Heart, Home, Layers, Loader2, LogOut, Menu, Newspaper, Search, Sparkles, Users, X, type LucideIcon } from "lucide-react";
+import { ArrowRight, BookOpen, Info, Blocks, ChevronDown, Github, Heart, Home, Layers, LogOut, Menu, Newspaper, Search, Sparkles, Users, X, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { CategoryIcon } from "@/components/category-icon";
 import { LocaleSwitcher } from "@/components/locale-switcher";
@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
 import { SEARCH_TABS, type GlobalHit, type GlobalSearchResponse, type SearchTab } from "@/types/search";
 import { SKILL_SOURCES, type SkillSource } from "@/types/skill";
+import { Spinner } from "@/components/ui/spinner";
 
 const hrefOf = (h: GlobalHit) => (h.kind === "user" ? `/u/${h.person.handle}` : h.kind === "skill" ? `/skills/${h.slug}` : `/skillsets/${h.slug}`);
 
@@ -189,6 +190,7 @@ export function SiteMenu({ viewer }: { viewer: MenuViewer | null }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        {...(open ? { "data-cuelume-close": "" } : { "data-cuelume-open": "" })}
         aria-expanded={open}
         aria-controls="site-menu-panel"
         aria-label={open ? t("nav.closeMenu") : t("nav.openMenu")}
@@ -200,7 +202,7 @@ export function SiteMenu({ viewer }: { viewer: MenuViewer | null }) {
       </button>
 
       <div className={cn("flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border bg-surface-low px-3 transition-colors duration-200", open ? "border-synapse/50 bg-card" : "border-border hover:border-foreground/25")}>
-        {loading && searching ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-synapse" /> : <Search className={cn("h-4 w-4 shrink-0", open ? "text-synapse" : "text-muted-foreground")} />}
+        {loading && searching ? <Spinner size={16} className="shrink-0 text-synapse" /> : <Search className={cn("h-4 w-4 shrink-0", open ? "text-synapse" : "text-muted-foreground")} />}
         <input
           ref={input}
           value={q}

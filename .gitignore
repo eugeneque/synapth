@@ -20,3 +20,5 @@ tsconfig.tsbuildinfo
 .next-profile/
 .next-sec/
 .next-verify/
+.next-memory/
+.next-build/

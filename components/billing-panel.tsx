@@ -9,7 +9,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Loader2, QrCode, Wallet } from "lucide-react";
+import { CreditCard, QrCode, Wallet } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { cancelAction, checkoutAction, resumeAction } from "@/app/(site)/dashboa
 import { formatMinor } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { PLANS, TOPUP_MAX_USD, TOPUP_MIN_USD, TOPUP_PRESETS_USD, planPrice, type BillingPeriod, type PaymentMethod, type PaymentProviderId, type PlanId } from "@/types/billing";
+import { Spinner } from "@/components/ui/spinner";
 
 export interface ProviderOption {
   id: PaymentProviderId;
@@ -149,7 +150,7 @@ export function BillingPanel({ currentPlan, subscription, rubProviders, usdProvi
                 {t("billing.total")} <span className="font-semibold">{formatMinor(total, "RUB", locale)}</span> <span className="text-xs text-muted-foreground">/ {t(`pro.period.${period}`)}</span>
               </p>
               <Button onClick={() => go(() => checkoutAction({ kind: "subscription", plan, period, seats, method, provider }))} disabled={pending || (plan === currentPlan && subscription?.period === period && (!spec.perSeat || subscription.seats === seats))}>
-                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />} {t("billing.pay")}
+                {pending ? <Spinner size={16} /> : <CreditCard className="h-4 w-4" />} {t("billing.pay")}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">{t("billing.change.note")}</p>
@@ -185,7 +186,7 @@ export function BillingPanel({ currentPlan, subscription, rubProviders, usdProvi
             <MethodPicker providers={usdProviders} method={topMethod} setMethod={setTopMethod} provider={topProvider} setProvider={setTopProvider} />
             <div className="flex justify-end border-t border-border pt-3">
               <Button onClick={() => go(() => checkoutAction({ kind: "topup", amountUsd: topup, method: topMethod, provider: topProvider }))} disabled={pending || !(topup >= TOPUP_MIN_USD && topup <= TOPUP_MAX_USD)}>
-                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} {t("billing.topup.cta", { amount: `$${topup}` })}
+                {pending ? <Spinner size={16} /> : <Wallet className="h-4 w-4" />} {t("billing.topup.cta", { amount: `$${topup}` })}
               </Button>
             </div>
           </>

@@ -4,7 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { Activity, Bolt, Calendar, Code2, Download, Github, Layers, Plus, Search, ShieldCheck, Star } from "lucide-react";
 import { skillRepository } from "@/cortex/repository";
 import { getProfile, getProfileByHandle } from "@/cortex/account";
-import { ActivityHeatmap, HeatmapLegend, bucketActivity } from "@/components/activity-heatmap";
+import { ActivityHeatmap, HeatmapLegend, bucketActivity, weeklyTotals } from "@/components/activity-heatmap";
+import { Sparkline } from "@/components/dither-kit/sparkline";
 import { Panel } from "@/components/panel";
 import { getI18n } from "@/cortex/locale";
 import { SkillCard } from "@/components/skill-card";
@@ -12,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCompact, timeAgo } from "@/lib/utils";
 import { isListed } from "@/types/trust";
+import { DitherAvatar } from "@/components/dither-kit/avatar";
+import { PALETTE } from "@/components/dither-kit/palette";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +86,9 @@ export default async function AuthorPage({ params }: Params) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatar} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="font-display flex h-full w-full items-center justify-center bg-muted text-3xl font-medium">{name[0]?.toUpperCase()}</div>
+                  <div className="flex h-full w-full items-center justify-center">
+                    <DitherAvatar name={owner} fill={PALETTE.moss.line} className="h-[78%] w-[78%]" />
+                  </div>
                 )}
                 <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-surface-lowest">
                   <span className="h-2.5 w-2.5 rounded-full bg-synapse animate-pulse-dot" />
@@ -222,7 +227,8 @@ export default async function AuthorPage({ params }: Params) {
           </>
         }
       >
-        <ActivityHeatmap cells={activity.cells} months={activity.months} />
+        {activity.stats.total > 0 && <Sparkline data={weeklyTotals(activity.cells)} color="synapse" variant="gradient" className="mb-4 h-12 w-full" />}
+            <ActivityHeatmap cells={activity.cells} months={activity.months} />
       </Panel>
     </div>
   );

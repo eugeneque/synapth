@@ -3,7 +3,7 @@
 /**
  * AuthGate — the full-width split auth screen.
  *
- * Left half: fluted glass over a drifting light gradient (`AuthGlass`).
+ * Left half: the faulty-terminal field (`FaultyTerminal`, design.md §1 live zones).
  * Right half: the credential form with a DEVELOPER / MACHINE TOKEN switcher,
  * OAuth row, entropy meter and the primary signal button. A password account
  * with an unconfirmed address continues on `EmailCodeStep` (right after signup,
@@ -14,13 +14,14 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { ArrowLeft, ArrowRight, AtSign, Check, Eye, EyeOff, Github, KeyRound, Loader2, MailCheck, ShieldCheck, X } from "lucide-react";
-import { AuthGlass } from "@/components/auth-glass";
+import { ArrowLeft, ArrowRight, AtSign, Check, Eye, EyeOff, Github, KeyRound, MailCheck, ShieldCheck, X } from "lucide-react";
+import FaultyTerminal from "@/components/faulty-terminal";
 import { CopyButton } from "@/components/copy-button";
 import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
 import { rich } from "@/lib/i18n/rich";
 import { safeCallbackPath } from "@/lib/url-safety";
+import { Spinner } from "@/components/ui/spinner";
 
 export interface AuthGateProps {
   mode: "signin" | "signup";
@@ -204,8 +205,11 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
 
   return (
     <div className="grid w-full flex-1 grid-cols-1 lg:grid-cols-2">
-      {/* Left: fluted glass over the moving light field. */}
-      <AuthGlass className="min-h-[220px] sm:min-h-[300px] lg:min-h-0" />
+      {/* Left: the live terminal field, fading into the form side. */}
+      <div className="relative min-h-[220px] overflow-hidden bg-background sm:min-h-[300px] lg:min-h-0">
+        <FaultyTerminal className="absolute inset-0" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-background/70" />
+      </div>
 
       {/* Right: form. */}
       <div className="flex flex-col justify-center bg-[#121212] px-6 py-10 sm:px-10 lg:px-16 xl:px-24">
@@ -348,7 +352,7 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
                     className="flex h-11 items-center justify-center gap-3 rounded-lg bg-synapse px-7 text-base font-semibold tracking-tight text-synapse-foreground shadow-[0_0_20px_rgba(198,255,51,0.25)] transition-all hover:shadow-[0_0_28px_rgba(198,255,51,0.45)] active:scale-[0.99] disabled:opacity-60"
                   >
                     <span>{busy ? t("auth.submitting") : mode === "signup" ? t("auth.submit.signup") : t("auth.submit.signin")}</span>
-                    {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+                    {busy ? <Spinner size={20} /> : <ArrowRight className="h-5 w-5" />}
                   </button>
                 </div>
               </form>
@@ -377,7 +381,7 @@ export function AuthGate({ mode, providers, indexed }: AuthGateProps) {
                   disabled={!token.trim() || tokenState.status === "checking"}
                   className="label-mono-sm absolute right-2 top-2 h-6 rounded-md border border-white/10 bg-white/[0.04] px-2 text-foreground transition-colors hover:border-synapse/50 disabled:opacity-40"
                 >
-                  {tokenState.status === "checking" ? <Loader2 className="h-3 w-3 animate-spin" /> : t("auth.machine.verify")}
+                  {tokenState.status === "checking" ? <Spinner size={12} /> : t("auth.machine.verify")}
                 </button>
               </Field>
               {tokenState.status === "ok" && (
@@ -544,7 +548,7 @@ function EmailCodeStep({ email, resendOnMount, onConfirmed, onBack }: { email: s
           className="flex h-11 items-center justify-center gap-3 rounded-lg bg-synapse px-7 text-base font-semibold tracking-tight text-synapse-foreground shadow-[0_0_20px_rgba(198,255,51,0.25)] transition-all hover:shadow-[0_0_28px_rgba(198,255,51,0.45)] active:scale-[0.99] disabled:opacity-60"
         >
           <span>{busy ? t("auth.submitting") : t("auth.verify.submit")}</span>
-          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+          {busy ? <Spinner size={20} /> : <ArrowRight className="h-5 w-5" />}
         </button>
       </div>
     </form>

@@ -10,7 +10,8 @@ import { evaluateBadges, listBadges } from "@/cortex/badges";
 import { impulseSummary, listComments, listPosts } from "@/cortex/social";
 import { friendState, friendStates, listFriends, listRequests } from "@/cortex/friends";
 import { getI18n } from "@/cortex/locale";
-import { ActivityHeatmap, HeatmapLegend, bucketActivity } from "@/components/activity-heatmap";
+import { ActivityHeatmap, HeatmapLegend, bucketActivity, weeklyTotals } from "@/components/activity-heatmap";
+import { Sparkline } from "@/components/dither-kit/sparkline";
 import { BadgeList } from "@/components/badge-list";
 import { publicRole } from "@/types/auth";
 import { ImpulseButton } from "@/components/impulse-button";
@@ -29,6 +30,8 @@ import { cn, formatCompact } from "@/lib/utils";
 import type { Comment } from "@/types/social";
 import { safeExternalHref, safeImageSrc } from "@/lib/url-safety";
 import { isListed } from "@/types/trust";
+import { DitherAvatar } from "@/components/dither-kit/avatar";
+import { PALETTE } from "@/components/dither-kit/palette";
 
 export const dynamic = "force-dynamic";
 
@@ -200,7 +203,9 @@ export default async function UserProfilePage({ params }: Params) {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatar} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div className="font-display flex h-full w-full items-center justify-center bg-muted text-4xl font-medium">{name[0]?.toUpperCase()}</div>
+              <div className="flex h-full w-full items-center justify-center bg-surface-lowest">
+                <DitherAvatar name={profile.handle} fill={PALETTE.moss.line} className="h-[78%] w-[78%]" />
+              </div>
             )}
           </div>
 
@@ -407,6 +412,7 @@ export default async function UserProfilePage({ params }: Params) {
               </>
             }
           >
+            {activity.stats.total > 0 && <Sparkline data={weeklyTotals(activity.cells)} color="synapse" variant="gradient" className="mb-4 h-12 w-full" />}
             <ActivityHeatmap cells={activity.cells} months={activity.months} />
           </Panel>
         </div>

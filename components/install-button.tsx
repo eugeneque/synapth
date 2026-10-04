@@ -1,11 +1,12 @@
 "use client";
 
-import { Check, Copy, Download, Loader2 } from "lucide-react";
+import { Check, Copy, Download } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { useInstall } from "@/axon/hooks";
 import { useI18n } from "@/axon/i18n";
 import { defaultTarget, type InstallTarget } from "@/axon/install";
 import type { Skill } from "@/types/skill";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props extends Omit<ButtonProps, "onClick"> {
   skill: Skill;
@@ -17,7 +18,7 @@ interface Props extends Omit<ButtonProps, "onClick"> {
 export function InstallButton({ skill, target, label, size = "sm", variant = "default", ...rest }: Props) {
   const { install, status } = useInstall(skill);
   const { t } = useI18n();
-  const icon = status === "busy" ? <Loader2 className="animate-spin" /> : status === "done" ? <Check /> : status === "error" ? <Copy /> : <Download />;
+  const icon = status === "busy" ? <Spinner size={16} /> : status === "done" ? <Check /> : status === "error" ? <Copy /> : <Download />;
   const text = status === "done" ? t("common.copied") : status === "error" ? t("common.retry") : (label ?? t("common.install"));
 
   return (

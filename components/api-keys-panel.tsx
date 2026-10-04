@@ -8,7 +8,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Loader2, Plus, ShieldOff, X } from "lucide-react";
+import { KeyRound, Plus, ShieldOff, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { connectSnippets, type InstallTarget } from "@/axon/install";
@@ -21,6 +21,7 @@ import { createApiKey, revokeApiKeyAction, type CreateKeyInput } from "@/app/(si
 import { API_KEY_SCOPES, API_KEY_TTL_CHOICES, API_KEY_TTL_DAYS, POLICY_PERMISSIONS, keyStatus, type ApiKeyInfo, type ApiKeyScope, type PolicyPermission } from "@/types/api-keys";
 import { SKILL_CATEGORIES, type SkillCategory } from "@/types/skill";
 import { cn, timeAgo } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 const TRUST_CHOICES = ["Sandbox", "Community", "Verified", "Gov"] as const;
 const CONNECT_TARGETS: InstallTarget[] = ["claude-code", "cursor", "claude-desktop", "curl"];
@@ -203,7 +204,7 @@ export function ApiKeysPanel({ keys, maxKeys, baseUrl }: { keys: ApiKeyInfo[]; m
               {t("keys.cancel")}
             </Button>
             <Button type="submit" size="sm" disabled={pending || !scopes.length || !categories.length}>
-              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />} {t("keys.create")}
+              {pending ? <Spinner size={14} /> : <KeyRound className="h-3.5 w-3.5" />} {t("keys.create")}
             </Button>
           </div>
         </form>

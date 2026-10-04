@@ -11,8 +11,12 @@
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AuthorRef } from "@/types/social";
+import type { SoundName } from "cuelume";
+import { cue } from "@/axon/sound";
 
 export type ToastTone = "success" | "social" | "info" | "warn" | "danger" | "undo";
+
+const TONE_CUE: Partial<Record<ToastTone, SoundName>> = { success: "success", warn: "warning", danger: "error" };
 
 export interface ToastInput {
   tone?: ToastTone;
@@ -64,6 +68,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       const duration = input.duration ?? DEFAULT_DURATION[tone];
       setToasts((list) => [...list, { ...input, id, tone, duration, createdAt: Date.now() }].slice(-MAX_VISIBLE));
       if (duration > 0) timers.current.set(id, setTimeout(() => dismiss(id), duration));
+      // Result cues only: social/info toasts come from the inbox, which has its own chime.
+      const sound = TONE_CUE[tone];
+      if (sound) cue(sound);
       return id;
     },
     [dismiss],

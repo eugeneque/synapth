@@ -10,7 +10,8 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Clock, Loader2, Plus, UserCheck, UserMinus, UserPlus, UserX } from "lucide-react";
+import { Check, Clock, Plus, UserCheck, UserMinus, UserPlus, UserX } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { toggleFriend } from "@/app/(site)/social-actions";
@@ -92,7 +93,7 @@ export function FriendButton({ toId, handle, name, initial, size = "md", onChang
     return (
       <button type="button" onClick={click} disabled={pending} aria-pressed={state === "friends" || state === "requested"} aria-label={swaps ? hover : rest} title={swaps ? `${rest} · ${hover}` : rest} className={cn(shell, swaps && "hover:border-danger/40 hover:text-danger focus-visible:border-danger/40 focus-visible:text-danger")}>
         {pending ? (
-          <Loader2 className={cn(icon, "animate-spin")} />
+          <Spinner size={sm || iconOnly ? 14 : 16} />
         ) : swaps ? (
           <>
             <Idle className={cn(icon, "group-hover/friend:hidden group-focus-visible/friend:hidden")} />
@@ -108,7 +109,7 @@ export function FriendButton({ toId, handle, name, initial, size = "md", onChang
   return (
     <button type="button" onClick={click} disabled={pending} aria-pressed={state === "friends" || state === "requested"} aria-label={swaps ? hover : rest} className={cn(shell, swaps && "hover:border-danger/40 hover:text-danger focus-visible:border-danger/40 focus-visible:text-danger")}>
       {pending ? (
-        <Loader2 className={cn(icon, "animate-spin")} />
+        <Spinner size={sm || iconOnly ? 14 : 16} />
       ) : swaps ? (
         <>
           <Rest className={cn(icon, "group-hover/friend:hidden group-focus-visible/friend:hidden")} />

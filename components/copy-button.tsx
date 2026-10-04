@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
+import { cue } from "@/axon/sound";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -24,6 +25,7 @@ export function CopyButton({ text, label, doneLabel, className, compact }: Props
     try {
       await navigator.clipboard.writeText(text);
       setDone(true);
+      cue("success", { emphasis: "subtle" });
       setTimeout(() => setDone(false), 1600);
     } catch {
       /* clipboard unavailable — nothing to do */
@@ -51,6 +53,7 @@ export function CommandChip({ command, className }: { command: string; className
     try {
       await navigator.clipboard.writeText(command);
       setDone(true);
+      cue("success", { emphasis: "subtle" });
       setTimeout(() => setDone(false), 1600);
     } catch {
       /* ignore */

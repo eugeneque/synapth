@@ -8,11 +8,14 @@
  */
 
 import { useId, useRef, useState, type DragEvent } from "react";
-import { Camera, Loader2, Pencil, Trash2, UploadCloud } from "lucide-react";
+import { Camera, Pencil, Trash2, UploadCloud } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { ImageError, prepareImage, type ImageBox } from "@/axon/image";
 import { AVATAR_IMAGE, COVER_IMAGE, IMAGE_MIME_TYPES } from "@/types/profile";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
+import { DitherAvatar } from "@/components/dither-kit/avatar";
+import { PALETTE } from "@/components/dither-kit/palette";
 
 interface PickerProps {
   value: string | null;
@@ -80,7 +83,7 @@ export function CoverPicker({ value, onChange, onError, fallbackLabel }: PickerP
       ) : (
         <button type="button" onClick={open} disabled={busy} aria-describedby={id} className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center">
           <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface-lowest/90 text-muted-foreground transition-colors group-hover:border-synapse/40 group-hover:text-synapse">
-            {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <UploadCloud className="h-5 w-5" />}
+            {busy ? <Spinner size={20} /> : <UploadCloud className="h-5 w-5" />}
           </span>
           <span className="text-sm text-foreground">
             {t("settings.identity.coverDrop")} <span className="text-synapse underline underline-offset-2">{t("settings.identity.browse")}</span>
@@ -94,7 +97,7 @@ export function CoverPicker({ value, onChange, onError, fallbackLabel }: PickerP
       {value && (
         <div className="absolute right-3 top-3 flex items-center gap-1.5">
           <button type="button" onClick={open} disabled={busy} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface-lowest/80 px-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-foreground backdrop-blur transition-colors hover:border-foreground/40">
-            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />} {t("settings.identity.change")}
+            {busy ? <Spinner size={12} /> : <Camera className="h-3 w-3" />} {t("settings.identity.change")}
           </button>
           <button type="button" onClick={() => onChange(null)} disabled={busy} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface-lowest/80 px-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground backdrop-blur transition-colors hover:border-danger/40 hover:text-danger">
             <Trash2 className="h-3 w-3" /> {t("settings.identity.remove")}
@@ -107,7 +110,7 @@ export function CoverPicker({ value, onChange, onError, fallbackLabel }: PickerP
 }
 
 /** 96px square avatar well with a hover overlay and an edit button in the corner. */
-export function AvatarPicker({ value, onChange, onError, initial }: PickerProps & { initial: string }) {
+export function AvatarPicker({ value, onChange, onError, seed, tone = "moss" }: PickerProps & { seed: string; tone?: "moss" | "synapse" }) {
   const { t } = useI18n();
   const { busy, input, open } = usePick(AVATAR_IMAGE, { onChange, onError });
 
@@ -119,10 +122,10 @@ export function AvatarPicker({ value, onChange, onError, initial }: PickerProps 
             // eslint-disable-next-line @next/next/no-img-element
             <img src={value} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="font-display text-3xl font-medium">{initial}</span>
+            <DitherAvatar name={seed} fill={PALETTE[tone].line} animate={false} className="h-[78%] w-[78%]" />
           )}
           <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
-            {busy ? <Loader2 className="h-5 w-5 animate-spin text-white" /> : <Camera className="h-5 w-5 text-white" />}
+            {busy ? <Spinner size={20} className="text-white" /> : <Camera className="h-5 w-5 text-white" />}
             <span className="label-mono-sm text-[9px] text-white">{t("settings.identity.avatarUpload")}</span>
           </span>
         </button>

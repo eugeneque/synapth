@@ -11,6 +11,10 @@ import { SettingsForm } from "@/components/settings-form";
 import { VerificationPanel } from "@/components/verification-panel";
 import { verificationState } from "@/cortex/verification";
 import { Button } from "@/components/ui/button";
+import { CliPanel } from "@/components/cli-panel";
+import { getLinkKey, installsToday, listDevices } from "@/cortex/cli";
+import { currentPlanId } from "@/cortex/payments";
+import { isUnlimited, PLANS } from "@/types/billing";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -22,10 +26,23 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/dashboard/settings");
-  const [profile, all, { t }, verification] = await Promise.all([getProfile(session.user.id), skillRepository.all(), getI18n(), verificationState(session.user.id)]);
+  const userId = session.user.id;
+  const [profile, all, { t }, verification, linkKey, devices, planId, installs] = await Promise.all([
+    getProfile(userId),
+    skillRepository.all(),
+    getI18n(),
+    verificationState(userId),
+    getLinkKey(userId),
+    listDevices(userId),
+    currentPlanId(userId),
+    installsToday(userId),
+  ]);
   if (!profile) redirect("/signin");
   const published = all.filter((s) => s.authorId === profile.id);
   const verified = published.filter((s) => s.securityLevel === "Verified").length;
+  const limits = PLANS[planId].limits;
+  const cliLimits = { devices: limits.cliDevices, installsPerDay: limits.cliInstallsPerDay, bulk: limits.cliBulk };
+  const origin = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
   return (
     <div className="space-y-8">
@@ -56,6 +73,8 @@ export default async function SettingsPage() {
         catalogue={{ published: published.length, verified }}
         verification={<VerificationPanel initial={verification} />}
         verified={Boolean(profile.verified)}
+        cli={<CliPanel initial={{ linkKey, devices, plan: planId, limits: cliLimits, installsToday: installs }} origin={origin} />}
+        cliBadge={t("cli.badge", { n: devices.length, max: isUnlimited(limits.cliDevices) ? "∞" : String(limits.cliDevices) })}
       />
     </div>
   );

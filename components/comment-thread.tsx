@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { Loader2, Send, Trash2 } from "lucide-react";
+import { Send, Trash2 } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { removeComment, type ActionResult } from "@/app/(site)/social-actions";
@@ -16,6 +16,7 @@ import { Avatar } from "@/components/avatar";
 import { VerifiedMark } from "@/components/verified-mark";
 import { cn, timeAgo } from "@/lib/utils";
 import { COMMENT_MAX_LENGTH, type AuthorRef, type Comment } from "@/types/social";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   initial: Comment[];
@@ -111,7 +112,7 @@ export function CommentThread({ initial, viewer, canModerate = false, submit, si
               className="h-auto min-h-9 w-full resize-none rounded-lg border border-border bg-muted py-2 pl-3 pr-24 font-mono text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:border-synapse/60 focus:outline-none focus:ring-1 focus:ring-synapse/25"
             />
             <button type="submit" disabled={pending || !draft.trim()} className="absolute right-1.5 top-1.5 inline-flex h-6 items-center gap-1 rounded-md bg-synapse px-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-synapse-foreground transition-opacity disabled:opacity-40">
-              {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} {t("comments.send")}
+              {pending ? <Spinner size={12} /> : <Send className="h-3 w-3" />} {t("comments.send")}
             </button>
           </div>
         </form>

@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, Check, Loader2, Phone, ScanSearch, Send, Undo2, X, Zap } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, Phone, ScanSearch, Send, Undo2, X, Zap } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { useNotifications } from "@/axon/notifications";
@@ -21,6 +21,7 @@ import { VerifiedMark } from "@/components/verified-mark";
 import { cn } from "@/lib/utils";
 import { normalizePhone, type EligibilityCheck, type VerificationState } from "@/types/verification";
 import type { UiKey } from "@/lib/i18n";
+import { Spinner } from "@/components/ui/spinner";
 
 const POLL_MS = 8000;
 
@@ -217,7 +218,7 @@ export function VerificationPanel({ initial }: { initial: VerificationState }) {
               />
             </label>
             <button type="button" onClick={apply} disabled={!canApply || pending} title={canApply ? undefined : t("verify.notEligible")} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-synapse px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-synapse-foreground shadow-glow transition-all hover:-translate-y-px hover:shadow-glow-lg active:scale-[0.97] disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none">
-              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} {t("verify.apply")}
+              {pending ? <Spinner size={14} /> : <Send className="h-3.5 w-3.5" />} {t("verify.apply")}
             </button>
           </div>
           {!canApply && <p className="label-mono-sm normal-case tracking-normal">{t("verify.notEligible")}</p>}

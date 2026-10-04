@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Github, Loader2, Rocket, Search } from "lucide-react";
+import { Github, Rocket, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import { useI18n } from "@/axon/i18n";
 import { rich } from "@/lib/i18n/rich";
 import type { ScanReport } from "@/lib/sandbox-scanner";
 import type { ImportResult } from "@/lib/github-parser";
+import { Spinner } from "@/components/ui/spinner";
 
 /** GitHub → Synapth: parse, scan, publish. */
 export function PublishForm({ mock }: { mock: boolean }) {
@@ -50,10 +51,10 @@ export function PublishForm({ mock }: { mock: boolean }) {
           </div>
         </div>
         <Button type="submit" variant="mono" disabled={busy !== null}>
-          {busy === "preview" ? <Loader2 className="animate-spin" /> : <Search />} {t("pf.preview")}
+          {busy === "preview" ? <Spinner size={16} /> : <Search />} {t("pf.preview")}
         </Button>
         <Button type="button" className="font-mono text-[11px] uppercase tracking-[0.14em]" onClick={() => run(false)} disabled={busy !== null || !preview || preview.scan.findings.some((f) => f.severity === "critical")}>
-          {busy === "publish" ? <Loader2 className="animate-spin" /> : <Rocket />} {t("pf.publish")}
+          {busy === "publish" ? <Spinner size={16} /> : <Rocket />} {t("pf.publish")}
         </Button>
       </form>
       {mock && (

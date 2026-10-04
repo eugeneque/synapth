@@ -3,11 +3,12 @@
 /** CheckMarkToggle — admin's per-row "grant / revoke check mark" in /dashboard/admin/users (no request needed). */
 
 import { useState, useTransition } from "react";
-import { BadgeCheck, BadgeX, Loader2 } from "lucide-react";
+import { BadgeCheck, BadgeX } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { setUserCheckMark } from "@/app/(site)/verification-actions";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 export function CheckMarkToggle({ userId, handle, initial, self }: { userId: string; handle: string; initial: boolean; self: boolean }) {
   const { t } = useI18n();
@@ -43,7 +44,7 @@ export function CheckMarkToggle({ userId, handle, initial, self }: { userId: str
       )}
     >
       {pending ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Spinner size={14} />
       ) : verified ? (
         <>
           <BadgeCheck className="h-3.5 w-3.5 group-hover/cm:hidden" />

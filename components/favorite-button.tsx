@@ -4,12 +4,13 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Heart, Loader2 } from "lucide-react";
+import { Heart } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { favoriteSkillset } from "@/app/(site)/skillset-actions";
 import type { FavoriteSummary } from "@/cortex/skillsets";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   skillsetId: string;
@@ -49,7 +50,7 @@ export function FavoriteButton({ skillsetId, slug, name, initial, signedIn, clas
 
   return (
     <button type="button" onClick={toggle} disabled={pending} aria-pressed={state.favorited} className={cn(base, state.favorited ? "border-synapse/50 bg-synapse/10 text-synapse" : "border-border bg-muted text-foreground hover:border-synapse/40 hover:text-synapse", className)}>
-      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={cn("h-4 w-4", state.favorited && "fill-current")} />}
+      {pending ? <Spinner size={16} /> : <Heart className={cn("h-4 w-4", state.favorited && "fill-current")} />}
       {state.favorited ? t("skillset.favorited") : t("skillset.favorite")}
       <span className={state.favorited ? "text-synapse/80" : "text-muted-foreground"}>· {state.favorites}</span>
     </button>

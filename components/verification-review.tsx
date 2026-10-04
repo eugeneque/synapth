@@ -8,12 +8,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Hand, Loader2, X } from "lucide-react";
+import { BadgeCheck, Hand, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { claimVerificationRequest, decideVerificationRequest } from "@/app/(site)/verification-actions";
 import { cn } from "@/lib/utils";
 import { VERIFICATION_NOTE_MAX, type VerificationRequest } from "@/types/verification";
+import { Spinner } from "@/components/ui/spinner";
 
 export function VerificationReview({ request, viewerId }: { request: VerificationRequest; viewerId: string }) {
   const { t } = useI18n();
@@ -54,7 +55,7 @@ export function VerificationReview({ request, viewerId }: { request: Verificatio
         <div className="flex flex-col gap-3 rounded-lg border border-warn/30 bg-warn/5 p-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-foreground/90">{request.reviewer ? t("verify.admin.claimedBy", { name: request.reviewer.name || request.reviewer.handle }) : t("verify.admin.claimHint")}</p>
           <button type="button" onClick={() => act("claim")} disabled={pending} className="inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border border-warn/40 px-3 font-mono text-[10px] uppercase tracking-[0.12em] text-warn transition-all hover:bg-warn/10 active:scale-[0.97] disabled:opacity-50">
-            {busy === "claim" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Hand className="h-3.5 w-3.5" />} {t("verify.admin.claim")}
+            {busy === "claim" ? <Spinner size={14} /> : <Hand className="h-3.5 w-3.5" />} {t("verify.admin.claim")}
           </button>
         </div>
       )}
@@ -69,10 +70,10 @@ export function VerificationReview({ request, viewerId }: { request: Verificatio
       </label>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => act("approve")} disabled={pending} className="inline-flex h-9 items-center gap-2 rounded-lg bg-synapse px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-synapse-foreground shadow-glow transition-all hover:-translate-y-px hover:shadow-glow-lg active:scale-[0.97] disabled:opacity-50">
-          {busy === "approve" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />} {t("verify.admin.approve")}
+          {busy === "approve" ? <Spinner size={14} /> : <BadgeCheck className="h-3.5 w-3.5" />} {t("verify.admin.approve")}
         </button>
         <button type="button" onClick={() => act("reject")} disabled={pending} className={cn("inline-flex h-9 items-center gap-2 rounded-lg border border-danger/30 px-4 font-mono text-[11px] uppercase tracking-[0.14em] text-danger transition-all hover:bg-danger/10 active:scale-[0.97] disabled:opacity-50")}>
-          {busy === "reject" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />} {t("verify.admin.reject")}
+          {busy === "reject" ? <Spinner size={14} /> : <X className="h-3.5 w-3.5" />} {t("verify.admin.reject")}
         </button>
       </div>
     </div>

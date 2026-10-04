@@ -16,6 +16,13 @@ export interface HeatmapStats {
   longestStreak: number;
 }
 
+/** Per-week sums of the day cells (oldest first) — the series behind the dithered sparkline. */
+export function weeklyTotals(cells: number[]): number[] {
+  const weeks: number[] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7).reduce((a, b) => a + b, 0));
+  return weeks;
+}
+
 export function bucketActivity(timestamps: string[], now = Date.now()): { cells: number[]; months: Array<{ index: number; label: string }>; stats: HeatmapStats } {
   const end = new Date(now);
   end.setUTCHours(0, 0, 0, 0);
