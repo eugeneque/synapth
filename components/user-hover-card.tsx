@@ -15,6 +15,7 @@ import { ArrowUpRight, Briefcase, Github, Globe, Rocket, ShieldCheck, User } fro
 import { useI18n } from "@/axon/i18n";
 import { ImpulseButton } from "@/components/impulse-button";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
 import type { UserCard } from "@/cortex/user-card";
 import type { BadgeTier } from "@/types/badges";
 import { cn, formatCompact } from "@/lib/utils";
@@ -231,6 +232,7 @@ function CardBody({ card, onImpulse }: { card: UserCard; onImpulse: (next: UserC
               {card.name}
             </Link>
             {card.verified && <VerifiedMark size="md" />}
+            {card.pro && <ProMark since={card.pro.since} size="md" />}
             {card.role !== "user" && <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" aria-label={t(`settings.role.${card.role}`)} />}
             {card.developer && <Rocket className="h-4 w-4 shrink-0 text-synapse" aria-label={t("settings.role.developer")} />}
           </div>

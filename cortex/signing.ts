@@ -50,7 +50,8 @@ export function canonicalJson(value: unknown): string {
 
 /** The files an agent receives for a skill: its manifest and, for prompt skills, the SKILL.md body. */
 export function skillFiles(skill: Pick<Skill, "manifest">, fullPrompt: string | null): SignedFile[] {
-  const { systemPromptTruncated: _t, ...manifest } = skill.manifest;
+  // Provenance of the permission list is catalogue analysis, not content: it never changes the hash an agent pins.
+  const { systemPromptTruncated: _t, permissionSource: _s, permissionEvidence: _e, ...manifest } = skill.manifest;
   const files: Array<Omit<SignedFile, "sha256">> = [{ path: "synapth.json", content: canonicalJson({ ...manifest, systemPrompt: fullPrompt ?? manifest.systemPrompt }) }];
   const prompt = fullPrompt ?? skill.manifest.systemPrompt;
   if (prompt) files.push({ path: "SKILL.md", content: prompt });

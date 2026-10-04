@@ -128,9 +128,14 @@ export interface Subscription {
   cancelAtPeriodEnd: boolean;
   /** Downgrades take effect from the next period. */
   pendingPlan: PlanId | null;
-  provider: PaymentProviderId;
+  /** `grant`: handed out by an admin, never charged and never renewed. */
+  provider: SubscriptionProvider;
   /** Saved payment method at the provider, for renewals. Never card data. */
   paymentMethodId: string | null;
+  /** Start of the current unbroken paid stretch («subscriber since»); upgrades and renewals keep it. */
+  subscribedSince: string;
+  /** Admin who granted the plan (`provider: "grant"`). */
+  grantedById: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -141,6 +146,22 @@ export interface Subscription {
 
 export const PAYMENT_PROVIDERS = ["yookassa", "cloudpayments", "mock"] as const;
 export type PaymentProviderId = (typeof PAYMENT_PROVIDERS)[number];
+/** Where a subscription came from: a payment provider, or an admin grant. */
+export type SubscriptionProvider = PaymentProviderId | "grant";
+
+/** Durations an admin may grant Pro for (months). */
+export const PRO_GRANT_MONTHS = [1, 3, 6, 12, 24] as const;
+export type ProGrantMonths = (typeof PRO_GRANT_MONTHS)[number];
+
+/** Plans that carry the Pro mark next to the name: Pro and everything above it. */
+export const PRO_MARK_PLANS: readonly PlanId[] = ["pro", "team", "business"];
+
+/** Public Pro status shown next to a name (the mark and its «subscriber since» tooltip). */
+export interface ProStatus {
+  plan: PlanId;
+  /** ISO start of the unbroken paid stretch. */
+  since: string;
+}
 
 export const PAYMENT_METHODS = ["card", "sbp", "invoice"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];

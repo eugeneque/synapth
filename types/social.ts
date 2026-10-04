@@ -6,6 +6,7 @@
  */
 
 import type { Occupation } from "@/types/profile";
+import type { ProStatus } from "@/types/billing";
 
 /** The public face of a user wherever content is attributed: feeds, comments, notifications. */
 export interface AuthorRef {
@@ -16,6 +17,8 @@ export interface AuthorRef {
   occupation: Occupation | null;
   /** Account check mark (types/verification.ts); absent on refs built without a user lookup. */
   verified?: boolean;
+  /** Live Pro-or-better plan → the Pro mark with «subscriber since»; absent otherwise. */
+  pro?: ProStatus | null;
 }
 
 /** How a viewer relates to a profile for impulses: signed out, the owner, or another member. */

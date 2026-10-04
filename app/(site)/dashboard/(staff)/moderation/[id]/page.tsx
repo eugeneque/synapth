@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Code2, ExternalLink, FileJson, Gavel, KeyRound, MessageSquareQuote, ShieldQuestion, Terminal } from "lucide-react";
+import { ArrowLeft, Code2, ExternalLink, FileJson, Gavel, KeyRound, MessageSquareQuote, Terminal } from "lucide-react";
 import { auth } from "@/cortex/auth";
 import { getRole } from "@/cortex/roles";
 import { getModerationRequest } from "@/cortex/moderation";
@@ -15,6 +15,7 @@ import { Panel } from "@/components/panel";
 import { Badge } from "@/components/ui/badge";
 import { SecurityBadge } from "@/components/security-badge";
 import { ToolSpec } from "@/components/tool-spec";
+import { PermissionsPanel } from "@/components/permissions-panel";
 import { Markdown } from "@/components/markdown";
 import { ReviewScanner } from "@/components/review-scanner";
 import { VerdictForm } from "@/components/verdict-form";
@@ -104,9 +105,6 @@ export default async function ReviewPage({ params }: Params) {
               {ep.type === "mcp-stdio" ? `${ep.command} ${(ep.args ?? []).join(" ")}` : ep.type === "prompt" ? t("skill.promptOnly") : ep.url}
             </code>
             <div className="space-y-1.5 text-xs text-muted-foreground">
-              <p className="flex items-center gap-1.5">
-                <ShieldQuestion className="h-3.5 w-3.5" /> {t("skill.permissions", { list: skill.manifest.permissions?.length ? skill.manifest.permissions.join(", ") : t("common.none") })}
-              </p>
               {skill.manifest.requiredEnv?.length ? (
                 <p className="flex items-center gap-1.5">
                   <KeyRound className="h-3.5 w-3.5" /> {t("skill.env", { list: skill.manifest.requiredEnv.join(", ") })}
@@ -114,6 +112,8 @@ export default async function ReviewPage({ params }: Params) {
               ) : null}
             </div>
           </Panel>
+
+          <PermissionsPanel skill={skill} />
 
           <ToolSpec skill={skill} />
 

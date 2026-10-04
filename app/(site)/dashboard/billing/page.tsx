@@ -66,7 +66,7 @@ export default async function BillingPage({ searchParams }: Search) {
 
       <BillingPanel
         currentPlan={plan.id}
-        subscription={live ? { period: live.period, seats: live.seats, cancelAtPeriodEnd: live.cancelAtPeriodEnd, pendingPlan: live.pendingPlan } : null}
+        subscription={live ? { period: live.period, seats: live.seats, cancelAtPeriodEnd: live.cancelAtPeriodEnd, pendingPlan: live.pendingPlan, granted: live.provider === "grant" } : null}
         rubProviders={providerOptions("RUB")}
         usdProviders={providerOptions("USD")}
         initialPlan={(PLAN_IDS as readonly string[]).includes(sp.plan ?? "") ? (sp.plan as PlanId) : null}

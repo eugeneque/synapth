@@ -14,6 +14,7 @@ import { useToast } from "@/axon/toast";
 import { removeComment, type ActionResult } from "@/app/(site)/social-actions";
 import { Avatar } from "@/components/avatar";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
 import { cn, timeAgo } from "@/lib/utils";
 import { COMMENT_MAX_LENGTH, type AuthorRef, type Comment } from "@/types/social";
 import { Spinner } from "@/components/ui/spinner";
@@ -77,6 +78,7 @@ export function CommentThread({ initial, viewer, canModerate = false, submit, si
                 {c.author.name || c.author.handle}
               </Link>
               {c.author.verified && <VerifiedMark size="sm" className="-ml-1" />}
+              {c.author.pro && <ProMark since={c.author.pro.since} size="sm" className="-ml-1" />}
               <span className="label-mono-sm normal-case tracking-normal">@{c.author.handle}</span>
               {c.author.occupation && <span className="label-mono-sm rounded bg-muted px-1.5">{t(`occupation.${c.author.occupation}`)}</span>}
               <span className="label-mono-sm ml-auto normal-case tracking-normal">{timeAgo(c.createdAt, i18n)}</span>

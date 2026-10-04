@@ -22,8 +22,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma, hasDatabase } from "@/cortex/db";
 import { billing } from "@/cortex/billing";
 import { availableProviders, PROVIDERS, type PaymentProvider, type WebhookEvent } from "@/cortex/payment-providers";
+import { effectiveStatus, getSubscriptionRow, paymentsMemory, saveSubscription, subFromDb } from "@/cortex/subscription-store";
 import {
-  DUNNING,
   PLANS,
   planPrice,
   TOPUP_MAX_USD,
@@ -37,7 +37,7 @@ import {
   type Subscription,
 } from "@/types/billing";
 
-const DAY = 86_400_000;
+export { effectiveStatus, getSubscriptionRow } from "@/cortex/subscription-store";
 
 export class PaymentError extends Error {
   constructor(
@@ -62,17 +62,12 @@ type PaymentRow = Payment & { metadata: PaymentMeta };
 // Storage
 // ---------------------------------------------------------------------------
 
-interface Store {
-  payments: PaymentRow[];
-  subs: Subscription[];
-}
-const g = globalThis as unknown as { __synapthPayments_v1?: Store };
-const mem: Store = g.__synapthPayments_v1 ?? (g.__synapthPayments_v1 = { payments: [], subs: [] });
+// Payment rows share the in-memory singleton with the subscription rows (cortex/subscription-store.ts).
+const mem = paymentsMemory as { payments: PaymentRow[]; subs: Subscription[] };
 
 const newId = (p: string) => `${p}_${randomBytes(8).toString("hex")}`;
 
 type DbPayment = Prisma.PaymentGetPayload<object>;
-type DbSub = Prisma.SubscriptionGetPayload<object>;
 
 const paymentFromDb = (r: DbPayment): PaymentRow => ({
   id: r.id,
@@ -93,23 +88,6 @@ const paymentFromDb = (r: DbPayment): PaymentRow => ({
   createdAt: r.createdAt.toISOString(),
   paidAt: r.paidAt?.toISOString() ?? null,
   metadata: (r.metadata ?? {}) as PaymentMeta,
-});
-
-const subFromDb = (r: DbSub): Subscription => ({
-  id: r.id,
-  userId: r.userId,
-  plan: r.plan as PlanId,
-  period: r.period as BillingPeriod,
-  seats: r.seats,
-  status: r.status as Subscription["status"],
-  currentPeriodStart: r.currentPeriodStart.toISOString(),
-  currentPeriodEnd: r.currentPeriodEnd.toISOString(),
-  cancelAtPeriodEnd: r.cancelAtPeriodEnd,
-  pendingPlan: (r.pendingPlan as PlanId | null) ?? null,
-  provider: r.provider as PaymentProviderId,
-  paymentMethodId: r.paymentMethodId,
-  createdAt: r.createdAt.toISOString(),
-  updatedAt: r.updatedAt.toISOString(),
 });
 
 async function findPayment(where: { id?: string; provider?: PaymentProviderId; providerPaymentId?: string }): Promise<PaymentRow | null> {
@@ -152,30 +130,6 @@ async function closePayment(id: string, status: PaymentStatus, failureReason: st
   return res.count === 1;
 }
 
-export async function getSubscriptionRow(userId: string): Promise<Subscription | null> {
-  if (!hasDatabase) return mem.subs.find((s) => s.userId === userId) ?? null;
-  const row = await prisma.subscription.findUnique({ where: { userId } });
-  return row ? subFromDb(row) : null;
-}
-
-async function saveSubscription(sub: Omit<Subscription, "id" | "createdAt" | "updatedAt"> & Partial<Pick<Subscription, "id">>): Promise<Subscription> {
-  const now = new Date().toISOString();
-  if (!hasDatabase) {
-    const existing = mem.subs.find((s) => s.userId === sub.userId);
-    if (existing) {
-      Object.assign(existing, sub, { id: existing.id, updatedAt: now });
-      return { ...existing };
-    }
-    const row: Subscription = { ...sub, id: sub.id ?? newId("sub"), createdAt: now, updatedAt: now };
-    mem.subs.push(row);
-    return { ...row };
-  }
-  const { id: _id, ...data } = sub;
-  const fields = { ...data, currentPeriodStart: new Date(sub.currentPeriodStart), currentPeriodEnd: new Date(sub.currentPeriodEnd) };
-  const row = await prisma.subscription.upsert({ where: { userId: sub.userId }, create: fields, update: fields });
-  return subFromDb(row);
-}
-
 // ---------------------------------------------------------------------------
 // Plan state
 // ---------------------------------------------------------------------------
@@ -185,15 +139,6 @@ export function addPeriod(fromIso: string, period: BillingPeriod): string {
   if (period === "year") d.setUTCFullYear(d.getUTCFullYear() + 1);
   else d.setUTCMonth(d.getUTCMonth() + 1);
   return d.toISOString();
-}
-
-/** Status as of `now`: the stored row only changes on events, time moves it along here. */
-export function effectiveStatus(sub: Subscription, now = Date.now()): Subscription["status"] {
-  if (sub.status === "canceled") return "canceled";
-  const end = Date.parse(sub.currentPeriodEnd);
-  if (now < end) return sub.status === "past_due" ? "past_due" : "active";
-  if (sub.cancelAtPeriodEnd) return "canceled";
-  return now < end + DUNNING.graceDays * DAY ? "grace" : "canceled";
 }
 
 /** The plan whose limits apply right now. */
@@ -219,7 +164,8 @@ export async function quotePlanChange(userId: string, plan: PlanId, period: Bill
   const price = planPrice(spec, period, seats);
   if (price === null) throw new PaymentError(`${plan} has no ${period} price`, 400, "no_price");
   const sub = await getSubscriptionRow(userId);
-  const active = sub && effectiveStatus(sub, now) !== "canceled" ? sub : null;
+  // An admin grant costs nothing, so it earns no proration credit: buying over it starts a paid period.
+  const active = sub && effectiveStatus(sub, now) !== "canceled" && sub.provider !== "grant" ? sub : null;
   const nowIso = new Date(now).toISOString();
   if (!active) return { change: "new", amount: price, effective: "now", periodEnd: addPeriod(nowIso, period) };
 
@@ -271,7 +217,7 @@ export async function startCheckout(userId: string, input: CheckoutInput, opts: 
     const keepPeriodEnd = quote.change === "upgrade" && input.period === current?.period;
     if (quote.amount === 0) {
       // Fully covered by the unused credit: apply without a payment.
-      await activate({ userId, plan: input.plan, period: input.period, seats, provider: current?.provider ?? "mock", paymentMethodId: null }, { change: quote.change === "upgrade" ? "upgrade" : "new", keepPeriodEnd });
+      await activate({ userId, plan: input.plan, period: input.period, seats, provider: current && current.provider !== "grant" ? current.provider : "mock", paymentMethodId: null }, { change: quote.change === "upgrade" ? "upgrade" : "new", keepPeriodEnd });
       return { kind: "noop" };
     }
     const provider = pickProvider("RUB", input.method, input.provider);
@@ -413,12 +359,14 @@ export async function settleMockPayment(userId: string, paymentId: string, outco
 export async function cancelSubscription(userId: string): Promise<Subscription> {
   const sub = await getSubscriptionRow(userId);
   if (!sub || effectiveStatus(sub) === "canceled") throw new PaymentError("No active subscription", 404, "not_found");
+  if (sub.provider === "grant") throw new PaymentError("A granted plan ends on its own", 409, "granted");
   return saveSubscription({ ...sub, cancelAtPeriodEnd: true, pendingPlan: null });
 }
 
 export async function resumeSubscription(userId: string): Promise<Subscription> {
   const sub = await getSubscriptionRow(userId);
   if (!sub || effectiveStatus(sub) === "canceled") throw new PaymentError("No active subscription", 404, "not_found");
+  if (sub.provider === "grant") throw new PaymentError("A granted plan ends on its own", 409, "granted");
   return saveSubscription({ ...sub, cancelAtPeriodEnd: false, pendingPlan: null });
 }
 
@@ -447,7 +395,7 @@ export async function renewDueSubscriptions(now = Date.now()): Promise<{ renewed
   let pastDue = 0;
   let ended = 0;
   for (const sub of subs) {
-    if (sub.cancelAtPeriodEnd || effectiveStatus(sub, now) === "canceled") {
+    if (sub.cancelAtPeriodEnd || sub.provider === "grant" || effectiveStatus(sub, now) === "canceled") {
       await saveSubscription({ ...sub, status: "canceled" });
       ended += 1;
       continue;

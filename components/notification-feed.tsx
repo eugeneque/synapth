@@ -20,6 +20,7 @@ import { useNotifications } from "@/axon/notifications";
 import { describeNotification } from "@/axon/notification-text";
 import { Avatar } from "@/components/avatar";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
 import { cn, timeAgo } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
 import type { Notification, NotificationChannel, NotificationFeed as Feed } from "@/types/social";
@@ -253,7 +254,8 @@ function NotificationCard({ n, viewerHandle, onRead, onDismiss, style }: { n: No
                 <Link href={`/u/${n.actor.handle}`} className="font-semibold text-foreground hover:underline" onClick={(e) => e.stopPropagation()}>
                   {n.actor.name || n.actor.handle}
                 </Link>
-                {n.actor.verified && <VerifiedMark size="sm" className="ml-1 align-[-2px]" />} <span className="text-muted-foreground">{text.verb}</span>
+                {n.actor.verified && <VerifiedMark size="sm" className="ml-1 align-[-2px]" />}
+                {n.actor.pro && <ProMark since={n.actor.pro.since} size="sm" className="ml-1 align-[1px]" />} <span className="text-muted-foreground">{text.verb}</span>
               </>
             ) : (
               <span className="font-semibold text-foreground">{text.title}</span>

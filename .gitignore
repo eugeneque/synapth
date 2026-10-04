@@ -15,6 +15,7 @@ prisma/*.db
 prisma/*.db-journal
 tsconfig.tsbuildinfo
 .test-catalog.json
+.test-catalog.versions/
 .images.env
 .next-isolated/
 .next-profile/

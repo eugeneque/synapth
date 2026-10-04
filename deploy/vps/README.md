@@ -12,6 +12,10 @@ has no host port and is reachable by the existing Traefik container through its
 external Docker network. The long-lived application process also runs the
 two-hour crawler scheduler, so no host cron service is needed.
 
+pgAdmin 4 runs in a separate container at `pga.localhost8081.ru`. It reaches
+PostgreSQL only through the internal `backend` network and has two independent
+authentication layers: Traefik Basic Auth and the pgAdmin login.
+
 ## 1. Prepare Ubuntu and the deployment user
 
 Run as a sudo-capable administrator. If Docker Engine and the Compose plugin are
@@ -54,10 +58,10 @@ set through `TRAEFIK_NETWORK`, `TRAEFIK_ENTRYPOINT`, and
 
 ## 2. Configure DNS and firewall
 
-Create an `A` record for `synapth.localhost8081.ru` pointing to the VPS. Add an
-`AAAA` record only if IPv6 is configured on the host. Allow inbound TCP 80 and
-443 for Traefik and the chosen SSH port. Do not open 3000 or 5432: Compose does
-not publish either port.
+Create `A` records for `synapth.localhost8081.ru` and
+`pga.localhost8081.ru` pointing to the VPS. Add `AAAA` records only if IPv6 is
+configured on the host. Allow inbound TCP 80 and 443 for Traefik and the chosen
+SSH port. Do not open 3000, 5050, or 5432: Compose does not publish these ports.
 
 ## 3. Create the runtime environment
 
@@ -76,12 +80,44 @@ Generate independent secrets on the VPS:
 openssl rand -hex 32
 openssl rand -base64 32
 openssl rand -hex 32
+openssl rand -base64 36
 ```
 
 Use the first value as `POSTGRES_PASSWORD`, the second as `AUTH_SECRET`, and the
 third as `SYNAPTH_CRON_SECRET`. Compose builds `DATABASE_URL` itself with the
 internal hostname `db`, so it must not be added to the VPS `.env`. Hex output is
 URL-safe and therefore does not need percent encoding in the generated URL.
+
+Use the fourth value as `PGADMIN_DEFAULT_PASSWORD`. This is the pgAdmin login
+password and must differ from the PostgreSQL password.
+
+Generate a separate Traefik Basic Auth credential. `htpasswd` prompts for its
+password and emits a BCrypt `$2y$...` hash:
+
+```bash
+sudo apt-get install -y apache2-utils
+PGADMIN_BASIC_AUTH_USERS=$(htpasswd -nB pgadmin)
+printf "PGADMIN_BASIC_AUTH_USERS='%s'\n" "$PGADMIN_BASIC_AUTH_USERS"
+unset PGADMIN_BASIC_AUTH_USERS
+```
+
+Put the complete result into `.env`, together with the pgAdmin account:
+
+```dotenv
+PGADMIN_DOMAIN=pga.localhost8081.ru
+PGADMIN_DEFAULT_EMAIL=admin@localhost8081.ru
+PGADMIN_DEFAULT_PASSWORD=<independent-random-password>
+PGADMIN_BASIC_AUTH_USERS='pgadmin:$2y$05$...'
+```
+
+Keep the Basic Auth value in single quotes. Docker Compose then reads the hash
+literally instead of treating its dollar-delimited BCrypt segments as variable
+references. Doubling dollar signs is needed only when a hash is written directly
+inside a Compose YAML label.
+
+Do not reuse the pgAdmin login password for Basic Auth. The default pgAdmin
+account is created only when `pgadmin_data` is initialized; changing these
+variables later does not change an existing account automatically.
 
 For email confirmation, configure `RESEND_API_KEY` and a verified `EMAIL_FROM`,
 then set `SYNAPTH_EMAIL_VERIFICATION=1`. With the example value `0`, password
@@ -169,12 +205,12 @@ the SSH key independently.
 A push to `main` starts the VPS workflow independently from Netlify. It runs the
 typecheck, linter, and tests; builds and publishes both images; copies the
 Compose and deployment files; starts PostgreSQL; applies the schema; replaces
-the app; and waits for `/api/health`.
+the app; starts pgAdmin; and waits for `/api/health`.
 
-The first deployment creates named volumes `synapth_postgres_data` and
-`synapth_crawl_data`. Application rollback restores the previous image if the
-health check fails. Database changes are intentionally additive, so an older
-application can continue using the updated schema.
+The first deployment creates named volumes `synapth_postgres_data`,
+`synapth_crawl_data`, and `synapth_pgadmin_data`. Application rollback restores
+the previous image if the health check fails. Database changes are intentionally
+additive, so an older application can continue using the updated schema.
 
 Useful server commands:
 
@@ -183,9 +219,20 @@ cd /opt/synapth
 docker compose --env-file .env --env-file .images.env ps
 docker compose --env-file .env --env-file .images.env logs -f --tail=200 app
 docker compose --env-file .env --env-file .images.env logs -f --tail=200 db
+docker compose --env-file .env --env-file .images.env logs -f --tail=200 pgadmin
 docker compose --env-file .env --env-file .images.env exec db \
   pg_dump -U synapth -d synapth -Fc > "synapth-$(date +%F).dump"
 ```
 
 Keep off-host backups of the PostgreSQL dump. Docker volumes survive container
 replacement but are not backups against disk or host loss.
+
+After signing in to pgAdmin, register the local database with these values:
+
+```text
+Host name/address: db
+Port:              5432
+Maintenance DB:    POSTGRES_DB (synapth by default)
+Username:          POSTGRES_USER (synapth by default)
+Password:          POSTGRES_PASSWORD from /opt/synapth/.env
+```

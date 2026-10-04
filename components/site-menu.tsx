@@ -24,6 +24,7 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import { SignOutButton } from "@/components/sign-out-button";
 import { SkillsetAvatar } from "@/components/skillset-avatar";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
 import { useI18n } from "@/axon/i18n";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
@@ -427,6 +428,7 @@ function HitRow({ hit: h, index, active, onHover, onPick, compact }: { hit: Glob
         <span className="flex items-center gap-1.5">
           <span className="truncate text-sm font-medium">{h.kind === "user" ? h.person.name || h.person.handle : h.name}</span>
           {h.kind === "user" && h.person.verified && <VerifiedMark size="sm" />}
+          {h.kind === "user" && h.person.pro && <ProMark since={h.person.pro.since} size="sm" />}
         </span>
         <span className="block truncate text-xs text-muted-foreground">
           {h.kind === "user" ? `@${h.person.handle}${h.bio ? ` · ${h.bio}` : ""}` : h.kind === "skill" ? h.authorName : `${h.author.name || h.author.handle} · ${n("skillset.entries", h.entries)}`}

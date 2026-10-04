@@ -10,6 +10,9 @@ import { RoleSelect } from "@/components/role-select";
 import { CheckMarkToggle } from "@/components/check-mark-toggle";
 import { DeveloperToggle } from "@/components/developer-toggle";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
+import { ProGrantControl } from "@/components/pro-grant-control";
+import { NO_PRO, proGrantStates } from "@/cortex/pro-grants";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -22,15 +25,17 @@ type Props = { searchParams: Promise<{ q?: string; role?: string }> };
 /** `role=developer` filters by the flag rather than by a stored role. */
 const DEVELOPER_FILTER = "developer";
 
-/** Admin panel · directory: find an account, change its role and the platform-developer flag. */
+/** Admin panel · directory: find an account, change its role, the platform-developer flag and granted Pro. */
 export default async function UsersPage({ searchParams }: Props) {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/dashboard/admin/users");
   const viewerRole = await getRole(session.user.id);
   if (!can(viewerRole, "users.manageRoles")) notFound();
   const canVerify = can(viewerRole, "users.verify");
+  const canGrantPro = can(viewerRole, "subscriptions.grant");
   const { q = "", role } = await searchParams;
   const [users, { t }] = await Promise.all([listUsers({ q: q.slice(0, 100), role: isUserRole(role) ? role : undefined, developer: role === DEVELOPER_FILTER, limit: 100 }), getI18n()]);
+  const plans = await proGrantStates(users.map((u) => u.id));
 
   return (
     <div className="space-y-6">
@@ -67,11 +72,13 @@ export default async function UsersPage({ searchParams }: Props) {
                   <a href={`/u/${u.handle}`} className="flex items-center gap-1.5 truncate font-medium hover:text-synapse">
                     {u.name || u.handle}
                     {u.verified && <VerifiedMark size="sm" />}
+                    {plans.get(u.id)?.active && plans.get(u.id)?.since && <ProMark since={plans.get(u.id)!.since!} size="sm" />}
                     <span className="font-mono text-xs text-muted-foreground">@{u.handle}</span>
                   </a>
                   <p className="label-mono-sm truncate normal-case tracking-normal">{u.email ?? "—"}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {canGrantPro && <ProGrantControl userId={u.id} handle={u.handle} initial={plans.get(u.id) ?? NO_PRO} />}
                   {canVerify && <CheckMarkToggle userId={u.id} handle={u.handle} initial={u.verified} self={u.id === session.user.id} />}
                   <DeveloperToggle userId={u.id} handle={u.handle} initial={u.developer} />
                   <RoleSelect userId={u.id} handle={u.handle} initial={u.role} self={u.id === session.user.id} />

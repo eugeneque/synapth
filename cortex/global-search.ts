@@ -50,7 +50,7 @@ export async function globalSearch(rawQuery: string, { limit = GLOBAL_SEARCH_LIM
     withSets ? listSkillsets({ q, sort: "popular", limit: 4 }) : Promise.resolve([]),
   ]);
 
-  const personHits: GlobalHit[] = people.map((p) => ({ kind: "user", id: p.id, person: { id: p.id, name: p.name, handle: p.handle, image: p.image, occupation: p.occupation, verified: p.verified }, bio: p.bio }));
+  const personHits: GlobalHit[] = people.map((p) => ({ kind: "user", id: p.id, person: { id: p.id, name: p.name, handle: p.handle, image: p.image, occupation: p.occupation, verified: p.verified, pro: p.pro }, bio: p.bio }));
   if (peopleOnly) return personHits.slice(0, limit);
 
   const starts = (h: GlobalHit) => h.kind === "user" && Boolean(needle) && (h.person.handle.toLowerCase().startsWith(needle) || h.person.name.toLowerCase().startsWith(needle));

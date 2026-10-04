@@ -15,6 +15,7 @@ import { useToast } from "@/axon/toast";
 import { commentOnPost, removePost } from "@/app/(site)/social-actions";
 import { Avatar } from "@/components/avatar";
 import { VerifiedMark } from "@/components/verified-mark";
+import { ProMark } from "@/components/pro-mark";
 import { CommentThread } from "@/components/comment-thread";
 import { PostReactions } from "@/components/post-reactions";
 import { PostCarousel } from "@/components/post-carousel";
@@ -96,6 +97,7 @@ export function PostCard({ post, viewer, canModerate, initialComments, onDelete,
                 {post.author.name || post.author.handle}
               </Link>
               {post.author.verified && <VerifiedMark size="sm" className="-ml-1" />}
+              {post.author.pro && <ProMark since={post.author.pro.since} size="sm" className="-ml-1" />}
               <span className="label-mono-sm normal-case tracking-normal">
                 @{post.author.handle} · {timeAgo(post.createdAt, i18n)}
               </span>

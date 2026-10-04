@@ -56,7 +56,7 @@ test("upgrade is prorated and immediate; downgrade waits for the period end; can
 
 test("a failed renewal keeps the plan through the grace window", () => {
   const now = Date.now();
-  const sub = { id: "s", userId: "u", plan: "pro" as const, period: "month" as const, seats: 1, status: "past_due" as const, currentPeriodStart: new Date(now - 40 * 86_400_000).toISOString(), currentPeriodEnd: new Date(now - 86_400_000).toISOString(), cancelAtPeriodEnd: false, pendingPlan: null, provider: "mock" as const, paymentMethodId: null, createdAt: "", updatedAt: "" };
+  const sub = { id: "s", userId: "u", plan: "pro" as const, period: "month" as const, seats: 1, status: "past_due" as const, currentPeriodStart: new Date(now - 40 * 86_400_000).toISOString(), currentPeriodEnd: new Date(now - 86_400_000).toISOString(), cancelAtPeriodEnd: false, pendingPlan: null, provider: "mock" as const, paymentMethodId: null, subscribedSince: "", grantedById: null, createdAt: "", updatedAt: "" };
   assert.equal(effectiveStatus(sub, now), "grace");
   assert.equal(effectiveStatus(sub, now + DUNNING.graceDays * 86_400_000), "canceled");
 });

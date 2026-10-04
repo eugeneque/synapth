@@ -24,14 +24,30 @@ export interface Principle {
   visual: VisualKind;
 }
 
+/** 02 — a real change from the catalogue (or the first stored version when nothing changed yet). */
+export interface DiffPreview {
+  header: string;
+  lines: Array<{ mark: " " | "+" | "−"; text: string }>;
+}
+
+/** 03 — one real entry's permissions and where each came from. */
+export interface PermissionsPreview {
+  name: string;
+  rows: Array<{ id: string; on: boolean; via: string | null }>;
+}
+
 export interface VisualData {
   targets: string[];
+  diff: DiffPreview | null;
+  permissions: PermissionsPreview | null;
+  permissionsPending: string;
   requested: string;
   denied: string;
   bars: number[];
   barsCaption: string;
   installs: number;
   installsLabel: string;
+  installsWeek: string;
   installsNote: string;
   numberLocale: string;
 }
@@ -103,13 +119,13 @@ function Visual({ kind, data, live, big }: { kind: VisualKind; data: VisualData;
     case "hub":
       return <HubVisual targets={data.targets} big={big} />;
     case "diff":
-      return <DiffVisual />;
+      return data.diff ? <DiffVisual diff={data.diff} /> : null;
     case "permissions":
-      return <PermissionsVisual requested={data.requested} denied={data.denied} />;
+      return data.permissions ? <PermissionsVisual preview={data.permissions} requested={data.requested} denied={data.denied} /> : <p className="about-mono text-[var(--text-2)]">{data.permissionsPending}</p>;
     case "bars":
       return <BarsVisual bars={data.bars} caption={data.barsCaption} locale={data.numberLocale} />;
     case "count":
-      return <CountVisual live={live} value={data.installs} label={data.installsLabel} note={data.installsNote} locale={data.numberLocale} />;
+      return <CountVisual live={live} value={data.installs} label={data.installsLabel} week={data.installsWeek} note={data.installsNote} locale={data.numberLocale} />;
   }
 }
 
@@ -149,27 +165,20 @@ function HubVisual({ targets, big }: { targets: string[]; big: boolean }) {
   );
 }
 
-/** 02 — a three-line diff that types itself in. */
-function DiffVisual() {
-  const lines: { mark: " " | "+"; text: string }[] = [
-    { mark: " ", text: "name: pdf-reading" },
-    { mark: "+", text: "tools: [extract_tables]" },
-    { mark: "+", text: "timeout_ms: 30000" },
-  ];
+/** 02 — the latest real manifest change in the catalogue, typing itself in. */
+function DiffVisual({ diff }: { diff: DiffPreview }) {
   let at = 250;
   return (
     <div className="rounded-xl border border-[var(--line)] bg-[hsl(var(--background)/0.6)] p-4 font-mono text-[12px] leading-6">
-      <div className="viz-pop mb-2 text-[var(--text-2)]">
-        v1.2.0 <span className="text-[var(--accent)]">→</span> v1.3.0
-      </div>
-      {lines.map((l) => {
+      <div className="viz-pop mb-2 truncate text-[var(--text-2)]">{diff.header}</div>
+      {diff.lines.map((l, i) => {
         const n = l.text.length + 2;
         const dur = n * 22;
         const style = { "--n": n, "--dur": `${dur}ms`, "--dl": `${at}ms` } as CSSProperties;
         at += dur + 120;
         return (
-          <span key={l.text} className={cn("viz-type", l.mark === "+" ? "text-[var(--text)]" : "text-[var(--text-2)]")} style={style}>
-            <span className={l.mark === "+" ? "text-[var(--accent)]" : undefined}>{l.mark}</span> {l.text}
+          <span key={`${i}${l.text}`} className={cn("viz-type", l.mark === " " ? "text-[var(--text-2)]" : "text-[var(--text)]")} style={style}>
+            <span className={l.mark === "+" ? "text-[var(--accent)]" : l.mark === "−" ? "text-[hsl(var(--danger))]" : undefined}>{l.mark}</span> {l.text}
           </span>
         );
       })}
@@ -177,23 +186,19 @@ function DiffVisual() {
   );
 }
 
-/** 03 — the permissions an MCP server asks for: lime = requested, grey = not. */
-function PermissionsVisual({ requested, denied }: { requested: string; denied: string }) {
-  const perms = [
-    { id: "read", on: true },
-    { id: "write", on: false },
-    { id: "network", on: true },
-  ];
+/** 03 — what one real entry asks for: lime = requested (with where it was found), grey = not. */
+function PermissionsVisual({ preview, requested, denied }: { preview: PermissionsPreview; requested: string; denied: string }) {
   return (
     <ul className="divide-y divide-[var(--line)] rounded-xl border border-[var(--line)] bg-[hsl(var(--background)/0.6)] font-mono text-[12px]">
-      {perms.map((p, i) => (
+      <li className="viz-pop truncate px-4 py-2 text-[11px] text-[var(--text-2)]">{preview.name}</li>
+      {preview.rows.map((p, i) => (
         <li key={p.id} className="flex items-center justify-between gap-4 px-4 py-2.5">
           <span className="flex items-center gap-3 text-[var(--text)]">
             <span className="viz-led" data-on={p.on} style={{ transitionDelay: `${200 + i * 220}ms` }} />
             {p.id}
           </span>
           <span className={cn("viz-pop lowercase", p.on ? "text-[var(--text)]" : "text-[var(--text-2)]")} style={{ transitionDelay: `${260 + i * 220}ms` }}>
-            {p.on ? requested : denied}
+            {p.on ? (p.via ? `${requested} · ${p.via}` : requested) : denied}
           </span>
         </li>
       ))}
@@ -229,7 +234,7 @@ function BarsVisual({ bars, caption, locale }: { bars: number[]; caption: string
 }
 
 /** 05 — the honest number, counted up on reveal. */
-function CountVisual({ live, value, label, note, locale }: { live: boolean; value: number; label: string; note: string; locale: string }) {
+function CountVisual({ live, value, label, week, note, locale }: { live: boolean; value: number; label: string; week: string; note: string; locale: string }) {
   const [shown, setShown] = useState(value);
   const started = useRef(false);
   useEffect(() => {
@@ -255,6 +260,7 @@ function CountVisual({ live, value, label, note, locale }: { live: boolean; valu
         {format(shown)}
         <span className="text-[var(--accent)]">*</span>
       </p>
+      <p className="about-mono mt-2 text-[var(--accent)]">{week}</p>
       <p className="about-mono mt-3 text-[11px] text-[var(--text-2)]">{note}</p>
     </div>
   );

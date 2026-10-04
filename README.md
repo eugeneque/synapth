@@ -1,6 +1,6 @@
 # Synapth
 
-EVOLVE
+EVOLVEE
 
 **Synapse + labyrinth.** Маркетплейс навыков, инструментов и MCP-серверов для ИИ-агентов. Индексирует, проверяет и раздаёт когнитивные модификации; агент может найти и установить их сам, без браузера.
 
@@ -56,6 +56,19 @@ Actions, публикует их в GHCR и обновляет приложен�
 работает в закрытой Docker-сети, а приложение доступно только через внешнюю
 сеть Traefik. Полная подготовка сервера, SSH-ключа, GitHub secrets и окружения —
 в [`deploy/vps/README.md`](deploy/vps/README.md).
+
+## CLI: переезд между агентами
+
+`synapth migrate` переносит то, что проект «знает» о себе, из Codex в Claude Code и обратно: инструкции (`AGENTS.md` в каждой папке ⇄ `CLAUDE.md`), MCP-серверы (`.codex/config.toml` ⇄ `.mcp.json`), промпты ⇄ слеш-команды и скиллы (`SKILL.md` — общий формат). Без `--apply` только показывает план; существующие файлы не перезаписываются, секреты из `env` не копируются (в новом конфиге — `${VAR}`, CLI перечисляет, что экспортировать).
+
+```bash
+curl -fsSL https://<host>/cli/synapth.mjs -o synapth.mjs
+node synapth.mjs migrate --from codex                  # план для текущего проекта
+node synapth.mjs migrate --from codex --apply          # записать
+node synapth.mjs migrate --from claude --scope user    # ~/.claude → ~/.codex
+```
+
+Из исходников: `npm run synapth -- migrate --from codex --dir ../my-app`.
 
 ## Каталог из GitHub
 

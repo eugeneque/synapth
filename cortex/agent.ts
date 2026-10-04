@@ -451,6 +451,9 @@ export async function getSkillCard(call: AgentCall, input: z.infer<typeof inputS
   return {
     skill: { ...itemRef(skill), description: skill.description, author: skill.authorName, repo: skill.repoUrl, tools: skill.manifest.tools.map((t) => t.name), requiredEnv: skill.manifest.requiredEnv ?? [], tokens: estimateTokens(skill) },
     permissions: skill.manifest.permissions ?? [],
+    // Where the list came from (declared / detected / assumed) and why each item is there — agents weigh a guess differently.
+    permissionSource: skill.manifest.permissionSource ?? null,
+    permissionEvidence: (skill.manifest.permissionEvidence ?? []).map((e) => ({ permission: e.permission, via: e.via, detail: e.detail })),
     contentHash: hash,
     scan: { outcome: scan.outcome, level: scan.level, score: scan.score, rulesVersion: scan.rulesVersion, findings: scan.findings.slice(0, 10).map((f) => ({ rule: f.rule, severity: f.severity, message: f.message })) },
     install: installHint(skill),
