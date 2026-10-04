@@ -128,6 +128,7 @@ export function PricingPlans({ current, signedIn }: Props) {
       l.privatePacks === null ? t("pro.f.packsUnlimited") : n("pro.f.packs", l.privatePacks),
       ...(l.ciRepos > 0 ? [isUnlimited(l.ciRepos) ? t("pro.f.ciUnlimited") : n("pro.f.ciRepos", l.ciRepos)] : []),
       n("pro.f.audit", l.auditDays),
+      isUnlimited(l.cliInstallsPerDay) ? t("pro.f.cliUnlimited") : t(l.cliBulk ? "pro.f.cliBulk" : "pro.f.cli", { d: fmt(l.cliDevices), n: fmt(l.cliInstallsPerDay) }),
       ...EXTRA[id].map((key) => t(key)),
     ];
   };
@@ -221,24 +222,9 @@ export function PricingPlans({ current, signedIn }: Props) {
                 </p>
                 {period === "year" && pro.price.year !== null && <p className="mt-1 font-mono text-xs text-synapse">{t("pro.hero.monthly", { price: formatMinor(Math.round(pro.price.year / 12 / 100) * 100, "RUB", locale) })}</p>}
               </div>
-
-              <ul className="flex flex-1 flex-col gap-2 text-[13px]">
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{n("pro.f.keys", l.keys)}</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{isUnlimited(l.requestsPerDay) ? t("pro.f.requestsUnlimited") : t("pro.f.requests", { n: fmt(l.requestsPerDay), r: fmt(l.resolvePerDay) })}</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{l.privatePacks === null ? t("pro.f.packsUnlimited") : n("pro.f.packs", l.privatePacks)}</li>
-                {l.ciRepos > 0 && <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{isUnlimited(l.ciRepos) ? t("pro.f.ciUnlimited") : n("pro.f.ciRepos", l.ciRepos)}</li>}
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{n("pro.f.audit", l.auditDays)}</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{isUnlimited(l.cliInstallsPerDay) ? t("pro.f.cliUnlimited") : t(l.cliBulk ? "pro.f.cliBulk" : "pro.f.cli", { d: fmt(l.cliDevices), n: fmt(l.cliInstallsPerDay) })}</li>
-                {EXTRA[id].map((key) => (
-                  <li key={key} className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-synapse" />{t(key)}</li>
-                ))}
-              </ul>
-
-              {current === id ? (
-                <Button variant="mono" disabled>{t("pro.current")}</Button>
-              ) : plan.selfServe ? (
-                <Button asChild variant={featured ? "default" : "mono"}>
-                  <Link href={id === "free" ? (signedIn ? "/dashboard/billing" : "/signup") : target}>{id === "free" ? t("pro.cta.free") : t("pro.cta.buy", { plan: t(`pro.plan.${id}`) })}</Link>
+              {current === "pro" ? (
+                <Button size="hero" variant="mono" disabled>
+                  {t("pro.current")}
                 </Button>
               ) : (
                 <Button asChild size="hero" className="shadow-[0_18px_40px_-14px_hsl(var(--synapse)/0.8)]">
@@ -414,6 +400,7 @@ function Compare({ reduced, fmt }: { reduced: boolean; fmt: (v: number) => strin
     { key: "pro.compare.packs", from: free.privatePacks, to: pro.privatePacks },
     { key: "pro.compare.ci", from: free.ciRepos, to: pro.ciRepos },
     { key: "pro.compare.audit", from: free.auditDays, to: pro.auditDays },
+    { key: "pro.compare.cli", from: free.cliInstallsPerDay, to: pro.cliInstallsPerDay },
   ];
   const show = (v: number | null) => (v === null || isUnlimited(v) ? "∞" : fmt(v));
   return (

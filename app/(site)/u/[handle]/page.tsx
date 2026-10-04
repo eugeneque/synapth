@@ -10,6 +10,7 @@ import { evaluateBadges, listBadges } from "@/cortex/badges";
 import { impulseSummary, listComments, listPosts } from "@/cortex/social";
 import { friendState, friendStates, listFriends, listRequests } from "@/cortex/friends";
 import { getI18n } from "@/cortex/locale";
+import { getProStatuses } from "@/cortex/subscription-store";
 import { ActivityHeatmap, HeatmapLegend, bucketActivity, weeklyTotals } from "@/components/activity-heatmap";
 import { Sparkline } from "@/components/dither-kit/sparkline";
 import { BadgeList } from "@/components/badge-list";

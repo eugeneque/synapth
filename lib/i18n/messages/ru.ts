@@ -1574,6 +1574,7 @@ export const ui: UiMessages = {
   "pro.compare.packs": "Приватные паки",
   "pro.compare.ci": "Репозитории в CI",
   "pro.compare.audit": "Журнал агентов, дней",
+  "pro.compare.cli": "Установок через CLI в день",
   "pro.why.pro.keys.title": "Ключ на каждого агента",
   "pro.why.pro.keys.body": "{keys} API-ключей, у каждого своя политика: уровень доверия, разрешённые права и лимит расходов в сутки. Отзыв — мгновенный.",
   "pro.why.pro.requests.title": "В {x} раз больше запросов",

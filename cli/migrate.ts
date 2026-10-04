@@ -1,10 +1,9 @@
 /**
- * Synapth CLI. Bundled by `scripts/build-cli.mjs` into a single
- * dependency-free file served at `/cli/synapth.mjs`:
+ * `synapth migrate` — the agent-to-agent migration command of the Synapth
+ * CLI (entry: cli/synapth.mjs, bundled by `scripts/build-cli.mjs`):
  *
- *   curl -fsSL https://<host>/cli/synapth.mjs -o synapth.mjs
- *   node synapth.mjs migrate --from codex            # preview
- *   node synapth.mjs migrate --from codex --apply    # write
+ *   synapth migrate --from codex            # preview
+ *   synapth migrate --from codex --apply    # write
  *
  * Planning lives in `lib/agent-migration.ts`; this file only reads the
  * disk, prints the plan and applies it. Nothing is written without --apply.
@@ -15,8 +14,6 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { AGENTS, planMigration, snapshotSpec, type AgentId, type MigrationOp, type MigrationOptions, type MigrationPlan, type MigrationScope, type MigrationSnapshot } from "../lib/agent-migration";
-
-const VERSION = "0.1.0";
 
 /** Directories never searched for nested instruction files. */
 const SKIP_DIRS = new Set(["node_modules", ".git", ".hg", ".svn", ".next", "dist", "build", "out", "target", "vendor", ".venv", "venv", "__pycache__", ".cache", ".turbo", "coverage"]);
@@ -30,11 +27,10 @@ const c = { bold: paint("1"), dim: paint("2"), red: paint("31"), green: paint("3
 const AGENT_ALIASES: Record<string, AgentId> = { codex: "codex", claude: "claude-code", "claude-code": "claude-code", cc: "claude-code" };
 const AGENT_LABEL: Record<AgentId, string> = { codex: "Codex", "claude-code": "Claude Code" };
 
-const HELP = `${c.bold("synapth")} ${VERSION} — Synapth command line
+export const MIGRATE_HELP = `${c.bold("synapth migrate")} — move an agent setup to another agent
 
 ${c.bold("Usage")}
   synapth migrate --from <agent> [--to <agent>] [--scope project|user] [--dir <path>] [--apply]
-  synapth help | version
 
 ${c.bold("migrate")}  moves what one coding agent knows about your project into another
   agents     codex, claude (claude-code)
@@ -230,12 +226,9 @@ function migrate(flags: Map<string, string | true>) {
   if (failed) process.exitCode = 1;
 }
 
-function main(argv: string[]) {
-  const { command, flags } = parseArgs(argv);
-  if (command === "version" || flags.has("version")) return void process.stdout.write(`${VERSION}\n`);
-  if (!command || command === "help" || flags.has("help")) return void process.stdout.write(HELP);
-  if (command === "migrate") return migrate(flags);
-  die(`Unknown command "${command}". Run: synapth help`);
+/** `synapth migrate …` (argv after "migrate"), called by the CLI entry. */
+export function runMigrate(argv: string[]): void {
+  const { flags } = parseArgs(argv);
+  if (flags.has("help")) return void process.stdout.write(MIGRATE_HELP);
+  migrate(flags);
 }
-
-main(process.argv.slice(2));
