@@ -12,7 +12,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Loader2, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { sendImpulse } from "@/app/(site)/social-actions";
@@ -77,7 +78,7 @@ export function ImpulseButton({ toId, handle, name, initial, viewer, size = "lg"
               ))}
           </span>
         )}
-        {pending ? <Loader2 className={cn("relative animate-spin", sm ? "h-3 w-3" : "h-5 w-5")} /> : <Zap className={cn("relative transition-transform duration-300", sm ? "h-3 w-3" : "h-5 w-5", lit && "fill-current", "group-hover/impulse:scale-110 group-active/impulse:scale-90")} />}
+        {pending ? <Spinner size={sm ? 12 : 20} className="relative" /> : <Zap className={cn("relative transition-transform duration-300", sm ? "h-3 w-3" : "h-5 w-5", lit && "fill-current", "group-hover/impulse:scale-110 group-active/impulse:scale-90")} />}
       </span>
       <span className={cn("flex min-w-0 flex-col items-start", sm && "flex-row items-center gap-1.5")}>
         <span className={cn("relative overflow-hidden font-display font-medium leading-none tracking-tight tabular-nums", sm ? "text-sm" : "h-8 text-[28px] leading-8", lit ? "text-synapse" : "text-foreground")}>
@@ -113,7 +114,7 @@ export function ImpulseButton({ toId, handle, name, initial, viewer, size = "lg"
     );
   }
   return (
-    <button type="button" onClick={toggle} disabled={pending} aria-pressed={lit} aria-label={`${caption} · ${state.total}`} className={shell}>
+    <button type="button" data-cuelume-toggle="" onClick={toggle} disabled={pending} aria-pressed={lit} aria-label={`${caption} · ${state.total}`} className={shell}>
       {body}
     </button>
   );

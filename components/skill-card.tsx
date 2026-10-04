@@ -7,6 +7,7 @@ import { SecurityBadge } from "@/components/security-badge";
 import { CategoryIcon } from "@/components/category-icon";
 import { InstallButton } from "@/components/install-button";
 import { Highlighted } from "@/components/highlighted";
+import { PixelHover } from "@/components/pixel-hover";
 import { useI18n } from "@/axon/i18n";
 import { cn, formatCompact, timeAgo } from "@/lib/utils";
 import type { Highlight } from "@/cortex/search";
@@ -60,7 +61,8 @@ export function SkillCard({ skill, highlights, layout = "grid" }: Props) {
 
   if (layout === "list") {
     return (
-      <article className="lift group relative flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 hover:border-foreground/25 sm:flex-row sm:items-center sm:gap-5">
+      <article className="lift group relative isolate flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 hover:border-foreground/25 sm:flex-row sm:items-center sm:gap-5">
+        <PixelHover />
         <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset", TILE[skill.category])}>
           <CategoryIcon category={skill.category} className="h-5 w-5" />
         </span>
@@ -83,7 +85,8 @@ export function SkillCard({ skill, highlights, layout = "grid" }: Props) {
   }
 
   return (
-    <article className="lift group relative flex flex-col rounded-2xl border border-border bg-card p-5 hover:border-foreground/25">
+    <article className="lift group relative isolate flex flex-col rounded-2xl border border-border bg-card p-5 hover:border-foreground/25">
+      <PixelHover />
       {/* Who shared it, and when. */}
       <header className="flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-1.5">

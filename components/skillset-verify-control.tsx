@@ -4,11 +4,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Loader2, ShieldOff } from "lucide-react";
+import { BadgeCheck, ShieldOff } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { verifySkillset } from "@/app/(site)/skillset-actions";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 export function SkillsetVerifyControl({ skillsetId, name, verified: initial, empty }: { skillsetId: string; name: string; verified: boolean; empty: boolean }) {
   const { t } = useI18n();
@@ -32,7 +33,7 @@ export function SkillsetVerifyControl({ skillsetId, name, verified: initial, emp
 
   return (
     <Button type="button" variant={verified ? "destructive" : "outline"} size="sm" onClick={toggle} disabled={pending || (!verified && empty)} title={!verified && empty ? t("skillset.verify.empty") : undefined}>
-      {pending ? <Loader2 className="animate-spin" /> : verified ? <ShieldOff /> : <BadgeCheck />}
+      {pending ? <Spinner size={16} /> : verified ? <ShieldOff /> : <BadgeCheck />}
       {t(verified ? "skillset.verify.revoke" : "skillset.verify.set")}
     </Button>
   );

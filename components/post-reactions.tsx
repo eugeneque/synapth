@@ -117,6 +117,7 @@ function ReactionChip({ reaction, bump, reduced, onClick, label }: { reaction: R
     <motion.button
       layout={!reduced}
       type="button"
+      data-cuelume-toggle=""
       onClick={onClick}
       aria-pressed={reaction.mine}
       aria-label={label}

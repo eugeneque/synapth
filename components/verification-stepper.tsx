@@ -7,11 +7,12 @@
  * the admin review page; a stage that changes between polls animates in.
  */
 
-import { Check, Clock, Loader2, X } from "lucide-react";
+import { Check, Clock, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { cn, timeAgo } from "@/lib/utils";
 import { VERIFICATION_STAGES, stageStates, type VerificationRequest, type VerificationStageState } from "@/types/verification";
 import type { UiKey } from "@/lib/i18n";
+import { Spinner } from "@/components/ui/spinner";
 
 const DOT: Record<VerificationStageState | "idle", string> = {
   idle: "border-border bg-surface-lowest text-muted-foreground/50",
@@ -46,7 +47,7 @@ export function VerificationStepper({ request, log = true, className }: { reques
               )}
               <span key={`${stage}-${state}`} className={cn("relative z-10 flex h-8 w-8 shrink-0 animate-pop-in items-center justify-center rounded-full border transition-colors duration-300", DOT[state])}>
                 {state === "active" && <span aria-hidden className="absolute inset-0 animate-impulse-halo rounded-full bg-synapse/30" />}
-                {state === "done" ? <Check className="h-4 w-4" /> : state === "failed" ? <X className="h-4 w-4" /> : state === "active" ? <Loader2 className="h-4 w-4 animate-spin" /> : state === "waiting" ? <Clock className="h-4 w-4 animate-pulse" /> : <span className="font-mono text-[11px]">{i + 1}</span>}
+                {state === "done" ? <Check className="h-4 w-4" /> : state === "failed" ? <X className="h-4 w-4" /> : state === "active" ? <Spinner size={16} /> : state === "waiting" ? <Clock className="h-4 w-4 animate-pulse" /> : <span className="font-mono text-[11px]">{i + 1}</span>}
               </span>
               <div className="min-w-0 pb-2 sm:pb-0">
                 <p className={cn("label-mono", state === "idle" ? "text-muted-foreground/60" : "text-foreground")}>{t(`verify.stage.${stage}`)}</p>

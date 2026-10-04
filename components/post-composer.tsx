@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
-import { ArrowLeft, Code2, ImagePlus, Loader2, Send, X } from "lucide-react";
+import { ArrowLeft, Code2, ImagePlus, Send, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { ImageError, prepareImage } from "@/axon/image";
@@ -26,6 +26,7 @@ import type { UiKey } from "@/lib/i18n";
 import { IMAGE_MIME_TYPES } from "@/types/profile";
 import type { GlobalSearchResponse } from "@/types/search";
 import { POST_IMAGE, POST_MAX_IMAGES, POST_MAX_LENGTH, type AuthorRef, type Post } from "@/types/social";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Photo {
   key: string;
@@ -304,7 +305,7 @@ export function PostComposer({ viewer, handle, onPublished }: { viewer: AuthorRe
                 <li key={photo.key} className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={photo.preview} alt="" className={cn("h-full w-full object-cover", !photo.id && "opacity-50")} />
-                  {!photo.id && <Loader2 className="absolute inset-0 m-auto h-4 w-4 animate-spin text-foreground" />}
+                  {!photo.id && <Spinner size={16} className="absolute inset-0 m-auto text-foreground" />}
                   <span className="absolute left-1 top-1 rounded bg-background/80 px-1 font-mono text-[9px] tabular-nums text-foreground/80">{i + 1}</span>
                   <button type="button" onClick={() => removePhoto(photo)} aria-label={t("posts.photoRemove")} className="absolute right-1 top-1 rounded-full bg-background/85 p-0.5 text-foreground transition-colors hover:text-danger">
                     <X className="h-3 w-3" />
@@ -340,7 +341,7 @@ export function PostComposer({ viewer, handle, onPublished }: { viewer: AuthorRe
               </span>
             </div>
             <button type="submit" disabled={!canPublish} className="inline-flex h-8 items-center gap-2 rounded-lg bg-synapse px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-synapse-foreground shadow-glow transition-all hover:shadow-glow-lg disabled:opacity-50 disabled:shadow-none">
-              {pending || uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} {t("posts.publish")}
+              {pending || uploading ? <Spinner size={14} /> : <Send className="h-3.5 w-3.5" />} {t("posts.publish")}
             </button>
           </div>
           <p className="mt-1.5 font-mono text-[10px] text-muted-foreground/70">{t("posts.hint")}</p>

@@ -19,6 +19,8 @@ import { ProMark } from "@/components/pro-mark";
 import type { UserCard } from "@/cortex/user-card";
 import type { BadgeTier } from "@/types/badges";
 import { cn, formatCompact } from "@/lib/utils";
+import { DitherAvatar } from "@/components/dither-kit/avatar";
+import { PALETTE } from "@/components/dither-kit/palette";
 
 const OPEN_DELAY_MS = 550;
 const CLOSE_DELAY_MS = 180;
@@ -175,7 +177,6 @@ const TIER_SEGMENT: Record<BadgeTier, string> = {
 
 function CardBody({ card, onImpulse }: { card: UserCard; onImpulse: (next: UserCard["impulses"]) => void }) {
   const { t } = useI18n();
-  const initial = (card.name || card.handle).trim()[0]?.toUpperCase() ?? "?";
   const links = [
     { href: `/u/${card.handle}`, icon: User, label: t("usercard.openProfile"), external: false },
     ...(card.website ? [{ href: card.website, icon: Globe, label: t("profile.about.website"), external: true }] : []),
@@ -210,7 +211,7 @@ function CardBody({ card, onImpulse }: { card: UserCard; onImpulse: (next: UserC
               // eslint-disable-next-line @next/next/no-img-element
               <img src={card.image} alt="" className="h-full w-full object-cover" />
             ) : (
-              initial
+              <DitherAvatar name={card.handle} fill={PALETTE.moss.line} animate={false} className="h-[78%] w-[78%]" />
             )}
           </span>
           {/* Achievement meter: one tick per catalogue badge, lit in the tier colour of each one earned. */}

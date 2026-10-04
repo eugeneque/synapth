@@ -8,13 +8,14 @@
  */
 
 import { useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from "react";
-import { Bold, Code, Heading2, ImagePlus, Italic, Link2, List, ListOrdered, Loader2, Quote, SquareCode, Strikethrough } from "lucide-react";
+import { Bold, Code, Heading2, ImagePlus, Italic, Link2, List, ListOrdered, Quote, SquareCode, Strikethrough } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { ImageError, prepareImage } from "@/axon/image";
 import { Markdown } from "@/components/markdown";
 import { cn } from "@/lib/utils";
 import type { UiKey } from "@/lib/i18n";
 import { IMAGE_MIME_TYPES } from "@/types/profile";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   value: string;
@@ -173,7 +174,7 @@ export function MarkdownEditor({ value, onChange, maxLength, onUploadImage, onEr
           })}
           <span className="mx-1 h-4 w-px bg-border" />
           <button type="button" onClick={() => fileInput.current?.click()} disabled={uploading > 0} title={t("editor.image")} aria-label={t("editor.image")} className="flex h-7 items-center gap-1.5 rounded-md px-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60">
-            {uploading > 0 ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+            {uploading > 0 ? <Spinner size={14} /> : <ImagePlus className="h-3.5 w-3.5" />}
             <span className="hidden font-mono text-[10px] uppercase tracking-[0.1em] sm:inline">{t("editor.image")}</span>
           </button>
           <input

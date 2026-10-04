@@ -7,13 +7,14 @@
  */
 
 import { useState, useTransition } from "react";
-import { Loader2, ScanSearch } from "lucide-react";
+import { ScanSearch } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { rescanEntry } from "@/app/(site)/moderation-actions";
 import { ScanReportView } from "@/components/scan-report";
 import type { ScanReport } from "@/lib/sandbox-scanner";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   skillId: string;
@@ -50,7 +51,7 @@ export function ReviewScanner({ skillId, initial }: Props) {
           </p>
         </div>
         <button type="button" onClick={rescan} disabled={busy} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-synapse/50 bg-synapse/10 px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-synapse hover:bg-synapse/20 disabled:opacity-50">
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanSearch className="h-3.5 w-3.5" />} {t("review.runScanner")}
+          {busy ? <Spinner size={14} /> : <ScanSearch className="h-3.5 w-3.5" />} {t("review.runScanner")}
         </button>
       </div>
       <ScanReportView report={scan.report} />

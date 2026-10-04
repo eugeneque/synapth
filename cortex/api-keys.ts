@@ -34,7 +34,8 @@ export const DEMO_API_KEY = "syn_demo_0000000000000000";
 
 export interface Caller {
   userId: string;
-  via: "session" | "api-key";
+  /** `cli-device` — a machine linked through the Synapth CLI (cortex/cli.ts), read-only catalogue scope. */
+  via: "session" | "api-key" | "cli-device";
   /** Null for sessions and the demo key. */
   keyId: string | null;
   /** When the key was issued: reports of keys younger than 7 days do not count in ratings (FR-AI-51). */

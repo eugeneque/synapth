@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
+import { Spinner } from "@/components/ui/spinner";
 
 /**
  * The query line of `/search`: debounced, mirrored into `?q=` (other params —
@@ -43,7 +44,7 @@ export function SearchPageInput({ placeholder }: { placeholder: string }) {
 
   return (
     <form role="search" onSubmit={(e) => e.preventDefault()} className="group flex h-14 w-full items-center gap-3 rounded-2xl border border-border bg-card px-5 transition-colors focus-within:border-synapse/60">
-      {pending ? <Loader2 className="h-5 w-5 shrink-0 animate-spin text-synapse" /> : <Search className="h-5 w-5 shrink-0 text-muted-foreground group-focus-within:text-synapse" />}
+      {pending ? <Spinner size={20} className="shrink-0 text-synapse" /> : <Search className="h-5 w-5 shrink-0 text-muted-foreground group-focus-within:text-synapse" />}
       <input
         id="registry-search"
         autoFocus

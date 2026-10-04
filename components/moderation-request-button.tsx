@@ -10,12 +10,13 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Hourglass, Loader2, Send, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Hourglass, Send, ShieldCheck } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { submitForModeration } from "@/app/(site)/moderation-actions";
 import { MODERATION_NOTE_MAX } from "@/types/moderation";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   skillId: string;
@@ -112,7 +113,7 @@ export function ModerationRequestButton({ skillId, slug, name, pendingId: initia
               {t("modreq.cancel")}
             </button>
             <button type="button" onClick={submit} disabled={busy} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-synapse/50 bg-synapse/10 px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-synapse hover:bg-synapse/20 disabled:opacity-50">
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} {t("modreq.send")}
+              {busy ? <Spinner size={14} /> : <Send className="h-3.5 w-3.5" />} {t("modreq.send")}
             </button>
           </div>
         </div>

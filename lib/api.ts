@@ -7,6 +7,7 @@ import { SandboxViolationError } from "@/lib/sandbox-scanner";
 import { GithubParseError } from "@/lib/github-parser";
 import { RateLimitError } from "@/cortex/rate-limit";
 import { BlockedUrlError } from "@/cortex/ssrf";
+import { CliError } from "@/cortex/cli";
 
 export function json<T>(data: T, init: ResponseInit = {}) {
   return NextResponse.json(data, init);
@@ -30,6 +31,10 @@ export function errorResponse(err: unknown) {
       { error: err.message, retryAfter: err.result.retryAfter },
       { status: 429, headers: { "Retry-After": String(err.result.retryAfter), "X-RateLimit-Limit": String(err.result.limit), "X-RateLimit-Remaining": "0" } },
     );
+  }
+  if (err instanceof CliError) {
+    const retryAfter = typeof err.extra.retryAfter === "number" ? { "Retry-After": String(err.extra.retryAfter) } : undefined;
+    return json({ error: err.message, code: err.code, ...err.extra }, { status: err.status, headers: retryAfter });
   }
   if (err instanceof BlockedUrlError) return json({ error: err.message }, { status: 400 });
   if (err instanceof HandleTakenError) return json({ error: err.message }, { status: 409 });

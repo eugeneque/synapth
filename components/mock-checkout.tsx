@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { Button } from "@/components/ui/button";
 import { settleMockAction } from "@/app/(site)/dashboard/billing/actions";
+import { Spinner } from "@/components/ui/spinner";
 
 /** Buttons of the local test checkout: what a provider's hosted page would do. */
 export function MockCheckout({ paymentId }: { paymentId: string }) {
@@ -23,7 +24,7 @@ export function MockCheckout({ paymentId }: { paymentId: string }) {
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => settle("succeeded")} disabled={pending}>
-          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {t("billing.mock.pay")}
+          {pending ? <Spinner size={16} /> : <Check className="h-4 w-4" />} {t("billing.mock.pay")}
         </Button>
         <Button variant="destructive" onClick={() => settle("failed")} disabled={pending}>
           <X className="h-4 w-4" /> {t("billing.mock.decline")}

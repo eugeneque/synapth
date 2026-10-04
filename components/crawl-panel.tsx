@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Play, Square, RefreshCw, Radar } from "lucide-react";
+import { Play, Square, RefreshCw, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { axon, AxonError, type CrawlStatus } from "@/axon/client";
 import { useI18n } from "@/axon/i18n";
+import { Spinner } from "@/components/ui/spinner";
 
 /** Dashboard control for the GitHub crawler: start / abort / live progress as a stdout stream. */
 export function CrawlPanel({ initial }: { initial: CrawlStatus }) {
@@ -57,7 +58,7 @@ export function CrawlPanel({ initial }: { initial: CrawlStatus }) {
           </Button>
         ) : (
           <Button size="sm" className="font-mono text-[11px] uppercase tracking-[0.14em]" disabled={busy} onClick={() => run(() => axon.crawl.start({ maxRepos, minStars, repos: repos.trim() ? repos.split(",").map((r) => r.trim()).filter(Boolean) : undefined }))}>
-            {busy ? <Loader2 className="animate-spin" /> : <Play />} {t("cp.run")}
+            {busy ? <Spinner size={16} /> : <Play />} {t("cp.run")}
           </Button>
         )}
         <Button variant="mono" size="sm" aria-label={t("common.refresh")} onClick={() => run(() => axon.crawl.status())}>

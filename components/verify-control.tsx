@@ -8,12 +8,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Loader2, ShieldOff } from "lucide-react";
+import { BadgeCheck, ShieldOff } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { verifySkill } from "@/app/(site)/moderation-actions";
 import type { SecurityLevel } from "@/types/skill";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   skillId: string;
@@ -59,7 +60,7 @@ export function VerifyControl({ skillId, name, level: initial, size = "lg", clas
         className,
       )}
     >
-      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : verified ? <ShieldOff className="h-4 w-4" /> : <BadgeCheck className="h-4 w-4" />}
+      {pending ? <Spinner size={16} /> : verified ? <ShieldOff className="h-4 w-4" /> : <BadgeCheck className="h-4 w-4" />}
       {verified ? t("moderation.revoke") : t("moderation.verify")}
     </button>
   );

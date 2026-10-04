@@ -10,7 +10,7 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowDown, ArrowUp, Loader2, Plus, Save, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Plus, Save, Trash2, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { removeSkillset, saveSkillset, uploadSkillsetDescriptionImage } from "@/app/(site)/skillset-actions";
@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { UiKey } from "@/lib/i18n";
 import { SKILLSET_DESCRIPTION_MAX, SKILLSET_IMAGE, SKILLSET_IMAGE_PATH, SKILLSET_ITEMS_MAX, SKILLSET_NAME_MAX, SKILLSET_SUMMARY_MAX, type SkillsetSkillRef } from "@/types/skillset";
+import { Spinner } from "@/components/ui/spinner";
 
 export interface SkillsetDraft {
   id: string;
@@ -113,7 +114,7 @@ export function SkillsetEditor({ initial, seed = [], canDelete = false }: { init
           <div className="flex flex-col gap-5 sm:flex-row">
             <div className="space-y-1.5">
               <Label>{t("skillset.editor.avatar")}</Label>
-              <AvatarPicker value={avatar} onChange={setAvatar} onError={(code) => fail(t(`settings.image.error.${code}` as UiKey))} initial={(name.trim()[0] ?? "S").toUpperCase()} />
+              <AvatarPicker value={avatar} onChange={setAvatar} onError={(code) => fail(t(`settings.image.error.${code}` as UiKey))} seed={name.trim() || "skillset"} tone="synapse" />
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-4">
               <div className="space-y-1.5">
@@ -199,14 +200,14 @@ export function SkillsetEditor({ initial, seed = [], canDelete = false }: { init
 
         <div className="flex flex-wrap items-center gap-2">
           <Button type="submit" disabled={saving || name.trim().length < 2}>
-            {saving ? <Loader2 className="animate-spin" /> : <Save />} {t(initial ? "skillset.editor.save" : "skillset.editor.create")}
+            {saving ? <Spinner size={16} /> : <Save />} {t(initial ? "skillset.editor.save" : "skillset.editor.create")}
           </Button>
           <Button asChild variant="ghost">
             <Link href={initial ? `/skillsets/${initial.slug}` : "/search?tab=skillsets"}>{t("skillset.editor.cancel")}</Link>
           </Button>
           {initial && canDelete && (
             <Button type="button" variant="destructive" onClick={destroy} disabled={deleting} className="ml-auto">
-              {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />} {t("skillset.editor.delete")}
+              {deleting ? <Spinner size={16} /> : <Trash2 />} {t("skillset.editor.delete")}
             </Button>
           )}
         </div>

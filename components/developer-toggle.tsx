@@ -3,11 +3,12 @@
 /** DeveloperToggle — admin's per-row "platform developer" switch in /dashboard/admin/users; the unique badge follows it. */
 
 import { useState, useTransition } from "react";
-import { Loader2, Rocket } from "lucide-react";
+import { Rocket } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { changeDeveloper } from "@/app/(site)/moderation-actions";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 export function DeveloperToggle({ userId, handle, initial }: { userId: string; handle: string; initial: boolean }) {
   const { t } = useI18n();
@@ -41,7 +42,7 @@ export function DeveloperToggle({ userId, handle, initial }: { userId: string; h
         developer ? "border-synapse/40 bg-synapse/10 text-synapse hover:border-danger/40 hover:bg-danger/10 hover:text-danger" : "border-border bg-muted text-muted-foreground hover:border-synapse/40 hover:text-synapse",
       )}
     >
-      {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+      {pending ? <Spinner size={14} /> : <Rocket className="h-3.5 w-3.5" />}
       {t("settings.role.developer")}
     </button>
   );

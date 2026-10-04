@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { AtSign, Flame, Heart, Loader2, Newspaper, Repeat, Sparkles, User, UserCheck, UserPlus, Users, Zap, type LucideIcon } from "lucide-react";
+import { AtSign, Flame, Heart, Newspaper, Repeat, Sparkles, User, UserCheck, UserPlus, Users, Zap, type LucideIcon } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { loadFeed, removePost } from "@/app/(site)/social-actions";
@@ -19,6 +19,7 @@ import { PostComposer } from "@/components/post-composer";
 import { Button } from "@/components/ui/button";
 import type { FeedItem, FeedPage, FeedReason, FeedTab } from "@/types/feed";
 import type { AuthorRef, Comment } from "@/types/social";
+import { Spinner } from "@/components/ui/spinner";
 
 const REASON_ICON: Record<FeedReason, LucideIcon> = {
   self: User,
@@ -106,7 +107,7 @@ export function HomeFeed({ tab, viewer, canModerate, initial }: Props) {
       {next !== null && (
         <div className="flex justify-center pt-2">
           <Button type="button" variant="outline" size="sm" onClick={more} disabled={loading} className="font-mono text-[11px] uppercase tracking-[0.14em]">
-            {loading && <Loader2 className="animate-spin" />} {t("feed.more")}
+            {loading && <Spinner size={16} />} {t("feed.more")}
           </Button>
         </div>
       )}

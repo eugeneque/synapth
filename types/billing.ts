@@ -28,6 +28,12 @@ export interface PlanLimits {
   ciRepos: number;
   /** Agent audit log retention. */
   auditDays: number;
+  /** Machines linked to the account through the Synapth CLI (types/cli.ts). */
+  cliDevices: number;
+  /** `synapth install` runs per UTC day, all devices together (a skillset counts once per entry). */
+  cliInstallsPerDay: number;
+  /** Whole skillsets in one command (`synapth install --set`) and `synapth update --all`. */
+  cliBulk: boolean;
 }
 
 export interface PlanSpec {
@@ -52,7 +58,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     perSeat: false,
     minSeats: 1,
     selfServe: true,
-    limits: { keys: 1, requestsPerDay: 1_000, resolvePerDay: 20, privatePacks: 3, ciRepos: 0, auditDays: 7 },
+    limits: { keys: 1, requestsPerDay: 1_000, resolvePerDay: 20, privatePacks: 3, ciRepos: 0, auditDays: 7, cliDevices: 1, cliInstallsPerDay: 15, cliBulk: false },
   },
   pro: {
     id: "pro",
@@ -61,7 +67,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     perSeat: false,
     minSeats: 1,
     selfServe: true,
-    limits: { keys: 5, requestsPerDay: 20_000, resolvePerDay: 500, privatePacks: null, ciRepos: 3, auditDays: 30 },
+    limits: { keys: 5, requestsPerDay: 20_000, resolvePerDay: 500, privatePacks: null, ciRepos: 3, auditDays: 30, cliDevices: 5, cliInstallsPerDay: 300, cliBulk: true },
   },
   team: {
     id: "team",
@@ -70,7 +76,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     perSeat: true,
     minSeats: 3,
     selfServe: true,
-    limits: { keys: 20, requestsPerDay: 100_000, resolvePerDay: 2_000, privatePacks: null, ciRepos: 20, auditDays: 180 },
+    limits: { keys: 20, requestsPerDay: 100_000, resolvePerDay: 2_000, privatePacks: null, ciRepos: 20, auditDays: 180, cliDevices: 25, cliInstallsPerDay: 2_000, cliBulk: true },
   },
   business: {
     id: "business",
@@ -79,7 +85,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     perSeat: false,
     minSeats: 1,
     selfServe: false,
-    limits: { keys: 100, requestsPerDay: UNLIMITED, resolvePerDay: UNLIMITED, privatePacks: null, ciRepos: UNLIMITED, auditDays: 365 },
+    limits: { keys: 100, requestsPerDay: UNLIMITED, resolvePerDay: UNLIMITED, privatePacks: null, ciRepos: UNLIMITED, auditDays: 365, cliDevices: UNLIMITED, cliInstallsPerDay: UNLIMITED, cliBulk: true },
   },
 };
 

@@ -8,13 +8,14 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Loader2, Plus, Search, X } from "lucide-react";
+import { Check, Plus, Search, X } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { CategoryIcon } from "@/components/category-icon";
 import { SecurityBadge } from "@/components/security-badge";
 import { cn } from "@/lib/utils";
 import type { Skill, SkillCategory } from "@/types/skill";
 import type { SkillsetSkillRef } from "@/types/skillset";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   open: boolean;
@@ -106,7 +107,7 @@ export function SkillPickerDialog({ open, onClose, selected, onToggle, full }: P
           <label className="flex h-10 items-center gap-2 rounded-lg border border-border bg-muted px-3 focus-within:border-synapse/60">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("skillset.picker.placeholder")} className="h-full w-full bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground/70" aria-label={t("skillset.picker.placeholder")} />
-            {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}
+            {loading && <Spinner size={16} className="shrink-0 text-muted-foreground" />}
           </label>
           <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("skillset.picker.kind")}>
             {KINDS.map((k) => (

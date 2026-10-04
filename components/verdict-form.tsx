@@ -8,12 +8,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Loader2, XCircle } from "lucide-react";
+import { BadgeCheck, XCircle } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { decideRequest } from "@/app/(site)/moderation-actions";
 import { MODERATION_NOTE_MAX, type ModerationVerdict } from "@/types/moderation";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 export function VerdictForm({ requestId, name, verifiable }: { requestId: string; name: string; verifiable: boolean }) {
   const { t } = useI18n();
@@ -57,10 +58,10 @@ export function VerdictForm({ requestId, name, verifiable }: { requestId: string
       </label>
       <div className="flex gap-2">
         <button type="button" onClick={() => decide("approve")} disabled={busy !== null || !verifiable} title={verifiable ? undefined : t("moderation.blocked")} className={cn(btn, "border-synapse/50 bg-synapse/10 text-synapse hover:bg-synapse/20")}>
-          {busy === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />} {t("review.approve")}
+          {busy === "approve" ? <Spinner size={16} /> : <BadgeCheck className="h-4 w-4" />} {t("review.approve")}
         </button>
         <button type="button" onClick={() => decide("reject")} disabled={busy !== null} className={cn(btn, "border-danger/40 bg-danger/10 text-danger hover:bg-danger/20")}>
-          {busy === "reject" ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} {t("review.reject")}
+          {busy === "reject" ? <Spinner size={16} /> : <XCircle className="h-4 w-4" />} {t("review.reject")}
         </button>
       </div>
       <p className="label-mono-sm normal-case leading-relaxed tracking-normal">{t("review.verdictHint")}</p>

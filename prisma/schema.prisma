@@ -2,7 +2,7 @@
 // Money columns are integer micro-dollars (see types/economy.ts).
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // Netlify builds on Ubuntu but runs functions on Amazon Linux (rhel-openssl-3.0.x).
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
@@ -53,33 +53,36 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts     Account[]
-  sessions     Session[]
-  skills       Skill[]
-  installs     Install[]
-  wallet       Wallet?
-  apiKeys      ApiKey[]
-  usageAsCaller UsageEvent[] @relation("UsageCaller")
-  usageAsCreator UsageEvent[] @relation("UsageCreator")
-  impulsesSent     Impulse[]      @relation("ImpulseFrom")
-  impulsesReceived Impulse[]      @relation("ImpulseTo")
-  followsSent      Follow[]       @relation("FollowFrom")
-  followsReceived  Follow[]       @relation("FollowTo")
-  posts            Post[]
-  postReactions    PostReaction[]
-  postImages       PostImage[]
-  comments         Comment[]
-  watches          SkillWatch[]
-  notifications    Notification[] @relation("NotificationUser")
-  badges           UserBadge[]
-  moderationRequests ModerationRequest[] @relation("ModerationRequester")
-  skillsets          Skillset[]         @relation("SkillsetAuthor")
-  skillsetFavorites  SkillsetFavorite[]
-  skillsetImages     SkillsetImage[]
+  accounts             Account[]
+  sessions             Session[]
+  skills               Skill[]
+  installs             Install[]
+  wallet               Wallet?
+  apiKeys              ApiKey[]
+  usageAsCaller        UsageEvent[]          @relation("UsageCaller")
+  usageAsCreator       UsageEvent[]          @relation("UsageCreator")
+  impulsesSent         Impulse[]             @relation("ImpulseFrom")
+  impulsesReceived     Impulse[]             @relation("ImpulseTo")
+  followsSent          Follow[]              @relation("FollowFrom")
+  followsReceived      Follow[]              @relation("FollowTo")
+  posts                Post[]
+  postReactions        PostReaction[]
+  postImages           PostImage[]
+  comments             Comment[]
+  watches              SkillWatch[]
+  notifications        Notification[]        @relation("NotificationUser")
+  badges               UserBadge[]
+  moderationRequests   ModerationRequest[]   @relation("ModerationRequester")
+  skillsets            Skillset[]            @relation("SkillsetAuthor")
+  skillsetFavorites    SkillsetFavorite[]
+  skillsetImages       SkillsetImage[]
   verificationRequests VerificationRequest[] @relation("VerificationApplicant")
   emailCode            EmailCode?
   subscription         Subscription?
   payments             Payment[]
+  cliLinkKey           CliLinkKey?
+  cliDevices           CliDevice[]
+  cliInstalls          CliInstallEvent[]
 }
 
 model Account {
@@ -232,13 +235,13 @@ model Skill {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  author    User           @relation(fields: [authorId], references: [id])
-  versions  SkillVersion[]
-  installs  Install[]
-  scans     SecurityScan[]
-  usage     UsageEvent[]
-  stats     SkillStats?
-  watchers  SkillWatch[]
+  author             User                @relation(fields: [authorId], references: [id])
+  versions           SkillVersion[]
+  installs           Install[]
+  scans              SecurityScan[]
+  usage              UsageEvent[]
+  stats              SkillStats?
+  watchers           SkillWatch[]
   moderationRequests ModerationRequest[]
   skillsetItems      SkillsetItem[]
 
@@ -288,16 +291,16 @@ model Install {
 }
 
 model SecurityScan {
-  id        String        @id @default(cuid())
-  skillId   String
-  version   String
-  level     SecurityLevel
+  id             String        @id @default(cuid())
+  skillId        String
+  version        String
+  level          SecurityLevel
   /// Array of ScanFinding (see lib/sandbox-scanner.ts)
-  findings  Json
+  findings       Json
   scannerVersion String
   /// Moderator/admin who set the level by hand; null for automated scans.
-  reviewedBy String?
-  createdAt DateTime      @default(now())
+  reviewedBy     String?
+  createdAt      DateTime      @default(now())
 
   skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
@@ -339,13 +342,13 @@ model Wallet {
 }
 
 model LedgerEntry {
-  id          String          @id @default(cuid())
-  walletId    String
-  type        LedgerEntryType
+  id           String          @id @default(cuid())
+  walletId     String
+  type         LedgerEntryType
   amountMicros BigInt
-  executionId String?
-  memo        String
-  createdAt   DateTime        @default(now())
+  executionId  String?
+  memo         String
+  createdAt    DateTime        @default(now())
 
   wallet    Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
   execution UsageEvent? @relation(fields: [executionId], references: [id])
@@ -411,29 +414,25 @@ model IdempotencyRecord {
 
 /// One live subscription per account; Free is the absence of a row (or a canceled one).
 model Subscription {
-  id                 String    @id @default(cuid())
-  userId             String    @unique
+  id                 String   @id @default(cuid())
+  userId             String   @unique
   /// PlanId: free | pro | team | business
   plan               String
   /// month | year
   period             String
-  seats              Int       @default(1)
+  seats              Int      @default(1)
   /// active | past_due | grace | canceled
   status             String
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
-  cancelAtPeriodEnd  Boolean   @default(false)
+  cancelAtPeriodEnd  Boolean  @default(false)
   /// Downgrade scheduled for the next period.
   pendingPlan        String?
   provider           String
   /// Saved method at the provider (token id), for renewals. Never card data.
   paymentMethodId    String?
-  /// Start of the unbroken paid stretch («subscriber since»); null on rows older than the field → createdAt.
-  subscribedSince    DateTime?
-  /// Admin who granted the plan (provider = "grant").
-  grantedById        String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -798,4 +797,54 @@ model EmailCode {
   sentAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Synapth CLI (cortex/cli.ts): one link key per user, shown once, stored as SHA-256.
+model CliLinkKey {
+  userId     String    @id
+  keyHash    String    @unique
+  prefix     String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// A machine linked through `synapth link`; the device token is stored as SHA-256.
+model CliDevice {
+  id          String    @id
+  userId      String
+  name        String
+  platform    String
+  arch        String
+  cliVersion  String
+  /// SHA-256 of userId + the CLI's machine id: re-linking a machine replaces its row.
+  machineHash String
+  tokenHash   String    @unique
+  prefix      String
+  createdAt   DateTime  @default(now())
+  lastSeenAt  DateTime?
+  revokedAt   DateTime?
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installs CliInstallEvent[]
+
+  @@index([userId, revokedAt])
+}
+
+/// One entry installed through the CLI — the daily quota counts these.
+model CliInstallEvent {
+  id        String   @id
+  userId    String
+  deviceId  String
+  skillId   String
+  target    String
+  /// "cli" — typed by a person; "mcp" — requested by their agent through `synapth mcp`.
+  via       String   @default("cli")
+  createdAt DateTime @default(now())
+
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device CliDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

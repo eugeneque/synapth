@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileDown, LayoutGrid, Loader2, Rows3, SearchX, ShieldCheck, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { FileDown, LayoutGrid, Rows3, SearchX, ShieldCheck, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { SearchBar } from "@/components/search-bar";
 import { CategoryPills } from "@/components/category-pills";
 import { SortControl } from "@/components/sort-control";
@@ -15,6 +15,7 @@ import { useI18n } from "@/axon/i18n";
 import { rich } from "@/lib/i18n/rich";
 import { cn } from "@/lib/utils";
 import { PUBLIC_SECURITY_LEVELS, type SecurityLevel, type SkillCategory, type SkillSource, type SortMode } from "@/types/skill";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   initial: SearchResponse;
@@ -227,7 +228,7 @@ export function SkillStorefront({ initial, initialSort, initialCategory, initial
       <section className="flex min-w-0 flex-col gap-5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-synapse" />}
+            {loading && <Spinner size={14} className="text-synapse" />}
             <span>
               {n("sf.matching", result.total, { n: result.total.toLocaleString("en") })}
               {hasQuery && <span className="opacity-60"> · {result.tookMs} ms</span>}
@@ -270,7 +271,7 @@ export function SkillStorefront({ initial, initialSort, initialCategory, initial
           <span className="text-xs text-muted-foreground [&_strong]:font-medium [&_strong]:text-foreground">{rich(t("sf.showing", { shown: visibleHits.length, total: result.total.toLocaleString("en") }))}</span>
           {result.hits.length < result.total && sort !== "hidden-gems" ? (
             <Button variant="outline" onClick={loadMore} disabled={loading} className="rounded-full px-6">
-              {loading && <Loader2 className="animate-spin" />} {t("sf.loadNext", { n: Math.min(PAGE, result.total - result.hits.length) })}
+              {loading && <Spinner size={16} />} {t("sf.loadNext", { n: Math.min(PAGE, result.total - result.hits.length) })}
             </Button>
           ) : (
             <span className="text-xs text-muted-foreground/70">{t("sf.endOfIndex")}</span>

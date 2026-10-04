@@ -7,12 +7,13 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useI18n } from "@/axon/i18n";
 import { useToast } from "@/axon/toast";
 import { watchSkill } from "@/app/(site)/social-actions";
 import type { WatchSummary } from "@/cortex/social";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   skillId: string;
@@ -54,7 +55,7 @@ export function WatchButton({ skillId, slug, name, initial, signedIn, size = "lg
 
   return (
     <button type="button" onClick={toggle} disabled={pending} aria-pressed={state.watching} className={cn(base, state.watching ? "border-synapse/50 bg-synapse/10 text-synapse" : "border-border bg-muted text-foreground hover:border-synapse/40 hover:text-synapse", className)}>
-      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : state.watching ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      {pending ? <Spinner size={16} /> : state.watching ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       {state.watching ? t("watch.watching") : t("watch.watch")}
       <span className={cn(state.watching ? "text-synapse/80" : "text-muted-foreground")}>· {state.watchers}</span>
     </button>
