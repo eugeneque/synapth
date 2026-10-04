@@ -112,7 +112,7 @@ function paginate<T>(items: T[], q: SkillQuery): Paginated<T> {
  * a floor every request rebuilt its own copy of the index (and of the whole
  * catalogue) in parallel, which is how a long-lived server ran out of memory.
  */
-const INDEX_MIN_REBUILD_MS = 60_000;
+const INDEX_MIN_REBUILD_MS = 5 * 60_000;
 
 class IndexCache {
   private index: SearchIndex | null = null;
@@ -502,7 +502,7 @@ class FileSkillRepository implements SkillRepository {
 
 const skillInclude = { author: { select: { name: true, handle: true } }, stats: true } satisfies Prisma.SkillInclude;
 /** Floor between catalogue reloads in `PrismaSkillRepository.all()` (see `INDEX_MIN_REBUILD_MS`). */
-const SNAPSHOT_MIN_REFRESH_MS = 60_000;
+const SNAPSHOT_MIN_REFRESH_MS = 5 * 60_000;
 /** Reload an unchanged catalogue after this long anyway (stats, install velocity). */
 const SNAPSHOT_MAX_AGE_MS = 10 * 60_000;
 type SkillRow = Prisma.SkillGetPayload<{ include: typeof skillInclude }>;
