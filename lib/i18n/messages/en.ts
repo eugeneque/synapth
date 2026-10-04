@@ -1594,6 +1594,7 @@ export const ui = {
   "pro.compare.packs": "Private packs",
   "pro.compare.ci": "CI repositories",
   "pro.compare.audit": "Agent log, days",
+  "pro.compare.cli": "CLI installs a day",
   "pro.why.pro.keys.title": "A key per agent",
   "pro.why.pro.keys.body": "{keys} API keys, each with its own policy: trust level, allowed permissions and a daily spend cap. Revocation is instant.",
   "pro.why.pro.requests.title": "{x}× the agent quota",

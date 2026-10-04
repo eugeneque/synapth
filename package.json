@@ -19,12 +19,13 @@
     "db:seed": "prisma db seed",
     "db:sync": "node --env-file-if-exists=.env scripts/db-sync.mjs",
     "role": "node --env-file-if-exists=.env --import tsx scripts/set-role.ts",
+    "pretest": "node scripts/build-cli.mjs",
     "test": "rm -f .test-catalog.json && SYNAPTH_LLM=0 SYNAPTH_CATALOG_PATH=.test-catalog.json tsx --test tests/*.test.ts",
     "crawl": "node --env-file-if-exists=.env --import tsx scripts/crawl.ts",
     "rescan": "node --env-file-if-exists=.env --import tsx scripts/rescan.ts",
     "setup": "node scripts/install.mjs",
     "cli:build": "node scripts/build-cli.mjs",
-    "synapth": "tsx cli/synapth.ts"
+    "synapth": "tsx cli/synapth.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Synapth CLI — links this machine to a Synapth account, installs catalogue
  * entries (skills, MCP servers, skillsets) into local agents, and runs the
@@ -9,7 +8,8 @@
  *   synapth setup                 # link, pick an agent, connect Synapth MCP
  *   synapth install <slug>        # or just `synapth` for the interactive menu
  *
- * Zero dependencies, Node 18+. The server decides plan, quota and trust; this
+ * Bundled by `scripts/build-cli.mjs` (with `synapth migrate`, cli/migrate.ts)
+ * into one dependency-free file served at /cli/synapth.mjs; Node 18+. The server decides plan, quota and trust; this
  * file renders its answers and applies install bundles, which are data
  * (directories to copy, `mcpServers` entries) — nothing from the server is
  * ever executed as shell. In `mcp serve` mode stdout belongs to JSON-RPC and
@@ -23,6 +23,7 @@ import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
+import { runMigrate } from "./migrate.ts";
 
 const VERSION = "0.2.0";
 const HOME = process.env.SYNAPTH_HOME || path.join(os.homedir(), ".synapth");
@@ -1315,7 +1316,7 @@ async function cmdUpgrade(cfg) {
   const self = selfPath();
   fs.writeFileSync(`${self}.new`, code, { mode: 0o755 });
   fs.renameSync(`${self}.new`, self);
-  const next = code.match(/const VERSION = "([^"]+)"/)?.[1] ?? "?";
+  const next = code.match(/(?:const|let|var) VERSION = "([^"]+)"/)?.[1] ?? "?";
   await sparkle(next === VERSION ? `Already on ${VERSION}` : `Updated ${VERSION} → ${next}`);
 }
 
@@ -1763,6 +1764,7 @@ ${c.dim("SKILLS")}
 
 ${c.dim("AGENTS")}
   ${c.lime("mcp")} [add|remove|serve]                 let agents install skills themselves
+  ${c.lime("migrate")} --from codex|claude [--apply]  move instructions, MCP servers & skills to another agent
 
 ${c.dim("ACCOUNT")}
   ${c.lime("status")} [--json] · ${c.lime("config")} [key value] · ${c.lime("unlink")} · ${c.lime("upgrade")}
@@ -1788,6 +1790,8 @@ async function main() {
   ARGS = parseArgs(process.argv.slice(2));
   const cmd = ARGS._[0];
   if (ARGS.version || cmd === "version") return print(VERSION);
+  // migrate parses its own flags (cli/migrate.ts).
+  if (cmd === "migrate") return runMigrate(process.argv.slice(process.argv.indexOf("migrate") + 1));
   if (ARGS.help || cmd === "help") return print(HELP());
   const cfg = loadConfig();
   CFG = cfg;

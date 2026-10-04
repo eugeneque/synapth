@@ -414,25 +414,29 @@ model IdempotencyRecord {
 
 /// One live subscription per account; Free is the absence of a row (or a canceled one).
 model Subscription {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
+  id                 String    @id @default(cuid())
+  userId             String    @unique
   /// PlanId: free | pro | team | business
   plan               String
   /// month | year
   period             String
-  seats              Int      @default(1)
+  seats              Int       @default(1)
   /// active | past_due | grace | canceled
   status             String
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
-  cancelAtPeriodEnd  Boolean  @default(false)
+  cancelAtPeriodEnd  Boolean   @default(false)
   /// Downgrade scheduled for the next period.
   pendingPlan        String?
   provider           String
   /// Saved method at the provider (token id), for renewals. Never card data.
   paymentMethodId    String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  /// Start of the unbroken paid stretch («subscriber since»); null on rows older than the field → createdAt.
+  subscribedSince    DateTime?
+  /// Admin who granted the plan (provider = "grant").
+  grantedById        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

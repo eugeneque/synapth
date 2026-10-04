@@ -1574,6 +1574,7 @@ export const ui: UiMessages = {
   "pro.compare.packs": "私有包",
   "pro.compare.ci": "CI 仓库",
   "pro.compare.audit": "智能体日志（天）",
+  "pro.compare.cli": "每日 CLI 安装次数",
   "pro.why.pro.keys.title": "每个智能体一个密钥",
   "pro.why.pro.keys.body": "{keys} 个 API 密钥，各有独立策略：信任级别、允许的权限和每日支出上限。吊销即时生效。",
   "pro.why.pro.requests.title": "{x} 倍的请求配额",
