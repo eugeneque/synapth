@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CliError, cliRecommend, cliStatus, getLinkKey, installForDevice, issueLinkKey, linkDevice, listDevices, requireDevice, resetCliForTests, revokeDevice, revokeLinkKey, type MachineInfo } from "@/cortex/cli";
+import { CliError, cliRecommend, cliSearch, cliStatus, getLinkKey, installForDevice, issueLinkKey, linkDevice, listDevices, requireDevice, resetCliForTests, revokeDevice, revokeLinkKey, type MachineInfo } from "@/cortex/cli";
 import { resetPaymentsForTests, settleMockPayment, startCheckout } from "@/cortex/payments";
 import { cliBundle, isSafeRelativePath, safeSegment } from "@/lib/cli-bundle";
 import { skillRepository } from "@/cortex/repository";
@@ -193,4 +193,13 @@ test("installer: no bare $VAR right before a non-ASCII byte (bash 3.2 in a UTF-8
   const script = await (await GET(new Request("http://localhost:3000/cli/install"))).text();
   assert.ok(script.startsWith("#!/bin/sh"));
   assert.deepEqual(script.match(/\$[A-Za-z_][A-Za-z0-9_]*(?=[^\x00-\x7f])/g) ?? [], []);
+});
+
+test("search returns matching skillsets with their entries, alongside single entries", async () => {
+  const res = await cliSearch("team-ops", 10);
+  const set = res.skillsets.find((k) => k.slug === "team-ops");
+  assert.ok(set, "the demo skillset is found by slug");
+  assert.ok(set.total > 0 && set.entries.length > 0);
+  assert.ok(set.entries.every((e) => e.slug && e.securityLevel !== "Quarantine"));
+  assert.ok(Array.isArray(res.results), "single-entry rows keep their shape");
 });

@@ -119,6 +119,29 @@ export interface CliRecommendation {
   items: Array<{ slug: string; name: string; trust: string; category: string }>;
 }
 
+/** One catalogue row in `GET /api/v1/cli/search`. */
+export interface CliSearchRow {
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  securityLevel: string;
+  version: string;
+  entrypoint: string;
+}
+
+/** A skillset (pack) matching a search; installs whole by `install_skill { slug, skillset: true }`. */
+export interface CliSkillsetRow {
+  slug: string;
+  name: string;
+  summary: string;
+  verified: boolean;
+  favorites: number;
+  entries: Array<{ slug: string; name: string; securityLevel: string }>;
+  /** Installable entries in the set (`entries` is capped). */
+  total: number;
+}
+
 /** Why an entry cannot be installed locally. */
 export type CliSkipReason = "sandbox" | "http" | "unsupported" | "target";
 
