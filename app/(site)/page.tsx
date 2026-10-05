@@ -181,9 +181,6 @@ export default async function HomePage() {
               {t("common.exploreRegistry")} <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
           </Reveal>
-          <Reveal className="mt-8 w-full max-w-2xl">
-            <CliInstall origin={APP_URL} />
-          </Reveal>
 
           <div className="pointer-events-none absolute inset-x-6 bottom-5 hidden justify-center md:flex">
             <span className="label-mono-sm tracking-[0.2em]">{t("home.hero.hint")}</span>
@@ -201,7 +198,23 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 3 — How it works: text and the three steps on the left, the synapse graph of real entries on the right. */}
+      {/* 3 — Install: the CLI terminal lives here, below the hero, so nothing overlaps the hands. */}
+      <section id="install" className="about-section container scroll-mt-16">
+        <div className="mx-auto mb-10 max-w-2xl text-center">
+          <p className="about-mono about-eyebrow mb-5 justify-center">
+            <Scramble text={t("home.install.label")} />
+          </p>
+          <GhostText as="h2" text={t("home.install.title")} className="about-h2" />
+          <Reveal className="mt-6">
+            <p className="about-body text-balance">{t("home.install.lead")}</p>
+          </Reveal>
+        </div>
+        <Reveal className="mx-auto w-full max-w-3xl">
+          <CliInstall origin={APP_URL} />
+        </Reveal>
+      </section>
+
+      {/* 4 — How it works: text and the three steps on the left, the synapse graph of real entries on the right. */}
       <section className="about-section container grid items-center gap-12 xl:grid-cols-12 xl:gap-6">
         <div className="xl:col-span-5">
           <p className="about-mono about-eyebrow mb-5">
@@ -246,7 +259,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 4 — The lime flash: why Synapth exists, answered with the quote and the migration CLI. */}
+      {/* 5 — The lime flash: why Synapth exists, answered with the quote and the migration CLI. */}
       <FlashQuote
         eyebrow={a.t("about.quote.eyebrow")}
         reasons={[a.t("about.quote.r1"), a.t("about.quote.r2"), a.t("about.quote.r3")]}
@@ -255,7 +268,7 @@ export default async function HomePage() {
         command="synapth migrate --from codex"
       />
 
-      {/* 5 — Manifesto (`/about` redirects here). */}
+      {/* 6 — Manifesto (`/about` redirects here). */}
       <section id="manifesto" className="about-section container scroll-mt-16">
         <div className="mb-12 grid gap-6 xl:mb-16 xl:grid-cols-12 xl:items-end">
           <div className="xl:col-span-7">
@@ -289,7 +302,7 @@ export default async function HomePage() {
         />
       </section>
 
-      {/* 6 — Trending: the catalogue itself. */}
+      {/* 7 — Trending: the catalogue itself. */}
       <section className="container pb-24 xl:pb-40">
         <div className="mb-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
           <div>
@@ -309,7 +322,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 7 — Final CTA; the standard footer follows from the layout. */}
+      {/* 8 — Final CTA; the standard footer follows from the layout. */}
       <section className="container pb-8">
         <AboutCta title={a.t("about.cta.title")} primary={a.t("about.cta.primary")} secondary={a.t("about.cta.secondary")} />
       </section>
