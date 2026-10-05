@@ -180,7 +180,7 @@ export default async function HomePage() {
             <Link href="/search?tab=skills" className="about-btn about-btn-primary h-12 px-7 text-base">
               {t("common.exploreRegistry")} <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
-            <CommandChip command={`curl -H 'X-Agent-Request: true' ${APP_URL}/api/v1/skills?q=postgres`} />
+            <CommandChip command={`curl -fsSL ${APP_URL.replace(/\/$/, "")}/cli/install | sh`} />
           </Reveal>
 
           <div className="pointer-events-none absolute inset-x-6 bottom-5 hidden justify-center md:flex">

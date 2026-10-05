@@ -13,7 +13,7 @@ COPY prisma ./prisma
 RUN npm ci
 
 FROM dependencies AS builder
-ARG NEXT_PUBLIC_APP_URL=https://synapth.localhost8081.ru
+ARG NEXT_PUBLIC_APP_URL=https://synapth.ru
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     SYNAPTH_STANDALONE=1
 COPY . .

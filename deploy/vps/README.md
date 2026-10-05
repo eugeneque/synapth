@@ -58,7 +58,7 @@ set through `TRAEFIK_NETWORK`, `TRAEFIK_ENTRYPOINT`, and
 
 ## 2. Configure DNS and firewall
 
-Create `A` records for `synapth.localhost8081.ru` and
+Create `A` records for `synapth.ru` and
 `pga.localhost8081.ru` pointing to the VPS. Add `AAAA` records only if IPv6 is
 configured on the host. Allow inbound TCP 80 and 443 for Traefik and the chosen
 SSH port. Do not open 3000, 5050, or 5432: Compose does not publish these ports.
@@ -124,8 +124,8 @@ then set `SYNAPTH_EMAIL_VERIFICATION=1`. With the example value `0`, password
 accounts are accepted without email confirmation. OAuth callback URLs are:
 
 ```text
-https://synapth.localhost8081.ru/api/auth/callback/github
-https://synapth.localhost8081.ru/api/auth/callback/google
+https://synapth.ru/api/auth/callback/github
+https://synapth.ru/api/auth/callback/google
 ```
 
 ## 4. Give GitHub Actions SSH access

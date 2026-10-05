@@ -4,7 +4,7 @@
  * local Synapth MCP server through which those agents install skills
  * themselves.
  *
- *   curl -fsSL https://<synapth>/cli/install | sh
+ *   curl -fsSL https://synapth.ru/cli/install | sh
  *   synapth setup                 # link, pick an agent, connect Synapth MCP
  *   synapth install <slug>        # or just `synapth` for the interactive menu
  *
@@ -683,7 +683,10 @@ function loadConfig() {
 }
 
 const saveConfig = (cfg) => writeJson(CONFIG, cfg, 0o600);
-const baseUrl = (cfg) => (env.SYNAPTH_URL || cfg.baseUrl || "http://localhost:3000").replace(/\/$/, "");
+const DEFAULT_URL = "https://synapth.ru";
+// Pre-launch staging host that early installers saved into config.json.
+const LEGACY_HOST = /^https?:\/\/synapth\.localhost8081\.ru(?=\/|$)/;
+const baseUrl = (cfg) => (env.SYNAPTH_URL || cfg.baseUrl || DEFAULT_URL).replace(LEGACY_HOST, DEFAULT_URL).replace(/\/$/, "");
 const loadState = () => {
   const rows = readJson(STATE, []);
   return Array.isArray(rows) ? rows : [];
