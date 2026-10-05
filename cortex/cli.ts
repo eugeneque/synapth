@@ -19,7 +19,7 @@ import { prisma, hasDatabase } from "@/cortex/db";
 import { getProfile } from "@/cortex/account";
 import { currentPlanId, effectiveStatus, getSubscriptionRow } from "@/cortex/payments";
 import { skillRepository, hydratePrompt } from "@/cortex/repository";
-import { getSkillset, skillsetSkills } from "@/cortex/skillsets";
+import { getSkillset, listSkillsets, skillsetSkills } from "@/cortex/skillsets";
 import { cliBundle } from "@/lib/cli-bundle";
 import { ownerPolicy, type Caller } from "@/cortex/api-keys";
 import { runAgentTool } from "@/cortex/agent";
@@ -35,6 +35,8 @@ import {
   compareVersions,
   type CliInstallVia,
   type CliRecommendation,
+  type CliSearchRow,
+  type CliSkillsetRow,
   type CliBundle,
   type CliDeviceInfo,
   type CliErrorCode,
@@ -450,13 +452,36 @@ export async function cliRecommend(caller: CliCaller, task: string, target: CliT
   }));
 }
 
-/** Compact rows for `synapth search` (listed entries only, like every other surface). */
-export async function cliSearch(q: string, limit = 10) {
+/**
+ * Compact rows for `synapth search` and the `search_skills` MCP tool: listed
+ * entries plus skillsets (packs) matching the query. `results` keeps its old
+ * shape, so CLIs that predate packs just ignore `skillsets`.
+ */
+export async function cliSearch(q: string, limit = 10): Promise<{ results: CliSearchRow[]; skillsets: CliSkillsetRow[] }> {
   const res = await skillRepository.search(q, { limit: Math.min(Math.max(limit, 1), 30) });
-  return res.hits
+  const results = res.hits
     .map((h) => h.skill)
     .filter((s) => isListed(s.securityLevel))
     .map((s) => ({ slug: s.slug, name: s.name, description: s.description.slice(0, 160), category: s.category, securityLevel: s.securityLevel, version: s.version, entrypoint: s.manifest.entrypoint.type }));
+
+  const found = await listSkillsets({ q, limit: 5, sort: "popular" });
+  const skillsets: CliSkillsetRow[] = [];
+  for (const summary of found) {
+    const set = await getSkillset(summary.slug);
+    if (!set) continue;
+    const entries = (await skillsetSkills(set)).filter((s) => isListed(s.securityLevel));
+    if (!entries.length) continue;
+    skillsets.push({
+      slug: summary.slug,
+      name: summary.name,
+      summary: summary.summary.slice(0, 160),
+      verified: summary.verified,
+      favorites: summary.favorites,
+      entries: entries.slice(0, 8).map((s) => ({ slug: s.slug, name: s.name, securityLevel: s.securityLevel })),
+      total: entries.length,
+    });
+  }
+  return { results, skillsets };
 }
 
 /** Test helper. */

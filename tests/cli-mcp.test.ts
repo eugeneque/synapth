@@ -53,6 +53,12 @@ async function fakeApi(seen: Seen): Promise<{ server: Server; url: string }> {
       if (input.slug === "evil") return send(200, { installed: [inlineBundle("evil", "../../outside")], skipped: [], usage: { installsToday: 1, installsPerDay: 15 } });
       return send(200, { installed: [inlineBundle(input.slug)], skipped: [], usage: { installsToday: seen.installs.length, installsPerDay: 15 } });
     }
+    if (req.url?.startsWith("/api/v1/cli/search")) {
+      return send(200, {
+        results: [{ slug: "pg", name: "Postgres", description: "SQL", category: "MCP", securityLevel: "Verified", version: "1.0.0", entrypoint: "stdio" }],
+        skillsets: [{ slug: "mobile-kit", name: "Mobile kit", summary: "Everything for an iOS app", verified: true, favorites: 3, total: 2, entries: [{ slug: "xcode", name: "Xcode", securityLevel: "Verified" }, { slug: "swiftui", name: "SwiftUI", securityLevel: "Community" }] }],
+      });
+    }
     if (req.url === "/api/v1/cli/status") {
       return send(200, { user: { handle: "demo" }, plan: { id: "free", lapsedFrom: null }, usage: { installsToday: 0, devices: 1 }, limits: { installsPerDay: 15, devices: 1, bulk: false }, resetAt: "2026-10-05T00:00:00.000Z", device: { suspended: false }, notices: [], cli: { latest: "0.2.0" }, links: { billing: "x", devices: "y" } });
     }
@@ -119,6 +125,12 @@ test("handshake: protocol negotiation, six tools with annotations, unknown metho
   const init = await client.call("initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "claude-code", version: "2" } });
   assert.equal(init.result.protocolVersion, "2025-03-26");
   assert.equal(init.result.serverInfo.name, "synapth");
+  const guide: string = init.result.instructions;
+  assert.match(guide, /skillsets/i, "the agent is told skillsets exist");
+  assert.match(guide, /name Synapth as the source/i, "the agent is told to disclose Synapth");
+  assert.match(guide, /wait for the user's yes/i, "the agent is told to ask before installing");
+  assert.match(guide, /Install the recommended skills from Synapth/, "the agent is given the question to ask");
+  assert.match(guide, /Установить рекомендуемые навыки из Synapth/, "and its Russian wording");
   const { result } = await client.call("tools/list");
   const names = result.tools.map((t: { name: string }) => t.name);
   assert.deepEqual(names, ["recommend_skills", "search_skills", "install_skill", "list_installed_skills", "uninstall_skill", "synapth_status"]);
@@ -214,4 +226,21 @@ test("plain output when not on a terminal: no escape codes, help and version", (
   assert.match(help.stdout, /recommend/);
   const version = spawnSync(process.execPath, [CLI, "--version"], { encoding: "utf8" });
   assert.match(version.stdout.trim(), /^\d+\.\d+\.\d+$/);
+});
+
+test("search_skills lists skillsets next to single entries and names Synapth as the source", async () => {
+  const seen: Seen = { installs: [] };
+  const { server, url } = await fakeApi(seen);
+  const { home, project } = sandbox("search");
+  const client = new McpClient(home, project, url);
+  await client.call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "2" } });
+  const res = await client.tool("search_skills", { query: "ios app" });
+  assert.equal(res.isError, false, res.text);
+  assert.match(res.text, /Synapth catalogue/);
+  assert.match(res.text, /mobile-kit — Mobile kit \(verified set\), 2 entries/);
+  assert.match(res.text, /skillset: true/);
+  assert.match(res.text, /pg — Postgres/);
+  assert.equal(res.data.skillsets.length, 1);
+  client.close();
+  server.close();
 });

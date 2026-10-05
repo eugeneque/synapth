@@ -25,6 +25,7 @@
     "rescan": "node --env-file-if-exists=.env --import tsx scripts/rescan.ts",
     "setup": "node scripts/install.mjs",
     "cli:build": "node scripts/build-cli.mjs",
+    "cli:hands": "node scripts/gen-cli-hands.mjs",
     "synapth": "tsx cli/synapth.mjs"
   },
   "dependencies": {
