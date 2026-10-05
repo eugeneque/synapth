@@ -60,7 +60,7 @@ jobs:
           target: runner
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          build-args: NEXT_PUBLIC_APP_URL=https://synapth.localhost8081.ru
+          build-args: NEXT_PUBLIC_APP_URL=https://synapth.ru
           cache-from: type=gha,scope=application
           cache-to: type=gha,mode=max,scope=application
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

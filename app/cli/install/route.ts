@@ -79,8 +79,8 @@ main() {
   VERSION=$("$DIR/bin/synapth" --version 2>/dev/null || echo "?")
   ok "synapth $VERSION ${sh("D")}→ $DIR/bin/synapth${sh("R")}"
 
-  # Remember which Synapth this CLI talks to (an existing choice wins).
-  node -e 'const fs=require("fs"),[f,u]=process.argv.slice(1);let c={};try{c=JSON.parse(fs.readFileSync(f,"utf8"))}catch(e){}if(!c.baseUrl){c.baseUrl=u;fs.writeFileSync(f,JSON.stringify(c,null,2)+"\n",{mode:0o600})}' "$DIR/config.json" "$BASE"
+  # Remember which Synapth this CLI talks to (an existing choice wins, except the retired staging host).
+  node -e 'const fs=require("fs"),[f,u]=process.argv.slice(1);let c={};try{c=JSON.parse(fs.readFileSync(f,"utf8"))}catch(e){}if(!c.baseUrl||/^https?:\/\/synapth\.localhost8081\.ru(\/|$)/.test(c.baseUrl)){c.baseUrl=u;fs.writeFileSync(f,JSON.stringify(c,null,2)+"\n",{mode:0o600})}' "$DIR/config.json" "$BASE"
 
   # 3 · PATH -------------------------------------------------------------------
   stepline 3 4 "Command"
