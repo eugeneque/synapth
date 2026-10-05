@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { AsciiHands } from "@/components/ascii-hands";
 import { SkillCard } from "@/components/skill-card";
 import { StatTile } from "@/components/panel";
-import { CommandChip } from "@/components/copy-button";
+import { CliInstall } from "@/components/cli-install";
 import { Ribbons } from "@/components/about/ribbons";
 import { GhostText } from "@/components/about/ghost-text";
 import { Scramble } from "@/components/about/scramble";
@@ -163,7 +163,7 @@ export default async function HomePage() {
       <section id="hero" data-pixel-glow className="relative overflow-hidden border-b border-[var(--line)]">
         <AsciiHands className="absolute inset-0 h-full w-full" />
 
-        <div className="container relative flex min-h-[780px] flex-col items-center justify-start pt-12 text-center md:min-h-[max(840px,calc(360px_+_34vw))] md:pt-24">
+        <div className="container relative flex min-h-[780px] flex-col items-center justify-start pb-20 pt-12 text-center md:min-h-[max(840px,calc(360px_+_34vw))] md:pt-24">
           <div className="about-chip about-mono mb-8 h-8 gap-3 px-3.5">
             <span className="about-pulse" />
             <Scramble text={t("home.hero.indexed", { n: formatCompact(all.length) })} />
@@ -180,7 +180,9 @@ export default async function HomePage() {
             <Link href="/search?tab=skills" className="about-btn about-btn-primary h-12 px-7 text-base">
               {t("common.exploreRegistry")} <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
-            <CommandChip command={`curl -fsSL ${APP_URL.replace(/\/$/, "")}/cli/install | sh`} />
+          </Reveal>
+          <Reveal className="mt-8 w-full max-w-2xl">
+            <CliInstall origin={APP_URL} />
           </Reveal>
 
           <div className="pointer-events-none absolute inset-x-6 bottom-5 hidden justify-center md:flex">

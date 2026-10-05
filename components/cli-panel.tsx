@@ -16,9 +16,11 @@ import { issueCliKey, revokeCliKey, unlinkCliDevice } from "@/app/(site)/dashboa
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
+import { CliInstall } from "@/components/cli-install";
 import { Spinner } from "@/components/ui/spinner";
 import { isUnlimited, type PlanId } from "@/types/billing";
 import type { CliDeviceInfo, CliLinkKeyInfo } from "@/types/cli";
+import { cliInstallCommand } from "@/lib/cli-install";
 import { cn, timeAgo } from "@/lib/utils";
 
 export interface CliPanelState {
@@ -48,7 +50,6 @@ export function CliPanel({ initial, origin }: { initial: CliPanelState; origin: 
   const [pending, startTransition] = useTransition();
   const { linkKey, devices, limits, installsToday, plan } = initial;
   const limit = (n: number) => (isUnlimited(n) ? "∞" : String(n));
-  const installCmd = `curl -fsSL ${origin}/cli/install | sh`;
 
   function issue() {
     if (linkKey && !window.confirm(t("cli.key.rotateConfirm"))) return;
@@ -109,7 +110,7 @@ export function CliPanel({ initial, origin }: { initial: CliPanelState; origin: 
       {/* 1 · install. */}
       <div className="space-y-2">
         <p className="label-mono-sm">{t("cli.step.install")}</p>
-        <Command code={installCmd} />
+        <CliInstall origin={origin} variant="panel" />
         <p className="text-[11px] text-muted-foreground">{t("cli.step.installHint")}</p>
       </div>
 
@@ -140,7 +141,7 @@ export function CliPanel({ initial, origin }: { initial: CliPanelState; origin: 
             <p className="text-xs text-warn">{t("cli.key.once")}</p>
             <Command code={`synapth link ${issued}`} />
             <p className="text-[11px] text-muted-foreground">{t("cli.key.oneLiner")}</p>
-            <Command code={`curl -fsSL ${origin}/cli/install | sh -s -- ${issued}`} />
+            <Command code={cliInstallCommand(origin, issued)} />
           </div>
         ) : linkKey ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted px-3 py-2">
