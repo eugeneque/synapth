@@ -1148,13 +1148,22 @@ async function doLink(cfg, key, args) {
 
 const KEY_RE = /^slk_[0-9A-Za-z]{32}$/;
 
+/** Why a pasted value is not a link key; API keys and device tokens look alike, so name them. */
+function linkKeyProblem(value) {
+  if (KEY_RE.test(value)) return "";
+  if (/^(sk_live_|syn_)/.test(value)) return "That is an API key (for MCP/REST). The CLI needs a link key: Settings → CLI → Generate key, it starts with slk_";
+  if (value.startsWith("sdt_")) return "That is a device token. Paste the link key from Settings → CLI, it starts with slk_";
+  return "A link key is slk_ followed by 32 letters and digits (Settings → CLI)";
+}
+
 async function cmdLink(cfg, args) {
   let key = args._[1];
   if (!key && interactive()) {
     print(c.dim(`  Issue a key in Settings → CLI: ${baseUrl(cfg)}/dashboard/settings#cli`));
-    key = await input({ message: "Paste your link key", mask: true, placeholder: "slk_…", validate: (v) => (KEY_RE.test(v) ? "" : "A link key is slk_ followed by 32 letters and digits") });
+    key = await input({ message: "Paste your link key", mask: true, placeholder: "slk_…", validate: linkKeyProblem });
   }
-  if (!key || !key.startsWith("slk_")) throw new CliFail("Usage: synapth link <slk_… key>", "Issue the key in Settings → CLI on the Synapth website");
+  if (!key) throw new CliFail("Usage: synapth link <slk_… key>", "Issue the key in Settings → CLI on the Synapth website");
+  if (linkKeyProblem(key)) throw new CliFail(linkKeyProblem(key), `${baseUrl(cfg)}/dashboard/settings#cli`);
   await doLink(cfg, key, args);
 }
 
@@ -1413,7 +1422,7 @@ async function cmdSetup(cfg, args) {
   }
   if (!cfg.token) {
     print(c.dim(`  Get a key in Settings → CLI: ${baseUrl(cfg)}/dashboard/settings#cli`));
-    const key = await input({ message: "Paste your link key", mask: true, placeholder: "slk_…", validate: (v) => (KEY_RE.test(v) ? "" : "A link key is slk_ followed by 32 letters and digits") });
+    const key = await input({ message: "Paste your link key", mask: true, placeholder: "slk_…", validate: linkKeyProblem });
     await doLink(cfg, key, args);
   }
 
