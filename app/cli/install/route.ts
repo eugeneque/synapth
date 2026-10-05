@@ -4,11 +4,17 @@
  *   curl -fsSL <origin>/cli/install | sh               # install, then the setup wizard
  *   curl -fsSL <origin>/cli/install | sh -s -- slk_…   # install and link this machine
  *
- * Checks Node 18+, downloads /cli/synapth.mjs into ~/.synapth/bin, links
- * `synapth` into a writable directory on PATH, remembers the origin, then
+ * One script for macOS and Linux (bash 3.2 as macOS /bin/sh, dash, busybox):
+ * detects the system, checks Node 18+ (with a package-manager hint), downloads
+ * /cli/synapth.mjs into ~/.synapth/bin, links `synapth` into a writable
+ * directory on PATH (or names the shell's rc file), remembers the origin, then
  * hands the terminal to `synapth setup` (keyboard via /dev/tty, since stdin
  * is the pipe). Animations only on a colour TTY; `NO_COLOR`/`CI` get plain
- * lines, `SYNAPTH_NO_SETUP=1` skips the wizard.
+ * lines, `SYNAPTH_NO_SETUP=1` skips the wizard. Windows shells (Git Bash,
+ * MSYS, Cygwin) are turned away to WSL until /cli/install.ps1 is ready.
+ *
+ * Expansions right before a non-ASCII byte must be braced: bash 3.2 in a
+ * UTF-8 locale reads the byte as part of the name (tests/cli.test.ts).
  */
 
 import { enforceRequestLimit } from "@/cortex/rate-limit";
@@ -55,11 +61,18 @@ main() {
 
   # 1 · environment ---------------------------------------------------------
   stepline 1 4 "Environment"
-  command -v node >/dev/null 2>&1 || fail "Node.js 18+ is required — https://nodejs.org (or: brew install node)"
+  OS=$(uname -s 2>/dev/null || echo unknown)
+  case "$OS" in
+    Darwin) OS_NAME="macOS $(sw_vers -productVersion 2>/dev/null || true)" ;;
+    Linux) OS_NAME=$(linux_name) ;;
+    MINGW* | MSYS* | CYGWIN* | Windows_NT) fail "The Windows installer is coming soon — for now run this command inside WSL" ;;
+    *) fail "Unsupported system: $OS (the installer supports macOS and Linux)" ;;
+  esac
+  command -v node >/dev/null 2>&1 || fail "Node.js 18+ is required — $(node_hint)"
   NODE_V=$(node --version 2>/dev/null || echo "?")
-  node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' || fail "Node.js 18+ is required, found $NODE_V"
+  node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' || fail "Node.js 18+ is required, found $NODE_V — $(node_hint)"
   command -v curl >/dev/null 2>&1 || fail "curl is required"
-  ok "Node $NODE_V · $(uname -s) $(uname -m)"
+  ok "${sh("OS_NAME")} · $(uname -m) · Node $NODE_V"
 
   # 2 · download --------------------------------------------------------------
   stepline 2 4 "Download"
@@ -89,15 +102,15 @@ main() {
   if [ -n "$LINKED" ]; then
     ok "synapth ${sh("D")}→ $LINKED/synapth${sh("R")}"
   else
-    warn "Add ~/.local/bin to PATH:  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    path_hint
   fi
 
   # 4 · agents -----------------------------------------------------------------
   stepline 4 4 "Agents on this machine"
   FOUND=0
   agent "Claude Code" "$(has_claude_code)"
-  agent "Cursor" "$( { command -v cursor >/dev/null 2>&1 || [ -d "$HOME/.cursor" ]; } && echo 1 || echo 0)"
-  agent "Claude Desktop" "$( { [ -d "$HOME/Library/Application Support/Claude" ] || [ -d "$HOME/.config/Claude" ]; } && echo 1 || echo 0)"
+  agent "Cursor" "$(has_cursor)"
+  agent "Claude Desktop" "$(has_claude_desktop)"
   [ "$FOUND" = 0 ] && warn "No agents found yet — skills can still be installed with --target"
 
   say ""
@@ -193,6 +206,46 @@ link_bin() {
 }
 
 has_claude_code() { { command -v claude >/dev/null 2>&1 || [ -d "$HOME/.claude" ]; } && echo 1 || echo 0; }
+has_cursor() { { command -v cursor >/dev/null 2>&1 || [ -d "$HOME/.cursor" ] || [ -d "/Applications/Cursor.app" ]; } && echo 1 || echo 0; }
+has_claude_desktop() {
+  if [ "$OS" = Darwin ]; then cfg="$HOME/Library/Application Support/Claude"; else cfg="${sh("XDG_CONFIG_HOME:-$HOME/.config")}/Claude"; fi
+  [ -d "$cfg" ] && echo 1 || echo 0
+}
+
+# "Ubuntu 24.04.1 LTS" from os-release, else "Linux".
+linux_name() {
+  if [ -r /etc/os-release ]; then
+    (. /etc/os-release && printf '%s' "${sh("PRETTY_NAME:-Linux")}") 2>/dev/null && return 0
+  fi
+  printf 'Linux'
+}
+
+# How to get Node 18+ on this system.
+node_hint() {
+  if [ "$OS" = Darwin ]; then
+    command -v brew >/dev/null 2>&1 && { printf 'brew install node'; return; }
+    printf 'https://nodejs.org/en/download'; return
+  fi
+  if command -v apt-get >/dev/null 2>&1; then printf 'sudo apt-get install -y nodejs (Debian 12+/Ubuntu 24.04+), or https://nodejs.org/en/download'
+  elif command -v dnf >/dev/null 2>&1; then printf 'sudo dnf install -y nodejs'
+  elif command -v pacman >/dev/null 2>&1; then printf 'sudo pacman -S nodejs'
+  elif command -v apk >/dev/null 2>&1; then printf 'sudo apk add nodejs'
+  elif command -v zypper >/dev/null 2>&1; then printf 'sudo zypper install nodejs22'
+  else printf 'https://nodejs.org/en/download'
+  fi
+}
+
+# synapth landed in ~/.local/bin, which is not on PATH: name the line for this shell.
+path_hint() {
+  case "$(basename "${sh("SHELL:-sh")}")" in
+    fish) warn "Add ~/.local/bin to PATH:  fish_add_path ~/.local/bin"; return ;;
+    zsh) rc="~/.zshrc" ;;
+    bash) if [ "$OS" = Darwin ]; then rc="~/.bash_profile"; else rc="~/.bashrc"; fi ;;
+    *) rc="~/.profile" ;;
+  esac
+  warn "Add ~/.local/bin to PATH:  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> $rc"
+  say "    ${sh("D")}then open a new terminal, or run ~/.synapth/bin/synapth directly${sh("R")}"
+}
 
 agent() {
   if [ "$2" = 1 ]; then
