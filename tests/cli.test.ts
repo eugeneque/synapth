@@ -187,3 +187,10 @@ test("agents (via mcp) never get Sandbox, even with allowSandbox; recommend runs
     assert.ok(r.items.every((i) => i.trust !== "Sandbox" && i.trust !== "Quarantine"), "the owner policy keeps Sandbox out");
   }
 });
+
+test("installer: no bare $VAR right before a non-ASCII byte (bash 3.2 in a UTF-8 locale reads it as part of the name)", async () => {
+  const { GET } = await import("@/app/cli/install/route");
+  const script = await (await GET(new Request("http://localhost:3000/cli/install"))).text();
+  assert.ok(script.startsWith("#!/bin/sh"));
+  assert.deepEqual(script.match(/\$[A-Za-z_][A-Za-z0-9_]*(?=[^\x00-\x7f])/g) ?? [], []);
+});
